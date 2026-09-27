@@ -13,7 +13,13 @@ const fallback: Course[] = [
 ]
 async function load() {
   loading.value = true
-  try { courses.value = (await courseApi.search({ keyword: filters.keyword, tags: filters.tag || undefined, limit: filters.size })).data.data }
+  try {
+    if (filters.keyword || filters.tag) {
+      courses.value = (await courseApi.search({ keyword: filters.keyword, tags: filters.tag || undefined, limit: filters.size })).data.data
+    } else {
+      courses.value = (await courseApi.list({ page: filters.current, size: filters.size })).data.data.records
+    }
+  }
   catch { courses.value = fallback }
   finally { loading.value = false }
 }

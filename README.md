@@ -123,7 +123,7 @@ VITE_API_BASE_URL=/api
 
 ## 主要 API
 
-接口基础路径为 `/api`，所有业务接口返回统一结构 `{ code, message, data, traceId }`，详情以 Swagger 为准。
+接口基础路径为 `/api`，所有业务接口返回统一结构 `{ code, message, data, timestamp }`，详情以 Swagger 为准。
 
 | 模块 | 方法与路径 | 说明 |
 | --- | --- | --- |
