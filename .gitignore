@@ -11,6 +11,7 @@ node_modules/
 dist/
 
 # Local configuration and secrets
+.local/
 .env
 .env.*
 !.env.example
