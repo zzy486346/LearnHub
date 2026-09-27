@@ -1,0 +1,70 @@
+# LearnHub 开发协作约定
+
+本文件适用于仓库根目录及其全部子目录。所有参与本项目的开发者与自动化编码代理都必须遵守。
+
+## 1. 核心原则
+
+- 使用中文编写面向团队的说明文档，代码命名、包名和提交信息保持清晰一致。
+- 以可运行、可验证、可回滚为交付标准；不得以“代码已写完”代替测试与验证。
+- 优先复用现有实现和成熟模式，避免无必要的依赖、抽象和跨模块耦合。
+- 任何密钥、私钥、访问令牌、数据库密码不得提交到仓库；使用环境变量和本地配置文件注入。
+
+## 2. Git 强制规范
+
+**每次完成一次文件修改后，都必须立即创建 Git commit。不得把已完成的修改长期留在工作区，也不得在未提交前开始下一项独立修改。**
+
+- 一个 commit 只承载一个可描述、可验证的逻辑变更。
+- 修改前执行 `git status --short`，确认并保护他人已有改动。
+- 修改后先检查 `git diff`，完成对应验证，再执行 `git add` 和 `git commit`。
+- 提交前不得跳过失败的测试；若受环境限制无法运行，必须在交付说明中明确记录。
+- 禁止使用 `git reset --hard`、强制推送或覆盖他人改动，除非用户明确授权。
+- 提交信息采用 Conventional Commits 风格：
+  - `feat: add course search api`
+  - `fix: prevent duplicate seckill orders`
+  - `docs: add mvp implementation plan`
+  - `test: cover token refresh rotation`
+  - `refactor: simplify like event aggregation`
+- 每次提交后执行 `git status --short`，确认工作区是否符合预期。
+
+## 3. 技术与目录约定
+
+- Java 版本固定为 JDK 17。
+- 构建工具使用 Maven 3.9.10，Windows 路径：`D:\Android\apache-maven-3.9.10\bin\mvn.cmd`。
+- 后端采用 Spring Boot、MyBatis-Plus、MySQL、Redis、RabbitMQ、Redisson、Elasticsearch。
+- 推荐 Maven 多模块结构：
+  - `learnhub-common`：通用返回、异常、常量、工具与基础设施契约。
+  - `learnhub-pojo`：实体、DTO、VO、枚举。
+  - `learnhub-server`：Web、应用服务、安全、持久化、消息消费、定时任务。
+  - `sql`：建表、索引和最小种子数据。
+  - `learnhub-web`：前端工程或静态资源。
+- Controller 只负责协议转换与参数校验；业务规则放在 Service；Mapper 只处理持久化。
+- 所有表必须包含主键、创建时间、更新时间；需要逻辑删除的表统一使用 `deleted` 字段。
+
+## 4. 实现与安全要求
+
+- 秒杀库存校验与预扣必须由 Lua 在 Redis 中原子完成；数据库写入通过 RabbitMQ 削峰，消费端必须幂等。
+- 分布式锁只保护必要的临界区，必须设置租约或使用可靠的看门狗机制，并在 `finally` 中安全释放。
+- 点赞使用 Redis Set 保证用户维度幂等；异步事件和落库任务必须可重试、可去重、可对账。
+- JWT 使用 RS256；访问令牌有效期 15 分钟，刷新令牌有效期 7 天；刷新令牌只保存摘要或不可逆标识，不记录明文。
+- 所有外部输入必须校验；日志不得打印密码、完整令牌、私钥或个人敏感信息。
+- Elasticsearch 只作为检索索引，MySQL 是业务数据事实源；索引同步必须支持补偿与重建。
+
+## 5. 验证要求
+
+- 优先运行与改动直接相关的单元测试和集成测试。
+- 后端变更至少执行：
+  - `D:\Android\apache-maven-3.9.10\bin\mvn.cmd test`
+  - 交付前执行 `D:\Android\apache-maven-3.9.10\bin\mvn.cmd verify`
+- 涉及 Redis、RabbitMQ、MySQL 或 Elasticsearch 的功能，应提供 Testcontainers 或可复现的本地集成验证方案。
+- 涉及并发一致性的功能，必须覆盖重复请求、消息重投、消费失败、缓存丢失和服务重启场景。
+- 文档变更至少检查 Markdown 结构、命令路径、术语与实际目录是否一致。
+
+## 6. 完成定义
+
+一项任务只有在以下条件全部满足时才算完成：
+
+1. 需求对应的代码或文档已实现；
+2. 验证已通过，或验证缺口已明确说明；
+3. 没有误提交密钥、构建产物或本地配置；
+4. 改动已经创建 Git commit；
+5. `git status --short` 中不存在属于该任务但尚未处理的修改。
