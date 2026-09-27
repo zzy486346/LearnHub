@@ -1,0 +1,63 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: learnhub-server
+  datasource:
+    url: ${LEARNHUB_DB_URL:jdbc:mysql://localhost:3306/learnhub?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${LEARNHUB_DB_USERNAME:learnhub}
+    password: ${LEARNHUB_DB_PASSWORD:learnhub}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${LEARNHUB_REDIS_HOST:localhost}
+      port: ${LEARNHUB_REDIS_PORT:6379}
+      password: ${LEARNHUB_REDIS_PASSWORD:}
+  rabbitmq:
+    host: ${LEARNHUB_RABBITMQ_HOST:localhost}
+    port: ${LEARNHUB_RABBITMQ_PORT:5672}
+    username: ${LEARNHUB_RABBITMQ_USERNAME:learnhub}
+    password: ${LEARNHUB_RABBITMQ_PASSWORD:learnhub}
+    publisher-confirm-type: correlated
+    listener:
+      simple:
+        acknowledge-mode: auto
+        retry:
+          enabled: true
+          max-attempts: 3
+  elasticsearch:
+    uris: ${LEARNHUB_ES_URIS:http://localhost:9200}
+  jackson:
+    default-property-inclusion: non_null
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: assign_id
+      logic-delete-field: deleted
+
+learnhub:
+  jwt:
+    access-token-ttl: PT15M
+    refresh-token-ttl: P7D
+    private-key-location: ${LEARNHUB_JWT_PRIVATE_KEY_PATH:classpath:keys/private.pem}
+    public-key-location: ${LEARNHUB_JWT_PUBLIC_KEY_PATH:classpath:keys/public.pem}
+  features:
+    messaging-enabled: ${LEARNHUB_MESSAGING_ENABLED:true}
+    search-enabled: ${LEARNHUB_SEARCH_ENABLED:true}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
