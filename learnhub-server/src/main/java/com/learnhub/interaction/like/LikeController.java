@@ -1,5 +1,6 @@
 package com.learnhub.interaction.like;
 
+import com.learnhub.common.api.ApiResponse;
 import com.learnhub.auth.security.LearnHubPrincipal;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -14,23 +15,23 @@ public class LikeController {
     }
 
     @PutMapping("/{type}/{targetId}")
-    public LikeResult like(@AuthenticationPrincipal LearnHubPrincipal principal,
+    public ApiResponse<LikeResult> like(@AuthenticationPrincipal LearnHubPrincipal principal,
                            @PathVariable LikeTargetType type,
                            @PathVariable Long targetId) {
-        return service.setLike(principal.userId(), type, targetId, true);
+        return ApiResponse.success(service.setLike(principal.userId(), type, targetId, true));
     }
 
     @DeleteMapping("/{type}/{targetId}")
-    public LikeResult unlike(@AuthenticationPrincipal LearnHubPrincipal principal,
+    public ApiResponse<LikeResult> unlike(@AuthenticationPrincipal LearnHubPrincipal principal,
                              @PathVariable LikeTargetType type,
                              @PathVariable Long targetId) {
-        return service.setLike(principal.userId(), type, targetId, false);
+        return ApiResponse.success(service.setLike(principal.userId(), type, targetId, false));
     }
 
     @GetMapping("/{type}/{targetId}")
-    public LikeResult status(@AuthenticationPrincipal LearnHubPrincipal principal,
+    public ApiResponse<LikeResult> status(@AuthenticationPrincipal LearnHubPrincipal principal,
                              @PathVariable LikeTargetType type,
                              @PathVariable Long targetId) {
-        return service.status(principal.userId(), type, targetId);
+        return ApiResponse.success(service.status(principal.userId(), type, targetId));
     }
 }
