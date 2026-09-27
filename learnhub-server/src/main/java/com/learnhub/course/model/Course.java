@@ -15,7 +15,7 @@ public class Course {
     private String instructor;
     private Long categoryId;
     private BigDecimal price;
-    private Integer status;
+    private String status;
     private Long likeCount;
 
     public Long getId() { return id; }
@@ -32,8 +32,8 @@ public class Course {
     public void setCategoryId(Long categoryId) { this.categoryId = categoryId; }
     public BigDecimal getPrice() { return price; }
     public void setPrice(BigDecimal price) { this.price = price; }
-    public Integer getStatus() { return status; }
-    public void setStatus(Integer status) { this.status = status; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
     public Long getLikeCount() { return likeCount; }
     public void setLikeCount(Long likeCount) { this.likeCount = likeCount; }
 }

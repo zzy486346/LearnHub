@@ -15,7 +15,7 @@ public class CourseService {
     public Page<Course> list(long page, long size, Long categoryId, String keyword) {
         long safePage = Math.max(1, page);
         long safeSize = Math.min(50, Math.max(1, size));
-        LambdaQueryWrapper<Course> query = new LambdaQueryWrapper<Course>().eq(Course::getStatus, 1)
+        LambdaQueryWrapper<Course> query = new LambdaQueryWrapper<Course>().eq(Course::getStatus, "PUBLISHED")
                 .eq(categoryId != null, Course::getCategoryId, categoryId)
                 .like(keyword != null && !keyword.isBlank(), Course::getTitle, keyword)
                 .orderByDesc(Course::getLikeCount).orderByDesc(Course::getId);
@@ -24,7 +24,7 @@ public class CourseService {
 
     public Course detail(Long id) {
         Course course = courseMapper.selectOne(new LambdaQueryWrapper<Course>()
-                .eq(Course::getId, id).eq(Course::getStatus, 1));
+                .eq(Course::getId, id).eq(Course::getStatus, "PUBLISHED"));
         if (course == null) throw new BusinessException("课程不存在或未上架");
         return course;
     }

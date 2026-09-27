@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 
 @TableName("learning_progress")
 public class LearningProgress {
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
     private Long userId;
     private Long lessonId;
