@@ -18,12 +18,12 @@
 - 修改后先检查 `git diff`，完成对应验证，再执行 `git add` 和 `git commit`。
 - 提交前不得跳过失败的测试；若受环境限制无法运行，必须在交付说明中明确记录。
 - 禁止使用 `git reset --hard`、强制推送或覆盖他人改动，除非用户明确授权。
-- 提交信息采用 Conventional Commits 风格：
-  - `feat: add course search api`
-  - `fix: prevent duplicate seckill orders`
-  - `docs: add mvp implementation plan`
-  - `test: cover token refresh rotation`
-  - `refactor: simplify like event aggregation`
+- 提交信息必须使用中文，并采用 Conventional Commits 风格：
+  - `feat: 新增课程搜索接口`
+  - `fix: 修复秒杀订单重复创建问题`
+  - `docs: 补充 MVP 实现方案`
+  - `test: 增加刷新令牌轮换测试`
+  - `refactor: 简化点赞事件聚合逻辑`
 - 每次提交后执行 `git status --short`，确认工作区是否符合预期。
 
 ## 3. 技术与目录约定
