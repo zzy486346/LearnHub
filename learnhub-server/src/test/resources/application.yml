@@ -7,6 +7,5 @@ spring:
       - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration
       - org.redisson.spring.starter.RedissonAutoConfigurationV2
 learnhub:
-  features:
-    messaging-enabled: false
-    search-enabled: false
+  rabbit:
+    enabled: false

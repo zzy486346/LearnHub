@@ -40,14 +40,13 @@ mybatis-plus:
       logic-delete-field: deleted
 
 learnhub:
+  rabbit:
+    enabled: ${LEARNHUB_MESSAGING_ENABLED:true}
   jwt:
     access-token-ttl: PT15M
     refresh-token-ttl: P7D
     private-key-location: ${LEARNHUB_JWT_PRIVATE_KEY_PATH:classpath:keys/private.pem}
     public-key-location: ${LEARNHUB_JWT_PUBLIC_KEY_PATH:classpath:keys/public.pem}
-  features:
-    messaging-enabled: ${LEARNHUB_MESSAGING_ENABLED:true}
-    search-enabled: ${LEARNHUB_SEARCH_ENABLED:true}
 
 management:
   endpoints:
