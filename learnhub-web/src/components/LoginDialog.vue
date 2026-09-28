@@ -58,6 +58,7 @@ async function focusUsername() {
     v-model="visible"
     class="login-dialog"
     modal-class="login-dialog-overlay"
+    transition="login-corner-pop"
     width="min(440px, calc(100vw - 32px))"
     append-to-body
     destroy-on-close
