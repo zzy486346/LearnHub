@@ -11,6 +11,7 @@ const submitting = ref(false)
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
+let entranceAnimation: Animation | undefined
 
 async function submit() {
   if (!form.username || !form.password) {
@@ -51,6 +52,33 @@ async function focusUsername() {
   await nextTick()
   document.querySelector<HTMLInputElement>('.login-dialog input')?.focus()
 }
+
+async function playEntrance() {
+  await nextTick()
+  const dialog = document.querySelector<HTMLElement>('.login-dialog')
+  if (!dialog) return
+
+  entranceAnimation?.cancel()
+  const animation = dialog.animate(
+    [
+      { opacity: 0, filter: 'blur(5px)', transform: 'translate3d(180px, -120px, 0) scale(.88)' },
+      { opacity: 1, filter: 'blur(0)', transform: 'translate3d(-8px, 5px, 0) scale(1.012)', offset: .58 },
+      { opacity: 1, filter: 'blur(0)', transform: 'translate3d(0, 0, 0) scale(1)' },
+    ],
+    { duration: 560, easing: 'cubic-bezier(.16, 1, .3, 1)', fill: 'both' },
+  )
+  entranceAnimation = animation
+
+  try {
+    await animation.finished
+  } catch {
+    // A repeated open cancels the previous animation intentionally.
+  }
+  if (entranceAnimation === animation) {
+    animation.cancel()
+    entranceAnimation = undefined
+  }
+}
 </script>
 
 <template>
@@ -66,6 +94,7 @@ async function focusUsername() {
     :close-on-click-modal="!submitting"
     :close-on-press-escape="!submitting"
     aria-labelledby="login-dialog-title"
+    @open="playEntrance"
     @opened="focusUsername"
     @closed="handleClosed"
   >

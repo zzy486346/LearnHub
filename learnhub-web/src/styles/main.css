@@ -353,11 +353,6 @@ body { color:var(--ink); background:#fff; }
   animation: none !important;
 }
 
-.login-dialog-overlay.login-corner-pop-enter-active .login-dialog {
-  animation: login-dialog-corner-in .52s cubic-bezier(.16, 1, .3, 1) both !important;
-  will-change: transform, opacity, filter;
-}
-
 .login-dialog-overlay.login-corner-pop-leave-active .login-dialog {
   animation: login-dialog-corner-out .2s ease-in both !important;
   will-change: transform, opacity;
@@ -366,24 +361,6 @@ body { color:var(--ink); background:#fff; }
 .login-dialog-overlay.login-corner-pop-enter-from,
 .login-dialog-overlay.login-corner-pop-leave-to {
   opacity: 0;
-}
-
-@keyframes login-dialog-corner-in {
-  0% {
-    opacity: 0;
-    filter: blur(5px);
-    transform: translate3d(180px, -120px, 0) scale(.88);
-  }
-  58% {
-    opacity: 1;
-    filter: blur(0);
-    transform: translate3d(-8px, 5px, 0) scale(1.012);
-  }
-  100% {
-    opacity: 1;
-    filter: blur(0);
-    transform: translate3d(0, 0, 0) scale(1);
-  }
 }
 
 @keyframes login-dialog-corner-out {
