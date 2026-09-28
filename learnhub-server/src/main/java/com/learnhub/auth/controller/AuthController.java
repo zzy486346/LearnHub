@@ -1,6 +1,7 @@
 package com.learnhub.auth.controller;
 
 import com.learnhub.auth.dto.LoginRequest;
+import com.learnhub.auth.dto.CurrentUserResponse;
 import com.learnhub.auth.dto.RefreshTokenRequest;
 import com.learnhub.auth.dto.RegisterRequest;
 import com.learnhub.auth.dto.TokenResponse;
@@ -47,7 +48,7 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ApiResponse<LearnHubPrincipal> me(@AuthenticationPrincipal LearnHubPrincipal principal) {
-        return ApiResponse.success(principal);
+    public ApiResponse<CurrentUserResponse> me(@AuthenticationPrincipal LearnHubPrincipal principal) {
+        return ApiResponse.success(authService.currentUser(principal.userId()));
     }
 }

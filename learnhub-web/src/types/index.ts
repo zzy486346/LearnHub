@@ -1,7 +1,7 @@
 export interface ApiResult<T> { code: string; message: string; data: T; timestamp?: string }
 export interface PageResult<T> { records: T[]; total: number; current: number; size: number }
 export interface TokenPair { tokenType: string; accessToken: string; refreshToken: string; accessExpiresIn: number; refreshExpiresIn: number }
-export interface User { id?: number; userId?: number; username: string; nickname?: string; avatarUrl?: string; roles?: string[] }
+export interface User { id: number; username: string; nickname: string; avatarUrl?: string; roles?: string[] }
 export interface Course {
   id: number; title: string; subtitle?: string; coverUrl?: string; description?: string
   teacherName?: string; instructor?: string; price?: number; likeCount?: number; favoriteCount?: number

@@ -2,6 +2,7 @@ package com.learnhub.auth.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.learnhub.auth.dto.LoginRequest;
+import com.learnhub.auth.dto.CurrentUserResponse;
 import com.learnhub.auth.dto.RefreshTokenRequest;
 import com.learnhub.auth.dto.RegisterRequest;
 import com.learnhub.auth.dto.TokenResponse;
@@ -60,6 +61,14 @@ public class AuthService {
         } catch (JwtException | IllegalArgumentException exception) {
             throw new BusinessException("刷新令牌无效");
         }
+    }
+
+    public CurrentUserResponse currentUser(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null || !"ACTIVE".equals(user.getStatus())) {
+            throw new BusinessException("用户不存在或已停用");
+        }
+        return new CurrentUserResponse(user.getId(), user.getUsername(), user.getNickname());
     }
 
     public void logout(String accessToken, String refreshToken) {
