@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { nextTick, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 
 const visible = defineModel<boolean>({ required: true })
+const emit = defineEmits<{ closed: [] }>()
 const form = reactive({ username: '', password: '' })
 const submitting = ref(false)
 const auth = useAuthStore()
@@ -40,35 +41,53 @@ function goRegister() {
 function resetForm() {
   if (!submitting.value) Object.assign(form, { username: '', password: '' })
 }
+
+function handleClosed() {
+  resetForm()
+  emit('closed')
+}
+
+async function focusUsername() {
+  await nextTick()
+  document.querySelector<HTMLInputElement>('.login-dialog input')?.focus()
+}
 </script>
 
 <template>
   <el-dialog
     v-model="visible"
     class="login-dialog"
-    width="min(420px, calc(100vw - 32px))"
-    align-center
+    modal-class="login-dialog-overlay"
+    width="min(440px, calc(100vw - 32px))"
     append-to-body
     destroy-on-close
     :show-close="false"
-    aria-label="登录问课尚学"
-    @closed="resetForm"
+    :close-on-click-modal="!submitting"
+    :close-on-press-escape="!submitting"
+    aria-labelledby="login-dialog-title"
+    @opened="focusUsername"
+    @closed="handleClosed"
   >
+    <div class="login-dialog-aurora" aria-hidden="true"><span></span><span></span><span></span></div>
     <div class="login-dialog-head">
-      <div class="login-dialog-brand"><span>问</span><strong>欢迎回来</strong></div>
+      <div class="login-dialog-brand"><span>问</span><div><small>LEARNHUB ACCOUNT</small><strong id="login-dialog-title">欢迎回来</strong></div></div>
       <button type="button" class="dialog-close" aria-label="关闭登录窗口" @click="visible = false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
       </button>
     </div>
-    <p class="login-dialog-copy">登录后继续你的学习旅程</p>
-    <el-form label-position="top" @keyup.enter="submit">
+    <p class="login-dialog-copy">连接课程、问答与学习进度，继续你的成长旅程。</p>
+    <el-form label-position="top" @submit.prevent="submit">
       <el-form-item label="用户名">
-        <el-input v-model="form.username" size="large" autocomplete="username" placeholder="请输入用户名" autofocus />
+        <el-input v-model="form.username" size="large" autocomplete="username" placeholder="请输入用户名">
+          <template #prefix><svg class="input-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z" /></svg></template>
+        </el-input>
       </el-form-item>
       <el-form-item label="密码">
-        <el-input v-model="form.password" type="password" show-password size="large" autocomplete="current-password" placeholder="请输入密码" />
+        <el-input v-model="form.password" type="password" show-password size="large" autocomplete="current-password" placeholder="请输入密码">
+          <template #prefix><svg class="input-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg></template>
+        </el-input>
       </el-form-item>
-      <el-button type="primary" size="large" :loading="submitting" class="full dialog-submit" @click="submit">登录</el-button>
+      <el-button type="primary" native-type="submit" size="large" :loading="submitting" class="full dialog-submit"><span>登录并继续学习</span></el-button>
     </el-form>
     <p class="login-dialog-footer">还没有账号？<button type="button" @click="goRegister">免费注册</button></p>
   </el-dialog>

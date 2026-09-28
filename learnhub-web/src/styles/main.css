@@ -252,3 +252,291 @@ body { color:var(--ink); background:#fff; }
 @media (max-width:560px) {
   .question-detail-card { padding:28px 22px; border-radius:20px; }.question-detail-card h1 { font-size:30px; }.question-meta { flex-direction:column; }.answer-card { padding:22px; }
 }
+/* Login experience: gradient entry, spatial dialog motion, and richer surfaces. */
+.login-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid rgba(255, 255, 255, .72);
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(112deg, #4b5eff 0%, #7868f8 46%, #28bfd8 100%);
+  background-size: 180% 100%;
+  box-shadow: 0 10px 24px rgba(75, 94, 255, .24), inset 0 1px 0 rgba(255, 255, 255, .28);
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .24s ease, box-shadow .24s ease, background-position .35s ease;
+}
+
+.login-link svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform .24s ease;
+}
+
+.login-link:hover {
+  color: #fff;
+  background-position: 100% 0;
+  box-shadow: 0 14px 30px rgba(75, 94, 255, .3), 0 4px 14px rgba(40, 191, 216, .18);
+  transform: translateY(-2px);
+}
+
+.login-link:hover svg { transform: translateX(2px); }
+.login-link:active { transform: translateY(0) scale(.98); }
+
+.login-link:focus-visible {
+  outline: 3px solid rgba(99, 215, 239, .42);
+  outline-offset: 3px;
+}
+
+.register-link.el-button {
+  min-height: 44px;
+  border-color: rgba(75, 94, 255, .2);
+  color: #4251d8;
+  background: linear-gradient(120deg, rgba(75, 94, 255, .1), rgba(99, 215, 239, .14));
+  box-shadow: none;
+  transition: transform .24s ease, border-color .24s ease, box-shadow .24s ease;
+}
+
+.register-link.el-button:hover {
+  border-color: rgba(75, 94, 255, .42);
+  color: #3444d3;
+  background: linear-gradient(120deg, rgba(75, 94, 255, .14), rgba(99, 215, 239, .2));
+  box-shadow: 0 8px 20px rgba(75, 94, 255, .12);
+  transform: translateY(-1px);
+}
+
+.login-dialog-overlay.el-overlay {
+  background: rgba(19, 25, 54, .34) !important;
+  backdrop-filter: blur(8px) saturate(1.08);
+}
+
+.login-dialog-overlay .el-overlay-dialog {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  padding: 88px max(24px, calc((100vw - 1240px) / 2));
+  overflow-y: auto;
+}
+
+.login-dialog.el-dialog {
+  position: relative;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(75, 94, 255, .14);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, .97);
+  box-shadow: 0 30px 80px rgba(25, 32, 82, .25), 0 10px 30px rgba(75, 94, 255, .12);
+  transform-origin: top right;
+}
+
+.login-dialog-overlay.dialog-fade-enter-active { transition: opacity .28s ease-out; }
+.login-dialog-overlay.dialog-fade-leave-active { transition: opacity .2s ease-in; }
+
+.login-dialog-overlay.dialog-fade-enter-active .login-dialog,
+.login-dialog-overlay.dialog-fade-leave-active .login-dialog {
+  animation: none !important;
+  transition: opacity .28s ease, transform .38s cubic-bezier(.22, 1, .36, 1), filter .28s ease;
+}
+
+.login-dialog-overlay.dialog-fade-leave-active .login-dialog { transition-duration: .2s; }
+
+.login-dialog-overlay.dialog-fade-enter-from .login-dialog {
+  opacity: 0;
+  filter: blur(3px);
+  transform: translate3d(42px, -28px, 0) scale(.96);
+}
+
+.login-dialog-overlay.dialog-fade-leave-to .login-dialog {
+  opacity: 0;
+  transform: translate3d(24px, -16px, 0) scale(.98);
+}
+
+.login-dialog-aurora {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 148px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 14% 15%, rgba(255, 155, 101, .2), transparent 32%),
+    radial-gradient(circle at 84% 4%, rgba(99, 215, 239, .3), transparent 38%),
+    linear-gradient(135deg, rgba(75, 94, 255, .12), rgba(255, 255, 255, 0) 68%);
+}
+
+.login-dialog .el-dialog__header,
+.login-dialog .el-dialog__body {
+  position: relative;
+  z-index: 1;
+}
+
+.login-dialog-brand > div,
+.login-page-brand > div {
+  display: grid;
+  gap: 2px;
+}
+
+.login-dialog-brand small,
+.login-page-brand small {
+  color: #6570a2;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .16em;
+}
+
+.login-dialog .el-input__wrapper,
+.login-page-card .el-input__wrapper {
+  min-height: 46px;
+  border-radius: 13px;
+  background: rgba(248, 250, 255, .9);
+  box-shadow: 0 0 0 1px rgba(75, 94, 255, .1) inset;
+  transition: box-shadow .24s ease, background-color .24s ease, transform .24s ease;
+}
+
+.login-dialog .el-input__wrapper:hover,
+.login-page-card .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px rgba(75, 94, 255, .25) inset;
+}
+
+.login-dialog .el-input__wrapper.is-focus,
+.login-page-card .el-input__wrapper.is-focus {
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(75, 94, 255, .28) inset, 0 7px 18px rgba(75, 94, 255, .08);
+  transform: translateY(-1px);
+}
+
+.input-icon {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: #7380b5;
+}
+
+.login-dialog .dialog-close {
+  width: 44px;
+  height: 44px;
+}
+
+.dialog-submit.el-button {
+  width: 100%;
+  min-height: 46px;
+  border: 0;
+  border-radius: 13px;
+  background: linear-gradient(112deg, #4b5eff 0%, #7868f8 48%, #28bfd8 100%);
+  background-size: 180% 100%;
+  box-shadow: 0 12px 28px rgba(75, 94, 255, .24);
+  font-weight: 750;
+  transition: transform .24s ease, box-shadow .24s ease, background-position .35s ease;
+}
+
+.dialog-submit.el-button:hover,
+.dialog-submit.el-button:focus-visible {
+  background-position: 100% 0;
+  box-shadow: 0 16px 32px rgba(75, 94, 255, .3), 0 5px 16px rgba(40, 191, 216, .15);
+  transform: translateY(-2px);
+}
+
+.dialog-submit.el-button:active { transform: translateY(0) scale(.99); }
+
+.login-page {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(255, 155, 101, .16), transparent 26%),
+    radial-gradient(circle at 88% 14%, rgba(99, 215, 239, .22), transparent 30%),
+    linear-gradient(145deg, #f7f8ff 0%, #f5fbff 48%, #fff9f5 100%);
+}
+
+.login-page-orb {
+  position: absolute;
+  z-index: -1;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  filter: blur(3px);
+  opacity: .7;
+  animation: login-orb-drift 8s ease-in-out infinite alternate;
+}
+
+.login-page-orb-one {
+  top: 5%;
+  right: 8%;
+  background: radial-gradient(circle, rgba(99, 215, 239, .34), transparent 68%);
+}
+
+.login-page-orb-two {
+  bottom: 2%;
+  left: 5%;
+  background: radial-gradient(circle, rgba(120, 104, 248, .23), transparent 70%);
+  animation-delay: -3s;
+}
+
+@keyframes login-orb-drift {
+  to { transform: translate3d(18px, -14px, 0) scale(1.05); }
+}
+
+.login-page-card {
+  position: relative;
+  border-color: rgba(75, 94, 255, .12);
+  background: rgba(255, 255, 255, .92);
+  box-shadow: 0 28px 70px rgba(42, 51, 104, .16);
+  backdrop-filter: blur(16px);
+}
+
+.login-page-card::before {
+  position: absolute;
+  inset: 0 18px auto;
+  height: 3px;
+  border-radius: 0 0 999px 999px;
+  background: linear-gradient(90deg, #ff9b65, #7868f8 52%, #63d7ef);
+  content: '';
+}
+
+@media (max-width: 800px) {
+  .login-dialog-overlay .el-overlay-dialog {
+    padding: 78px 14px 18px;
+  }
+
+  .login-dialog.el-dialog {
+    width: min(440px, calc(100vw - 28px)) !important;
+    max-height: calc(100dvh - 96px);
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .header-actions .login-link { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-link,
+  .login-link svg,
+  .register-link.el-button,
+  .dialog-submit.el-button,
+  .login-dialog-overlay,
+  .login-dialog-overlay .login-dialog,
+  .login-page-orb {
+    animation: none !important;
+    transition-duration: .01ms !important;
+  }
+
+  .login-dialog-overlay.dialog-fade-enter-from .login-dialog,
+  .login-dialog-overlay.dialog-fade-leave-to .login-dialog {
+    filter: none;
+    transform: none;
+  }
+}

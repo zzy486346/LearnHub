@@ -23,11 +23,12 @@ async function submit() {
 
 <template>
   <section class="login-page">
-    <el-card class="auth-card login-page-card"><div class="login-page-brand"><span>问</span></div><h2>登录问课尚学</h2><p class="muted">继续你的学习旅程</p>
-      <el-form label-position="top" @keyup.enter="submit">
+    <div class="login-page-orb login-page-orb-one" aria-hidden="true"></div><div class="login-page-orb login-page-orb-two" aria-hidden="true"></div>
+    <el-card class="auth-card login-page-card"><div class="login-page-brand"><span>问</span><small>LEARNHUB ACCOUNT</small></div><h2>登录问课尚学</h2><p class="muted">连接课程、问答与学习进度，继续你的学习旅程。</p>
+      <el-form label-position="top" @submit.prevent="submit">
         <el-form-item label="用户名"><el-input v-model="form.username" size="large" autocomplete="username" placeholder="请输入用户名" /></el-form-item>
         <el-form-item label="密码"><el-input v-model="form.password" type="password" show-password size="large" autocomplete="current-password" placeholder="请输入密码" /></el-form-item>
-        <el-button type="primary" size="large" :loading="submitting" class="full" @click="submit">登录</el-button>
+        <el-button type="primary" native-type="submit" size="large" :loading="submitting" class="full dialog-submit">登录并继续学习</el-button>
       </el-form><p class="center muted">还没有账号？<RouterLink to="/register">立即注册</RouterLink></p>
     </el-card>
   </section>

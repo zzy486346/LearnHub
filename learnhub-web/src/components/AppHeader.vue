@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import LoginDialog from '@/components/LoginDialog.vue'
@@ -8,6 +8,7 @@ const auth = useAuthStore()
 const router = useRouter()
 const mobileOpen = ref(false)
 const loginDialogOpen = ref(false)
+let lastLoginTrigger: HTMLElement | null = null
 onMounted(() => auth.fetchMe().catch(() => undefined))
 
 async function logout() {
@@ -20,9 +21,15 @@ function closeMenu() {
   mobileOpen.value = false
 }
 
-function openLogin() {
+function openLogin(event?: MouseEvent) {
   mobileOpen.value = false
+  lastLoginTrigger = event?.currentTarget as HTMLElement | null
   loginDialogOpen.value = true
+}
+
+async function restoreLoginFocus() {
+  await nextTick()
+  lastLoginTrigger?.focus()
 }
 </script>
 
@@ -46,8 +53,11 @@ function openLogin() {
           <el-button text @click="logout">退出</el-button>
       </template>
       <template v-else>
-          <button type="button" class="login-link" @click="openLogin">登录</button>
-          <el-button type="primary" round @click="router.push('/register')">免费注册</el-button>
+          <button type="button" class="login-link" aria-haspopup="dialog" :aria-expanded="loginDialogOpen" @click="openLogin($event)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" /></svg>
+            <span>登录</span>
+          </button>
+          <el-button class="register-link" round @click="router.push('/register')">免费注册</el-button>
       </template>
       </div>
       <button class="menu-toggle" type="button" :aria-expanded="mobileOpen" aria-controls="mobile-navigation" aria-label="切换导航菜单" @click="mobileOpen = !mobileOpen">
@@ -60,8 +70,8 @@ function openLogin() {
       <RouterLink to="/coupons" @click="closeMenu">学习权益</RouterLink>
       <RouterLink v-if="auth.authenticated" to="/profile" @click="closeMenu">个人中心</RouterLink>
       <RouterLink v-if="auth.isAdmin" to="/admin" @click="closeMenu">管理后台</RouterLink>
-      <button v-if="!auth.authenticated" type="button" @click="openLogin">登录</button>
+      <button v-if="!auth.authenticated" type="button" :aria-expanded="loginDialogOpen" aria-haspopup="dialog" @click="openLogin($event)">登录</button>
     </nav>
-    <LoginDialog v-model="loginDialogOpen" />
+    <LoginDialog v-model="loginDialogOpen" @closed="restoreLoginFocus" />
   </header>
 </template>
