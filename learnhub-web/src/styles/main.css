@@ -321,10 +321,10 @@ body { color:var(--ink); background:#fff; }
 
 .login-dialog-overlay .el-overlay-dialog {
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
   box-sizing: border-box;
-  padding: 88px max(24px, calc((100vw - 1240px) / 2));
+  padding: 24px;
   overflow-y: auto;
 }
 
@@ -508,7 +508,7 @@ body { color:var(--ink); background:#fff; }
 
 @media (max-width: 800px) {
   .login-dialog-overlay .el-overlay-dialog {
-    padding: 78px 14px 18px;
+    padding: 18px 14px;
   }
 
   .login-dialog.el-dialog {
