@@ -63,6 +63,13 @@ docker compose -f deploy/docker-compose.yml ps
 
 首次创建 MySQL 数据卷时会自动执行 `sql/schema.sql` 和 `sql/seed.sql`。若数据卷已存在，初始化脚本不会重复执行。
 
+种子数据包含课程、优惠券以及 5 个问题和 9 条回答。问答署名使用不可登录的演示作者账号；问答演示数据使用固定的 `6001～6099`、`7001～7099` ID 范围，可安全重复初始化而不会影响用户创建的其他问答。已有数据卷需要刷新演示数据时执行：
+
+```powershell
+docker cp sql/seed.sql deploy-mysql-1:/tmp/seed.sql
+docker exec deploy-mysql-1 mysql --default-character-set=utf8mb4 -ulearnhub -plearnhub -D learnhub -e "source /tmp/seed.sql"
+```
+
 如果数据库由早期版本初始化并出现中文乱码，可执行一次：
 
 ```powershell
