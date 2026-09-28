@@ -18,24 +18,24 @@
 
 | Role | Hex | CSS Variable |
 |------|-----|--------------|
-| Primary | `#0D7457` | `--color-primary` |
+| Primary | `#4B5EFF` | `--color-primary` |
 | On Primary | `#FFFFFF` | `--color-on-primary` |
-| Secondary | `#C9F45B` | `--color-secondary` |
-| On Secondary | `#12342B` | `--color-on-secondary` |
-| Accent/CTA | `#EE7548` | `--color-accent` |
+| Secondary | `#63D7EF` | `--color-secondary` |
+| On Secondary | `#1D2129` | `--color-on-secondary` |
+| Accent/CTA | `#FF9B65` | `--color-accent` |
 | On Accent/CTA | `#FFFFFF` | `--color-on-accent` |
-| Background | `#F4F7F3` | `--color-background` |
-| Foreground | `#12342B` | `--color-foreground` |
+| Background | `#FFFFFF` | `--color-background` |
+| Foreground | `#1D2129` | `--color-foreground` |
 | Card | `#FFFFFF` | `--color-card` |
-| Card Foreground | `#12342B` | `--color-card-foreground` |
-| Muted | `#DFF2E9` | `--color-muted` |
-| Muted Foreground | `#64756F` | `--color-muted-foreground` |
-| Border | `#DFE7E2` | `--color-border` |
+| Card Foreground | `#1D2129` | `--color-card-foreground` |
+| Muted | `#EEF0FF` | `--color-muted` |
+| Muted Foreground | `#667085` | `--color-muted-foreground` |
+| Border | `#E8EAF0` | `--color-border` |
 | Destructive | `#DC2626` | `--color-destructive` |
 | On Destructive | `#FFFFFF` | `--color-on-destructive` |
 | Ring | `#0D9488` | `--color-ring` |
 
-**Color Notes:** 深绿表达可信与成长，青柠用于关键强调，橙色仅用于营销与高优先级提醒。
+**Color Notes:** 蓝紫表达专业、技术与成长；青色和薄荷绿承担辅助信息；暖橙用于权益与高优先级提醒；黑色承担主按钮与正文对比。
 
 ### Typography
 
@@ -164,13 +164,13 @@ font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 
 ## Style Guidelines
 
-**Style:** Modern editorial learning platform
+**Style:** Bright spatial learning platform
 
-**Keywords:** Structured hierarchy, generous whitespace, deep-green brand surfaces, subtle elevation, rounded cards, restrained motion
+**Keywords:** Light lavender scenes, structured hierarchy, 3D learning illustration, generous whitespace, multi-color functional accents, subtle floating motion
 
 **Best For:** 职业教育、课程发现、学习社区与个人成长工具
 
-**Key Effects:** 柔和阴影、低透明度品牌渐变、200ms 状态过渡、清晰聚焦环
+**Key Effects:** 浅蓝紫场景渐变、透明 3D 插画、柔和悬浮阴影、200–300ms 状态过渡、低频呼吸动效、清晰聚焦环
 
 ### Page Pattern
 

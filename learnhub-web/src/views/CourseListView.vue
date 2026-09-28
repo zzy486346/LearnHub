@@ -37,34 +37,47 @@ function scrollToCourses() {
 </script>
 
 <template><section class="home-page">
-  <div class="hero">
+  <div class="hero hero-v2">
     <div class="hero-copy">
-      <p class="eyebrow"><span class="status-dot"></span> 职业教育 · 系统成长</p>
-      <h1>在真实项目中，<br /><span>长出解决问题的能力</span></h1>
-      <p class="hero-description">从系统课程到同行问答，把每一个知识点转化为可复用的实践经验。</p>
+      <p class="hero-kicker">快乐学习，轻松进阶</p>
+      <h1>从零开始，<br /><span>学会真正能用的技术</span></h1>
+      <p class="hero-description">系统课程、项目实战与同行问答，让每一次学习都能解决一个真实问题。</p>
       <div class="hero-actions">
-        <el-button type="primary" size="large" round @click="scrollToCourses">开始探索</el-button>
-        <RouterLink class="text-action" to="/questions">去问答社区 <span aria-hidden="true">→</span></RouterLink>
+        <el-button type="primary" size="large" round @click="scrollToCourses">立即学习</el-button>
+        <RouterLink class="text-action" to="/questions"><span class="play-icon" aria-hidden="true">▶</span> 逛逛问答社区</RouterLink>
       </div>
       <div class="hero-proof" aria-label="平台数据">
-        <div><strong>20+</strong><span>实战课程</span></div>
-        <div><strong>1.2k</strong><span>学习伙伴</span></div>
-        <div><strong>98%</strong><span>学习好评</span></div>
+        <div><strong>20+</strong><span>体系课程</span></div>
+        <div><strong>1,200+</strong><span>学习伙伴</span></div>
+        <div><strong>98%</strong><span>课程好评</span></div>
       </div>
     </div>
-    <div class="hero-panel" aria-label="学习路径预览">
-      <div class="hero-panel-head"><span>本周学习路径</span><small>进阶路线</small></div>
-      <div class="path-item is-active"><span class="path-number">01</span><div><strong>掌握核心原理</strong><small>构建扎实知识体系</small></div><span class="path-state">进行中</span></div>
-      <div class="path-item"><span class="path-number">02</span><div><strong>完成项目实践</strong><small>从需求到可运行系统</small></div></div>
-      <div class="path-item"><span class="path-number">03</span><div><strong>参与社区共创</strong><small>用分享验证理解</small></div></div>
-      <div class="panel-note"><span class="note-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18"/></svg></span><div><strong>保持连续学习</strong><small>今天再前进一点点</small></div></div>
+    <div class="hero-visual" aria-hidden="true">
+      <div class="visual-glow"></div>
+      <img src="/images/learnhub-hero-v2.png" width="1152" height="768" alt="" />
+      <div class="floating-pill pill-course"><span></span> 实战课程持续更新</div>
+      <div class="floating-pill pill-growth"><b>+28%</b><small>本周学习进度</small></div>
     </div>
   </div>
 
   <div class="search-dock" role="search">
     <div class="search-input"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg><el-input v-model="filters.keyword" size="large" placeholder="搜索课程、技能或讲师" clearable @keyup.enter="load" /></div>
-    <el-button type="primary" size="large" @click="load">搜索课程</el-button>
+    <el-button type="primary" size="large" aria-label="搜索课程" @click="load"><span class="search-label-full">搜索课程</span><span class="search-label-short">搜索</span></el-button>
   </div>
+
+  <section class="audience-section" aria-labelledby="audience-title">
+    <div class="audience-intro">
+      <p class="eyebrow">PERSONALIZED PATH</p>
+      <h2 id="audience-title">不同阶段，<br />都有清晰路径</h2>
+      <p>根据你的基础与目标，找到适合自己的下一步。</p>
+      <span class="audience-line"></span>
+    </div>
+    <div class="audience-cards">
+      <article><span class="role-index">01</span><div class="role-icon role-icon-blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m7 11 .1 5.3c2.7 2.2 7.1 2.2 9.8 0L17 11"/></svg></div><h3>零基础学习者</h3><p>从核心概念和开发工具入门，逐步完成第一个可运行项目。</p><RouterLink to="/courses">查看入门课 <span>→</span></RouterLink></article>
+      <article><span class="role-index">02</span><div class="role-icon role-icon-mint"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="m8 10 3 2-3 2m5 0h3"/></svg></div><h3>一线开发者</h3><p>围绕高并发、搜索与安全体系，补齐企业级项目能力。</p><RouterLink to="/courses">查看进阶课 <span>→</span></RouterLink></article>
+      <article><span class="role-index">03</span><div class="role-icon role-icon-orange"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9m6 10V5m6 14v-7m4 7H2"/><path d="m4 6 5-3 6 5 5-4"/></svg></div><h3>技术管理者</h3><p>建立系统设计视角，用真实案例提升架构决策与协作效率。</p><RouterLink to="/questions">交流实践经验 <span>→</span></RouterLink></article>
+    </div>
+  </section>
 
   <div id="featured-courses" class="section-heading">
     <div><p class="eyebrow">CURATED LEARNING</p><h2>精选课程</h2><p>按能力成长设计，让每一次学习都更接近真实工作。</p></div>
@@ -78,6 +91,15 @@ function scrollToCourses() {
     <div class="course-body"><div class="course-meta"><span>{{ course.tags?.slice(0, 2).join(' · ') || '职业技能' }}</span><span>{{ course.likeCount || 0 }} 人喜欢</span></div><h3>{{ course.title }}</h3><p>{{ course.subtitle || course.description }}</p><div class="course-footer"><span class="teacher-avatar">{{ (course.teacherName || course.instructor || '问').slice(0, 1) }}</span><span>{{ course.teacherName || course.instructor || '问课讲师' }}</span><span class="course-arrow" aria-hidden="true">→</span></div></div>
   </RouterLink></div>
   <el-empty v-if="!loading && !courses.length" description="暂时没有匹配的课程" />
+
+  <section class="benefits-section" aria-labelledby="benefits-title">
+    <div class="benefits-heading"><p class="eyebrow">WHY LEARNHUB</p><h2 id="benefits-title">不止是看完一门课</h2><p>从知识输入到问题解决，让成长真正发生。</p></div>
+    <div class="benefit-grid">
+      <article class="benefit-card benefit-purple"><div class="benefit-visual"><span class="visual-ring"></span><svg viewBox="0 0 80 80" aria-hidden="true"><rect x="13" y="18" width="54" height="42" rx="8"/><path d="M24 31h32M24 40h21M24 49h27"/></svg></div><h3>体系化学习</h3><p>课程围绕能力地图组织，告别碎片知识和重复试错。</p></article>
+      <article class="benefit-card benefit-green"><div class="benefit-visual"><span class="visual-ring"></span><svg viewBox="0 0 80 80" aria-hidden="true"><path d="M18 57V35l22-14 22 14v22L40 68 18 57Z"/><path d="m30 43 7 7 14-16"/></svg></div><h3>真实项目实践</h3><p>用高并发、认证和搜索等场景，把原理落到工程实现。</p></article>
+      <article class="benefit-card benefit-orange"><div class="benefit-visual"><span class="visual-ring"></span><svg viewBox="0 0 80 80" aria-hidden="true"><path d="M18 24h44v30H37L25 64V54h-7V24Z"/><circle cx="30" cy="39" r="2"/><circle cx="40" cy="39" r="2"/><circle cx="50" cy="39" r="2"/></svg></div><h3>同行问答陪伴</h3><p>遇到问题随时交流，用表达、反馈和讨论加深理解。</p></article>
+    </div>
+  </section>
 
   <section class="community-cta"><div><p class="eyebrow">LEARN TOGETHER</p><h2>问题不必独自解决</h2><p>把卡住你的问题说清楚，和学习伙伴一起找到答案。</p></div><RouterLink class="cta-link" to="/questions">进入问答社区 <span aria-hidden="true">→</span></RouterLink></section>
 </section></template>
