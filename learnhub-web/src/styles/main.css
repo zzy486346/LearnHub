@@ -212,8 +212,8 @@ body { color:var(--ink); background:#fff; }
 .dialog-submit { min-height:48px; margin-top:3px; border-radius:12px; box-shadow:0 11px 24px rgba(75,94,255,.2); }
 .login-dialog-footer { margin:22px 0 0; color:#7a8291; font-size:14px; text-align:center; }
 .login-dialog-footer button { padding:4px; border:0; color:var(--primary); background:transparent; font-weight:700; }
-.el-overlay { backdrop-filter:blur(7px); }
-.el-overlay-dialog { background:rgba(18,22,38,.28); }
+.el-overlay.el-modal-dialog { background:rgba(0,0,0,.45)!important; backdrop-filter:none!important; }
+.el-overlay-dialog { background:transparent!important; backdrop-filter:none!important; }
 .login-page { min-height:calc(100vh - 270px); display:grid; place-items:center; padding:42px 0; }
 .login-page-card { width:min(420px,100%); text-align:left; }
 .login-page-card .el-card__body { padding:30px 32px; }

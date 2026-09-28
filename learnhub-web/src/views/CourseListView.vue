@@ -39,14 +39,10 @@ function scrollToCourses() {
   const start = window.scrollY
   const distance = destination - start
 
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    window.scrollTo({ top: destination })
-    return
-  }
-
   if (scrollFrame !== undefined) window.cancelAnimationFrame(scrollFrame)
   const startedAt = window.performance.now()
-  const duration = Math.min(1000, Math.max(700, Math.abs(distance) * 0.55))
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const duration = reducedMotion ? 420 : Math.min(1000, Math.max(700, Math.abs(distance) * 0.55))
   const easeInOutCubic = (progress: number) => progress < 0.5
     ? 4 * progress * progress * progress
     : 1 - Math.pow(-2 * progress + 2, 3) / 2
