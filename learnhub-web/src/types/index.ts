@@ -9,6 +9,13 @@ export interface Course {
 }
 export interface Chapter { id: number; title: string; lessons: Lesson[] }
 export interface Lesson { id: number; title: string; durationSeconds?: number; freePreview?: boolean }
-export interface Question { id: number; title: string; content?: string; nickname?: string; answerCount?: number; answers?: unknown[]; likeCount?: number; createdAt?: string }
+export interface Question {
+  id: string; userId: string; nickname: string; courseId?: string; title: string; content: string
+  status: string; answerCount: number; likeCount: number; createdAt: string
+}
+export interface Answer {
+  id: string; questionId: string; userId: string; nickname: string; content: string
+  accepted: boolean; likeCount: number; createdAt: string
+}
 export interface Coupon { id: number; name: string; stock?: number; seckill?: boolean; discountAmount?: number; thresholdAmount?: number; availableStock?: number; type?: string; claimed?: boolean }
 export interface LikeState { liked: boolean; count: number }

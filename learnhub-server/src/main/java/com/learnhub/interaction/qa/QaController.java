@@ -2,11 +2,10 @@ package com.learnhub.interaction.qa;
 
 import com.learnhub.common.api.ApiResponse;
 import com.learnhub.auth.security.LearnHubPrincipal;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/questions")
@@ -24,8 +23,22 @@ public class QaController {
     }
 
     @GetMapping
-    public ApiResponse<List<Question>> list(@RequestParam(required = false) Long courseId) {
-        return ApiResponse.success(service.list(courseId));
+    public ApiResponse<Page<Question>> list(@RequestParam(defaultValue = "1") long page,
+                                            @RequestParam(defaultValue = "10") long size,
+                                            @RequestParam(required = false) Long courseId) {
+        return ApiResponse.success(service.list(page, size, courseId));
+    }
+
+    @GetMapping("/{questionId}")
+    public ApiResponse<Question> detail(@PathVariable Long questionId) {
+        return ApiResponse.success(service.detail(questionId));
+    }
+
+    @GetMapping("/{questionId}/answers")
+    public ApiResponse<Page<Answer>> answers(@PathVariable Long questionId,
+                                             @RequestParam(defaultValue = "1") long page,
+                                             @RequestParam(defaultValue = "20") long size) {
+        return ApiResponse.success(service.listAnswers(questionId, page, size));
     }
 
     @PostMapping("/{questionId}/answers")

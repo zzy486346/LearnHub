@@ -1,5 +1,5 @@
 import { http } from './http'
-import type { ApiResult, Coupon, Course, LikeState, PageResult, Question, TokenPair, User } from '@/types'
+import type { Answer, ApiResult, Coupon, Course, LikeState, PageResult, Question, TokenPair, User } from '@/types'
 
 export const authApi = {
   login: (body: { username: string; password: string }) => http.post<ApiResult<TokenPair>>('/auth/login', body),
@@ -21,8 +21,13 @@ export const courseApi = {
 }
 
 export const questionApi = {
-  list: (params: Record<string, unknown>) => http.get<ApiResult<Question[]>>('/questions', { params }),
-  create: (body: { title: string; content: string; courseId?: number }) => http.post<ApiResult<Question>>('/questions', body),
+  list: (params: Record<string, unknown>) => http.get<ApiResult<PageResult<Question>>>('/questions', { params }),
+  detail: (id: string | number) => http.get<ApiResult<Question>>(`/questions/${id}`),
+  answers: (id: string | number, params: Record<string, unknown>) =>
+    http.get<ApiResult<PageResult<Answer>>>(`/questions/${id}/answers`, { params }),
+  create: (body: { title: string; content: string; courseId?: string | number }) => http.post<ApiResult<Question>>('/questions', body),
+  answer: (id: string | number, body: { content: string }) =>
+    http.post<ApiResult<Question>>(`/questions/${id}/answers`, body),
 }
 
 export const couponApi = {
