@@ -341,7 +341,7 @@ body { color:var(--ink); background:#fff; }
 }
 
 .login-dialog-overlay.login-corner-pop-enter-active {
-  transition: opacity .3s ease-out;
+  transition: opacity .42s ease-out;
 }
 
 .login-dialog-overlay.login-corner-pop-leave-active {

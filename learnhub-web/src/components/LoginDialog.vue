@@ -62,10 +62,10 @@ async function playEntrance() {
   const animation = dialog.animate(
     [
       { opacity: 0, filter: 'blur(5px)', transform: 'translate3d(180px, -120px, 0) scale(.88)' },
-      { opacity: 1, filter: 'blur(0)', transform: 'translate3d(-8px, 5px, 0) scale(1.012)', offset: .58 },
+      { opacity: 1, filter: 'blur(0)', transform: 'translate3d(-8px, 5px, 0) scale(1.012)', offset: .66 },
       { opacity: 1, filter: 'blur(0)', transform: 'translate3d(0, 0, 0) scale(1)' },
     ],
-    { duration: 560, easing: 'cubic-bezier(.16, 1, .3, 1)', fill: 'both' },
+    { duration: 780, easing: 'cubic-bezier(.16, 1, .3, 1)', fill: 'both' },
   )
   entranceAnimation = animation
 
