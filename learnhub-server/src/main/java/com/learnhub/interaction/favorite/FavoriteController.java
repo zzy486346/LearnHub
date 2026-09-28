@@ -5,6 +5,7 @@ import com.learnhub.common.api.ApiResponse;
 import com.learnhub.interaction.like.LikeTargetType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,6 +18,13 @@ public class FavoriteController {
 
     public FavoriteController(FavoriteService service) {
         this.service = service;
+    }
+
+    @GetMapping("/{type}/{targetId}")
+    public ApiResponse<Boolean> status(@AuthenticationPrincipal LearnHubPrincipal principal,
+                                       @PathVariable LikeTargetType type,
+                                       @PathVariable Long targetId) {
+        return ApiResponse.success(service.exists(principal.userId(), type, targetId));
     }
 
     @PutMapping("/{type}/{targetId}")

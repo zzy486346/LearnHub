@@ -1,5 +1,5 @@
 import { http } from './http'
-import type { ApiResult, Coupon, Course, PageResult, Question, TokenPair, User } from '@/types'
+import type { ApiResult, Coupon, Course, LikeState, PageResult, Question, TokenPair, User } from '@/types'
 
 export const authApi = {
   login: (body: { username: string; password: string }) => http.post<ApiResult<TokenPair>>('/auth/login', body),
@@ -12,10 +12,12 @@ export const courseApi = {
   list: (params: Record<string, unknown>) => http.get<ApiResult<PageResult<Course>>>('/courses', { params }),
   detail: (id: string | number) => http.get<ApiResult<Course>>(`/courses/${id}`),
   search: (params: Record<string, unknown>) => http.get<ApiResult<Course[]>>('/search/courses', { params }),
-  favorite: (id: number) => http.put<ApiResult<void>>(`/favorites/COURSE/${id}`),
-  unfavorite: (id: number) => http.delete<ApiResult<void>>(`/favorites/COURSE/${id}`),
-  like: (id: number) => http.put<ApiResult<void>>(`/likes/COURSE/${id}`),
-  unlike: (id: number) => http.delete<ApiResult<void>>(`/likes/COURSE/${id}`),
+  favoriteStatus: (id: number) => http.get<ApiResult<boolean>>(`/favorites/COURSE/${id}`),
+  favorite: (id: number) => http.put<ApiResult<boolean>>(`/favorites/COURSE/${id}`),
+  unfavorite: (id: number) => http.delete<ApiResult<boolean>>(`/favorites/COURSE/${id}`),
+  likeStatus: (id: number) => http.get<ApiResult<LikeState>>(`/likes/COURSE/${id}`),
+  like: (id: number) => http.put<ApiResult<LikeState>>(`/likes/COURSE/${id}`),
+  unlike: (id: number) => http.delete<ApiResult<LikeState>>(`/likes/COURSE/${id}`),
 }
 
 export const questionApi = {
