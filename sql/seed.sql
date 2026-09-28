@@ -1,3 +1,4 @@
+SET NAMES utf8mb4;
 USE learnhub;
 
 INSERT IGNORE INTO course_category (id, name, sort_order, status) VALUES

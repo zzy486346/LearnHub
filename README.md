@@ -63,6 +63,13 @@ docker compose -f deploy/docker-compose.yml ps
 
 首次创建 MySQL 数据卷时会自动执行 `sql/schema.sql` 和 `sql/seed.sql`。若数据卷已存在，初始化脚本不会重复执行。
 
+如果数据库由早期版本初始化并出现中文乱码，可执行一次：
+
+```powershell
+docker cp sql/repair_seed_encoding.sql deploy-mysql-1:/tmp/repair_seed_encoding.sql
+docker exec deploy-mysql-1 mysql --default-character-set=utf8mb4 -ulearnhub -plearnhub -D learnhub -e "source /tmp/repair_seed_encoding.sql"
+```
+
 ### 2. 配置 JWT 密钥
 
 后端使用 RS256，私钥不能提交到 Git。生成本地密钥后，把路径通过环境变量传入：
