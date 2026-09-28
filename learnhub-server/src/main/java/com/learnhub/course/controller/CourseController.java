@@ -2,6 +2,7 @@ package com.learnhub.course.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.learnhub.common.api.ApiResponse;
+import com.learnhub.course.dto.CourseDetailResponse;
 import com.learnhub.course.model.Course;
 import com.learnhub.course.service.CourseService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,7 +26,7 @@ public class CourseController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<Course> detail(@PathVariable Long id) {
+    public ApiResponse<CourseDetailResponse> detail(@PathVariable Long id) {
         return ApiResponse.success(courseService.detail(id));
     }
 }
