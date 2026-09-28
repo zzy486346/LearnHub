@@ -13,7 +13,6 @@ spring:
     redis:
       host: ${LEARNHUB_REDIS_HOST:localhost}
       port: ${LEARNHUB_REDIS_PORT:6379}
-      password: ${LEARNHUB_REDIS_PASSWORD:}
   rabbitmq:
     host: ${LEARNHUB_RABBITMQ_HOST:localhost}
     port: ${LEARNHUB_RABBITMQ_PORT:5672}
@@ -45,8 +44,8 @@ learnhub:
   jwt:
     access-token-ttl: PT15M
     refresh-token-ttl: P7D
-    private-key-location: ${LEARNHUB_JWT_PRIVATE_KEY_PATH:classpath:keys/private.pem}
-    public-key-location: ${LEARNHUB_JWT_PUBLIC_KEY_PATH:classpath:keys/public.pem}
+    private-key-location: ${LEARNHUB_JWT_PRIVATE_KEY_PATH:}
+    public-key-location: ${LEARNHUB_JWT_PUBLIC_KEY_PATH:}
 
 management:
   endpoints:

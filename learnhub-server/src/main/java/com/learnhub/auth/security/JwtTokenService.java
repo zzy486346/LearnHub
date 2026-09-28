@@ -21,11 +21,15 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
 public class JwtTokenService {
+    private static final Logger log = LoggerFactory.getLogger(JwtTokenService.class);
     private static final String REFRESH_PREFIX = "auth:refresh:";
     private static final String DENY_PREFIX = "auth:deny:";
     private final JwtProperties properties;
@@ -34,6 +38,7 @@ public class JwtTokenService {
     private PrivateKey privateKey;
     private PublicKey publicKey;
 
+    @Autowired
     public JwtTokenService(JwtProperties properties, StringRedisTemplate redisTemplate) {
         this(properties, redisTemplate, Clock.systemUTC());
     }
@@ -47,7 +52,14 @@ public class JwtTokenService {
     @PostConstruct
     void initializeKeys() {
         try {
-            if (properties.getPrivateKeyLocation() != null && properties.getPublicKeyLocation() != null) {
+            boolean privateConfigured = properties.getPrivateKeyLocation() != null
+                    && properties.getPrivateKeyLocation().exists();
+            boolean publicConfigured = properties.getPublicKeyLocation() != null
+                    && properties.getPublicKeyLocation().exists();
+            if (privateConfigured != publicConfigured) {
+                throw new IllegalStateException("JWT private and public keys must be configured together");
+            }
+            if (privateConfigured) {
                 KeyFactory factory = KeyFactory.getInstance("RSA");
                 privateKey = factory.generatePrivate(new PKCS8EncodedKeySpec(
                         decodePem(properties.getPrivateKeyLocation().getContentAsString(StandardCharsets.UTF_8))));
@@ -59,6 +71,7 @@ public class JwtTokenService {
                 KeyPair pair = generator.generateKeyPair();
                 privateKey = pair.getPrivate();
                 publicKey = pair.getPublic();
+                log.warn("JWT RSA keys are not configured; generated an ephemeral development key pair");
             }
         } catch (Exception exception) {
             throw new IllegalStateException("Invalid RSA JWT key configuration", exception);

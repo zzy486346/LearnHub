@@ -80,7 +80,8 @@ $env:LEARNHUB_JWT_PUBLIC_KEY_PATH = "file:$((Resolve-Path .local/keys/public.pem
 ### 3. 启动后端
 
 ```powershell
-D:\Android\apache-maven-3.9.10\bin\mvn.cmd spring-boot:run -pl learnhub-server -am
+D:\Android\apache-maven-3.9.10\bin\mvn.cmd -q -DskipTests install
+D:\Android\apache-maven-3.9.10\bin\mvn.cmd -f learnhub-server\pom.xml spring-boot:run
 ```
 
 - API 根地址：`http://localhost:8080/api`
@@ -120,6 +121,9 @@ VITE_API_BASE_URL=/api
 ```
 
 任何真实密码、令牌或私钥都不得提交到仓库。
+
+本地 Docker Redis 默认不启用密码。生产环境如需密码，请通过 Spring Boot 标准环境变量
+`SPRING_DATA_REDIS_PASSWORD` 注入，避免把空密码传给 Redisson。
 
 ## 主要 API
 
