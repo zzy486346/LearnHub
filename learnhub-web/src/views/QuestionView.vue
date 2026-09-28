@@ -8,7 +8,7 @@ const dialog = ref(false)
 const form = reactive({ title: '', content: '' })
 const fallback: Question[] = [{ id: 1, title: 'Redis Lua 脚本如何保证秒杀原子性？', content: '库存校验、扣减与用户判重应该怎样组织？', nickname: '代码学习者', answerCount: 6, likeCount: 28, createdAt: '刚刚' }, { id: 2, title: 'JWT 刷新令牌轮换的最佳实践', content: '怎样识别 refresh token 重放？', nickname: '云端漫步', answerCount: 4, likeCount: 16, createdAt: '2 小时前' }]
 async function load() { try { questions.value = (await questionApi.list({})).data.data } catch { questions.value = fallback } }
-async function submit() { if (!form.title || !form.content) return ElMessage.warning('请填写问题标题与描述'); try { await questionApi.create(form); dialog.value = false; Object.assign(form, { title: '', content: '' }); await load(); ElMessage.success('问题已发布') } catch { ElMessage.error('发布失败，请先登录') } }
+async function submit() { if (!form.title || !form.content) return ElMessage.warning('请填写问题标题与描述'); try { await questionApi.create(form); dialog.value = false; Object.assign(form, { title: '', content: '' }); await load(); ElMessage.success('问题已发布') } catch (error) { const response = (error as { response?: { status?: number; data?: { message?: string } } }).response; ElMessage.error(response?.status === 401 ? '登录状态已失效，请重新登录' : response?.data?.message || '发布失败，请稍后重试') } }
 onMounted(load)
 </script>
 

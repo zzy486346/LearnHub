@@ -30,8 +30,9 @@ public class CourseSearchController {
     public ApiResponse<CourseSearchDocument> index(@PathVariable Long courseId,
                                       @RequestBody IndexCourse request) {
         return ApiResponse.success(service.index(new CourseSearchDocument(courseId, request.title(), request.description(),
-                request.tags(), request.likeCount())));
+                request.instructor(), request.coverUrl(), request.tags(), request.likeCount())));
     }
 
-    public record IndexCourse(String title, String description, Set<String> tags, long likeCount) {}
+    public record IndexCourse(String title, String description, String instructor, String coverUrl,
+                              Set<String> tags, long likeCount) {}
 }
