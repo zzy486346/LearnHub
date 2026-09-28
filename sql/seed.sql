@@ -11,13 +11,27 @@ VALUES
     (1001, 1, 'Spring Boot 3 实战', '从 REST API 到高并发系统', '', '使用 Java 17 构建现代 Spring Boot 应用。', '林老师', 99.00, 'PUBLISHED', NOW(3)),
     (1002, 2, '大模型应用开发入门', 'RAG、Agent 与工程实践', '', '面向开发者的大模型应用课程。', '周老师', 129.00, 'PUBLISHED', NOW(3));
 
-INSERT IGNORE INTO course_chapter (id, course_id, title, sort_order) VALUES
+INSERT INTO course_chapter (id, course_id, title, sort_order) VALUES
     (2001, 1001, '第一章：工程起步', 1),
-    (2002, 1002, '第一章：大模型基础', 1);
+    (2002, 1002, '第一章：大模型基础', 1),
+    (2003, 1001, '第二章：接口与数据访问', 2),
+    (2004, 1002, '第二章：RAG 工程实践', 2)
+ON DUPLICATE KEY UPDATE
+    course_id = VALUES(course_id), title = VALUES(title), sort_order = VALUES(sort_order);
 
-INSERT IGNORE INTO course_lesson (id, chapter_id, title, media_url, duration_seconds, free_preview, sort_order) VALUES
-    (3001, 2001, '创建第一个 Spring Boot 项目', 'https://example.com/video/spring-boot-intro.mp4', 900, 1, 1),
-    (3002, 2002, '理解 Token 与上下文窗口', 'https://example.com/video/llm-token.mp4', 780, 1, 1);
+-- 公共样例视频只用于本地功能验收；生产环境应替换为 media_asset + OSS/CDN 签名地址。
+INSERT INTO course_lesson (id, chapter_id, title, media_url, duration_seconds, free_preview, sort_order) VALUES
+    (3001, 2001, '创建第一个 Spring Boot 项目', 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4', 15, 1, 1),
+    (3002, 2001, '配置分层架构与环境参数', 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4', 15, 0, 2),
+    (3003, 2003, '设计 REST API 与统一响应', 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4', 60, 0, 1),
+    (3004, 2003, '使用 MyBatis-Plus 完成数据访问', 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4', 15, 0, 2),
+    (3005, 2002, '理解 Token 与上下文窗口', 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4', 15, 1, 1),
+    (3006, 2002, '从 Prompt 到结构化输出', 'https://storage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4', 122, 0, 2),
+    (3007, 2004, '构建文档切分与向量索引', 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', 596, 0, 1),
+    (3008, 2004, '评估检索质量与回答效果', 'https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4', 653, 0, 2)
+ON DUPLICATE KEY UPDATE
+    chapter_id = VALUES(chapter_id), title = VALUES(title), media_url = VALUES(media_url),
+    duration_seconds = VALUES(duration_seconds), free_preview = VALUES(free_preview), sort_order = VALUES(sort_order);
 
 INSERT IGNORE INTO tag (id, name) VALUES (1, 'Java'), (2, 'Spring Boot'), (3, 'AI');
 INSERT IGNORE INTO course_tag (course_id, tag_id) VALUES (1001, 1), (1001, 2), (1002, 3);
