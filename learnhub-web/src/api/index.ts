@@ -1,5 +1,5 @@
 import { http } from './http'
-import type { Answer, ApiResult, Coupon, Course, LikeState, PageResult, Question, TokenPair, User } from '@/types'
+import type { Answer, ApiResult, Coupon, Course, LearningProgress, LikeState, PageResult, Question, TokenPair, User } from '@/types'
 
 export const authApi = {
   login: (body: { username: string; password: string }) => http.post<ApiResult<TokenPair>>('/auth/login', body),
@@ -18,6 +18,13 @@ export const courseApi = {
   likeStatus: (id: number) => http.get<ApiResult<LikeState>>(`/likes/COURSE/${id}`),
   like: (id: number) => http.put<ApiResult<LikeState>>(`/likes/COURSE/${id}`),
   unlike: (id: number) => http.delete<ApiResult<LikeState>>(`/likes/COURSE/${id}`),
+}
+
+export const learningApi = {
+  progress: (courseId: string | number) =>
+    http.get<ApiResult<LearningProgress[]>>(`/learning/progress/${courseId}`),
+  saveProgress: (courseId: string | number, body: { lessonId: number; positionSeconds: number; completed: boolean }) =>
+    http.put<ApiResult<LearningProgress>>(`/learning/progress/${courseId}`, body),
 }
 
 export const questionApi = {

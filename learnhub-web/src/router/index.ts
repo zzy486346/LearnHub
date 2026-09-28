@@ -7,6 +7,7 @@ const router = createRouter({
     { path: '/login', component: () => import('@/views/LoginView.vue'), meta: { guest: true } },
     { path: '/register', component: () => import('@/views/RegisterView.vue'), meta: { guest: true } },
     { path: '/courses', component: () => import('@/views/CourseListView.vue') },
+    { path: '/courses/:courseId/lessons/:lessonId', component: () => import('@/views/LessonView.vue') },
     { path: '/courses/:id', component: () => import('@/views/CourseDetailView.vue') },
     { path: '/questions', component: () => import('@/views/QuestionView.vue') },
     { path: '/questions/:id', component: () => import('@/views/QuestionDetailView.vue') },

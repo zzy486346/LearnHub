@@ -7,8 +7,13 @@ export interface Course {
   teacherName?: string; instructor?: string; price?: number; likeCount?: number; favoriteCount?: number
   tags?: string[]; chapters?: Chapter[]; liked?: boolean; favorited?: boolean
 }
-export interface Chapter { id: number; title: string; lessons: Lesson[] }
-export interface Lesson { id: number; title: string; durationSeconds?: number; freePreview?: boolean }
+export interface Chapter { id: number; title: string; sortOrder?: number; lessons: Lesson[] }
+export interface Lesson {
+  id: number; title: string; mediaUrl?: string; durationSeconds?: number; freePreview?: boolean; sortOrder?: number
+}
+export interface LearningProgress {
+  id?: number; userId?: number; lessonId: number; positionSeconds: number; completed: boolean; lastLearnedAt?: string
+}
 export interface Question {
   id: string; userId: string; nickname: string; courseId?: string; title: string; content: string
   status: string; answerCount: number; likeCount: number; createdAt: string
