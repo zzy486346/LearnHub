@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { courseApi } from '@/api'
 import type { Course } from '@/types'
 
@@ -7,6 +7,7 @@ const courses = ref<Course[]>([])
 const loading = ref(false)
 const filters = reactive({ keyword: '', tag: '', current: 1, size: 12 })
 const quickTags = ['Java', '架构', '搜索']
+let scrollFrame: number | undefined
 const fallback: Course[] = [
   { id: 1, title: 'Java 高并发与系统设计', subtitle: '从线程模型到分布式一致性', teacherName: '林老师', tags: ['Java', '架构'], likeCount: 2380 },
   { id: 2, title: 'Spring Boot 企业级实战', subtitle: '完成一套可上线的业务系统', teacherName: '陈老师', tags: ['Spring', '后端'], likeCount: 1926 },
@@ -32,8 +33,36 @@ function selectTag(tag: string) {
 }
 
 function scrollToCourses() {
-  document.querySelector('#featured-courses')?.scrollIntoView({ behavior: 'smooth' })
+  const target = document.querySelector<HTMLElement>('#featured-courses')
+  if (!target) return
+  const destination = Math.max(0, target.getBoundingClientRect().top + window.scrollY - 92)
+  const start = window.scrollY
+  const distance = destination - start
+
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    window.scrollTo({ top: destination })
+    return
+  }
+
+  if (scrollFrame !== undefined) window.cancelAnimationFrame(scrollFrame)
+  const startedAt = window.performance.now()
+  const duration = Math.min(1000, Math.max(700, Math.abs(distance) * 0.55))
+  const easeInOutCubic = (progress: number) => progress < 0.5
+    ? 4 * progress * progress * progress
+    : 1 - Math.pow(-2 * progress + 2, 3) / 2
+
+  const animate = (now: number) => {
+    const progress = Math.min(1, (now - startedAt) / duration)
+    window.scrollTo({ top: start + distance * easeInOutCubic(progress) })
+    if (progress < 1) scrollFrame = window.requestAnimationFrame(animate)
+    else scrollFrame = undefined
+  }
+  scrollFrame = window.requestAnimationFrame(animate)
 }
+
+onBeforeUnmount(() => {
+  if (scrollFrame !== undefined) window.cancelAnimationFrame(scrollFrame)
+})
 </script>
 
 <template><section class="home-page">

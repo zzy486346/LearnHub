@@ -192,3 +192,35 @@ body { color:var(--ink); background:#fff; }
   .search-label-full { display:none; }
   .search-label-short { display:inline; }
 }
+
+/* Compact login dialog and route fallback */
+.login-link { padding:10px 5px; border:0; color:var(--ink); background:transparent; font-weight:650; transition:color .2s ease; }
+.login-link:hover { color:var(--primary); }
+.mobile-nav button { min-height:0; padding:0 12px; overflow:hidden; display:flex; align-items:center; border:0; border-radius:10px; color:#496058; background:transparent; font-weight:650; text-align:left; }
+.login-dialog.el-dialog { overflow:hidden; padding:0; border:1px solid rgba(255,255,255,.8); border-radius:22px; box-shadow:0 28px 90px rgba(25,31,65,.22); }
+.login-dialog .el-dialog__header { display:none; }
+.login-dialog .el-dialog__body { padding:30px 32px 28px; }
+.login-dialog-head { display:flex; align-items:center; justify-content:space-between; gap:20px; }
+.login-dialog-brand { display:flex; align-items:center; gap:12px; color:var(--ink); font-size:23px; }
+.login-dialog-brand>span,.login-page-brand>span { width:42px; height:42px; display:inline-grid; place-items:center; border-radius:13px 13px 13px 5px; color:#fff; background:linear-gradient(145deg,#4b5eff,#7d6af9); box-shadow:0 9px 22px rgba(75,94,255,.25); font-size:20px; font-weight:850; }
+.dialog-close { width:42px; height:42px; padding:11px; border:0; border-radius:50%; color:#697386; background:#f4f5f8; transition:color .2s ease,background .2s ease,transform .2s ease; }
+.dialog-close:hover { color:var(--ink); background:#e9ebf1; transform:rotate(4deg); }
+.dialog-close svg { width:100%; height:100%; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
+.login-dialog-copy { margin:16px 0 25px; color:var(--muted); }
+.login-dialog .el-form-item { margin-bottom:20px; }
+.login-dialog .el-form-item__label { color:#3e4655; font-weight:650; }
+.dialog-submit { min-height:48px; margin-top:3px; border-radius:12px; box-shadow:0 11px 24px rgba(75,94,255,.2); }
+.login-dialog-footer { margin:22px 0 0; color:#7a8291; font-size:14px; text-align:center; }
+.login-dialog-footer button { padding:4px; border:0; color:var(--primary); background:transparent; font-weight:700; }
+.el-overlay { backdrop-filter:blur(7px); }
+.el-overlay-dialog { background:rgba(18,22,38,.28); }
+.login-page { min-height:calc(100vh - 270px); display:grid; place-items:center; padding:42px 0; }
+.login-page-card { width:min(420px,100%); text-align:left; }
+.login-page-card .el-card__body { padding:30px 32px; }
+.login-page-brand { margin-bottom:22px; }.login-page-card h2 { margin:0 0 8px; font-size:28px; }.login-page-card .el-form { margin-top:26px; }
+#featured-courses { scroll-margin-top:92px; }
+@media (max-width:560px) {
+  .login-dialog .el-dialog__body { padding:26px 22px 24px; }
+  .login-page { min-height:calc(100vh - 230px); padding:24px 0; }
+  .login-page-card .el-card__body { padding:26px 22px; }
+}

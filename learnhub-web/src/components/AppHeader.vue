@@ -1,22 +1,28 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import LoginDialog from '@/components/LoginDialog.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
-const route = useRoute()
 const mobileOpen = ref(false)
+const loginDialogOpen = ref(false)
 onMounted(() => auth.fetchMe().catch(() => undefined))
 
 async function logout() {
   await auth.logout()
   mobileOpen.value = false
-  router.push('/login')
+  router.push('/courses')
 }
 
 function closeMenu() {
   mobileOpen.value = false
+}
+
+function openLogin() {
+  mobileOpen.value = false
+  loginDialogOpen.value = true
 }
 </script>
 
@@ -40,7 +46,7 @@ function closeMenu() {
           <el-button text @click="logout">退出</el-button>
       </template>
       <template v-else>
-          <RouterLink class="login-link" to="/login">登录</RouterLink>
+          <button type="button" class="login-link" @click="openLogin">登录</button>
           <el-button type="primary" round @click="router.push('/register')">免费注册</el-button>
       </template>
       </div>
@@ -54,7 +60,8 @@ function closeMenu() {
       <RouterLink to="/coupons" @click="closeMenu">学习权益</RouterLink>
       <RouterLink v-if="auth.authenticated" to="/profile" @click="closeMenu">个人中心</RouterLink>
       <RouterLink v-if="auth.isAdmin" to="/admin" @click="closeMenu">管理后台</RouterLink>
-      <RouterLink v-if="!auth.authenticated" :to="{ path: '/login', query: { redirect: route.fullPath } }" @click="closeMenu">登录</RouterLink>
+      <button v-if="!auth.authenticated" type="button" @click="openLogin">登录</button>
     </nav>
+    <LoginDialog v-model="loginDialogOpen" />
   </header>
 </template>
