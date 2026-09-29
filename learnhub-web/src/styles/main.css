@@ -689,11 +689,23 @@ body { color:var(--ink); background:#fff; }
   transition: color .2s ease, background-color .2s ease, transform .2s ease;
 }
 .lesson:hover { color: #3e50e4; background: linear-gradient(90deg, rgba(75,94,255,.08), rgba(99,215,239,.08)); transform: translateX(3px); }
+.lesson.locked { color: #77807b; }
+.lesson.locked .lesson-play { color: #77807b; background: #f0f2f1; }
 .lesson:focus-visible { outline: 3px solid rgba(75,94,255,.24); outline-offset: 1px; }
 .lesson-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .lesson-play { flex: 0 0 auto; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; color: #4b5eff; background: #eef0ff; }
 .lesson-play svg { width: 15px; height: 15px; fill: currentColor; }
 .lesson-duration { flex: 0 0 auto; color: var(--muted); font-size: 13px; }
+.purchase-button { border-color: rgba(255,255,255,.55) !important; color: #fff !important; background: rgba(255,255,255,.12) !important; }
+.purchase-button:hover { border-color: #fff !important; background: rgba(255,255,255,.22) !important; }
+.purchased-tag { min-height: 40px; display: inline-flex; align-items: center; border: 0; }
+.order-summary { display: grid; gap: 0; padding: 4px 2px; }
+.order-summary > div { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 13px 0; border-bottom: 1px solid #eef0f4; }
+.order-summary span { color: var(--muted); }
+.order-summary strong { max-width: 72%; color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+.order-summary .order-payable { margin-top: 8px; padding: 18px; border: 0; border-radius: 14px; background: linear-gradient(105deg,rgba(75,94,255,.09),rgba(99,215,239,.12)); }
+.order-summary .order-payable strong { color: #4050dc; font-size: 25px; }
+.order-summary p { margin: 14px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .learning-benefits { align-self: start; position: sticky; top: 96px; overflow: hidden; }
 .learning-benefits::before { position: absolute; inset: 0 0 auto; height: 3px; background: linear-gradient(90deg,#ff9b65,#7868f8,#63d7ef); content: ''; }
 .learning-benefits h3 { margin: 7px 0 18px; font-size: 22px; }
@@ -721,6 +733,7 @@ body { color:var(--ink); background:#fff; }
 .video-empty svg { width: 34px; height: 34px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .video-empty h2 { margin: 0 0 8px; font-size: clamp(20px,3vw,28px); }
 .video-empty p { margin: 0; color: #c8cee2; line-height: 1.7; }
+.lesson-access-gate .el-button { min-width: 132px; margin-top: 22px; }
 .lesson-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 26px 28px 20px; }
 .lesson-heading .eyebrow { margin: 0 0 7px; }
 .lesson-heading h1 { margin: 0; font-size: clamp(24px,3vw,34px); }
@@ -742,6 +755,8 @@ body { color:var(--ink); background:#fff; }
 .lesson-sidebar-chapter button:hover { color: #4050dc; background: #f5f6ff; }
 .lesson-sidebar-chapter button:focus-visible { outline: 3px solid rgba(75,94,255,.24); outline-offset: 1px; }
 .lesson-sidebar-chapter button.active { color: #3444d3; background: linear-gradient(105deg,rgba(75,94,255,.13),rgba(99,215,239,.12)); }
+.lesson-sidebar-chapter button.locked:not(.active) { color: #7f8783; }
+.lesson-sidebar-chapter button.locked:not(.active) .catalog-status { color: #7f8783; background: #f0f2f1; }
 .lesson-sidebar-chapter button.completed .catalog-status { color: #fff; background: #3ab995; }
 .lesson-sidebar-chapter button strong,.lesson-sidebar-chapter button small { display: block; }
 .lesson-sidebar-chapter button strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }

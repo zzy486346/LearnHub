@@ -6,10 +6,15 @@ export interface Course {
   id: number; title: string; subtitle?: string; coverUrl?: string; description?: string
   teacherName?: string; instructor?: string; price?: number; likeCount?: number; favoriteCount?: number
   categoryId?: number; status?: 'DRAFT' | 'PUBLISHED'; tags?: string[]; chapters?: Chapter[]; liked?: boolean; favorited?: boolean
+  accessLevel?: 'LOGIN_REQUIRED' | 'PREVIEW' | 'FULL'
 }
 export interface Chapter { id: number; title: string; sortOrder?: number; lessons: Lesson[] }
 export interface Lesson {
-  id: number; title: string; mediaUrl?: string; durationSeconds?: number; freePreview?: boolean; sortOrder?: number
+  id: number; title: string; mediaUrl?: string; durationSeconds?: number; freePreview?: boolean; accessible?: boolean; sortOrder?: number
+}
+export interface CourseOrder {
+  id: string; orderNo: string; courseId: string; courseTitle: string
+  originalAmount: number; paidAmount?: number; status: 'PENDING' | 'PAID'; createdAt: string; paidAt?: string
 }
 export interface LearningProgress {
   id?: number; userId?: number; lessonId: number; positionSeconds: number; completed: boolean; lastLearnedAt?: string

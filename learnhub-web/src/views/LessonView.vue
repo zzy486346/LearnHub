@@ -27,6 +27,7 @@ const lessonEntries = computed(() => course.value?.chapters?.flatMap((chapter) =
 ) ?? [])
 const currentIndex = computed(() => lessonEntries.value.findIndex((item) => item.lesson.id === lessonId.value))
 const currentEntry = computed(() => lessonEntries.value[currentIndex.value] ?? null)
+const currentAccessible = computed(() => currentEntry.value?.lesson.accessible === true)
 const previousEntry = computed(() => currentIndex.value > 0 ? lessonEntries.value[currentIndex.value - 1] : null)
 const nextEntry = computed(() => currentIndex.value >= 0 && currentIndex.value < lessonEntries.value.length - 1
   ? lessonEntries.value[currentIndex.value + 1]
@@ -47,7 +48,7 @@ async function loadLesson() {
       errorMessage.value = '该课时不存在，或已经从课程中移除。'
       return
     }
-    if (auth.authenticated) {
+    if (auth.authenticated && currentAccessible.value) {
       try {
         progress.value = (await learningApi.progress(courseId.value)).data.data || []
         const saved = progress.value.find((item) => item.lessonId === lessonId.value)
@@ -77,7 +78,7 @@ function currentPosition() {
 }
 
 function queueProgressSave(completed?: boolean, force = false) {
-  if (!auth.authenticated || !currentEntry.value) return Promise.resolve()
+  if (!auth.authenticated || !currentEntry.value || !currentAccessible.value) return Promise.resolve()
   const positionSeconds = currentPosition()
   const finalCompleted = completed ?? completedLessonIds.value.has(currentEntry.value.lesson.id)
   if (!force && !finalCompleted && Math.abs(positionSeconds - lastSavedPosition) < 5) return Promise.resolve()
@@ -113,12 +114,31 @@ function handleEnded() {
 }
 
 async function goToLesson(targetLessonId: number) {
+  const target = lessonEntries.value.find((item) => item.lesson.id === targetLessonId)
+  if (!target) return
+  if (!auth.authenticated) {
+    await router.push({ path: '/login', query: { redirect: `/courses/${courseId.value}/lessons/${targetLessonId}` } })
+    return
+  }
+  if (!target.lesson.accessible) {
+    ElMessage.info('购买课程后即可观看该课时')
+    await router.push(`/courses/${courseId.value}`)
+    return
+  }
   await queueProgressSave(undefined, true)
   await router.push(`/courses/${courseId.value}/lessons/${targetLessonId}`)
 }
 
+function goToLogin() {
+  void router.push({ path: '/login', query: { redirect: route.fullPath } })
+}
+
+function goToPurchase() {
+  void router.push(`/courses/${courseId.value}`)
+}
+
 function saveWithKeepalive() {
-  if (!auth.authenticated || !currentEntry.value) return
+  if (!auth.authenticated || !currentEntry.value || !currentAccessible.value) return
   const token = localStorage.getItem('learnhub_access_token')
   const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
   void fetch(`${baseUrl}/learning/progress/${courseId.value}`, {
@@ -153,7 +173,17 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', saveWithKeepali
       <div class="lesson-shell">
         <main class="lesson-stage">
           <div class="video-frame">
-            <video v-if="currentEntry.lesson.mediaUrl" ref="videoRef" :key="currentEntry.lesson.id" :src="currentEntry.lesson.mediaUrl" :poster="course.coverUrl" controls preload="metadata" @loadedmetadata="restorePlaybackPosition" @timeupdate="handleTimeUpdate" @pause="queueProgressSave(undefined, true)" @ended="handleEnded">您的浏览器不支持视频播放。</video>
+            <video v-if="currentAccessible && currentEntry.lesson.mediaUrl" ref="videoRef" :key="currentEntry.lesson.id" :src="currentEntry.lesson.mediaUrl" :poster="course.coverUrl" controls preload="metadata" @loadedmetadata="restorePlaybackPosition" @timeupdate="handleTimeUpdate" @pause="queueProgressSave(undefined, true)" @ended="handleEnded">您的浏览器不支持视频播放。</video>
+            <div v-else-if="!auth.authenticated" class="video-empty lesson-access-gate">
+              <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 15v2m-5-7V8a5 5 0 0 1 10 0v2m-9 0h8a2 2 0 0 1 2 2v7H6v-7a2 2 0 0 1 2-2Z" /></svg></span>
+              <h2>登录后才能观看课程</h2><p>登录后可观看试看课时，并可购买解锁完整课程。</p>
+              <el-button type="primary" size="large" @click="goToLogin">立即登录</el-button>
+            </div>
+            <div v-else-if="!currentAccessible" class="video-empty lesson-access-gate">
+              <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 15v2m-5-7V8a5 5 0 0 1 10 0v2m-9 0h8a2 2 0 0 1 2 2v7H6v-7a2 2 0 0 1 2-2Z" /></svg></span>
+              <h2>该课时需要购买后观看</h2><p>返回课程确认订单，零元支付后即可解锁全部课时。</p>
+              <el-button type="primary" size="large" @click="goToPurchase">购买课程</el-button>
+            </div>
             <div v-else class="video-empty">
               <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m15 10 4.6-2.7a1 1 0 0 1 1.4.9v7.6a1 1 0 0 1-1.4.9L15 14M4 6h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" /></svg></span>
               <h2>视频资源暂未配置</h2><p>课时目录已就绪，讲师上传视频后即可在这里学习。</p>
@@ -162,8 +192,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', saveWithKeepali
 
           <div class="lesson-heading">
             <div><p class="eyebrow">{{ currentEntry.chapterTitle }}</p><h1>{{ currentEntry.lesson.title }}</h1></div>
-            <span v-if="auth.authenticated" class="save-state" :class="`is-${saveState}`" aria-live="polite">{{ saveState === 'saving' ? '正在保存' : saveState === 'error' ? '保存失败' : '进度已同步' }}</span>
-            <RouterLink v-else class="progress-login" :to="{ path: '/login', query: { redirect: route.fullPath } }">登录后保存进度</RouterLink>
+            <span v-if="auth.authenticated && currentAccessible" class="save-state" :class="`is-${saveState}`" aria-live="polite">{{ saveState === 'saving' ? '正在保存' : saveState === 'error' ? '保存失败' : '进度已同步' }}</span>
           </div>
 
           <div class="lesson-navigation">
@@ -176,9 +205,9 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', saveWithKeepali
           <div class="lesson-sidebar-header"><p>课程目录</p><strong>{{ currentIndex + 1 }} / {{ lessonEntries.length }}</strong></div>
           <div v-for="chapter in course.chapters" :key="chapter.id" class="lesson-sidebar-chapter">
             <h2>{{ chapter.title }}</h2>
-            <button v-for="lesson in chapter.lessons" :key="lesson.id" type="button" :class="{ active: lesson.id === currentEntry.lesson.id, completed: completedLessonIds.has(lesson.id) }" :aria-current="lesson.id === currentEntry.lesson.id ? 'page' : undefined" @click="lesson.id !== currentEntry.lesson.id && goToLesson(lesson.id)">
-              <span class="catalog-status" aria-hidden="true"><svg viewBox="0 0 24 24"><path v-if="completedLessonIds.has(lesson.id)" d="m5 12 4 4L19 6" /><path v-else d="m9 7 7 5-7 5V7Z" /></svg></span>
-              <span><strong>{{ lesson.title }}</strong><small>{{ Math.ceil((lesson.durationSeconds || 0) / 60) }} 分钟</small></span>
+            <button v-for="lesson in chapter.lessons" :key="lesson.id" type="button" :class="{ active: lesson.id === currentEntry.lesson.id, completed: completedLessonIds.has(lesson.id), locked: !lesson.accessible }" :aria-current="lesson.id === currentEntry.lesson.id ? 'page' : undefined" @click="lesson.id !== currentEntry.lesson.id && goToLesson(lesson.id)">
+              <span class="catalog-status" aria-hidden="true"><svg viewBox="0 0 24 24"><path v-if="completedLessonIds.has(lesson.id)" d="m5 12 4 4L19 6" /><path v-else-if="lesson.accessible" d="m9 7 7 5-7 5V7Z" /><path v-else d="M8 11V8a4 4 0 0 1 8 0v3m-8 0h8v8H8v-8Z" /></svg></span>
+              <span><strong>{{ lesson.title }}</strong><small>{{ lesson.freePreview ? '试看 · ' : !lesson.accessible ? '购买后解锁 · ' : '' }}{{ Math.ceil((lesson.durationSeconds || 0) / 60) }} 分钟</small></span>
             </button>
           </div>
         </aside>
