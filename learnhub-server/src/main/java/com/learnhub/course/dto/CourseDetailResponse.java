@@ -13,5 +13,6 @@ public record CourseDetailResponse(
         BigDecimal price,
         String status,
         Long likeCount,
+        String accessLevel,
         List<ChapterDetailResponse> chapters
 ) {}

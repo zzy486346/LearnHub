@@ -1,6 +1,7 @@
 package com.learnhub.course.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.learnhub.auth.security.LearnHubPrincipal;
 import com.learnhub.common.api.ApiResponse;
 import com.learnhub.course.dto.CourseDetailResponse;
 import com.learnhub.course.model.Course;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 @RestController
 @RequestMapping("/api/courses")
@@ -26,7 +28,8 @@ public class CourseController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<CourseDetailResponse> detail(@PathVariable Long id) {
-        return ApiResponse.success(courseService.detail(id));
+    public ApiResponse<CourseDetailResponse> detail(@PathVariable Long id,
+                                                     @AuthenticationPrincipal LearnHubPrincipal principal) {
+        return ApiResponse.success(courseService.detail(id, principal == null ? null : principal.userId()));
     }
 }

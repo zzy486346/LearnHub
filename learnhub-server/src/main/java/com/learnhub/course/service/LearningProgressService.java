@@ -30,6 +30,7 @@ public class LearningProgressService {
         if (progressMapper.countLessonInCourse(request.lessonId(), courseId) == 0) {
             throw new com.learnhub.common.exception.BusinessException("课时不属于该课程");
         }
+        courseService.requireLessonAccess(userId, courseId, request.lessonId());
         LearningProgress progress = progressMapper.selectOne(query(userId, request.lessonId()));
         if (progress == null) {
             progress = new LearningProgress();

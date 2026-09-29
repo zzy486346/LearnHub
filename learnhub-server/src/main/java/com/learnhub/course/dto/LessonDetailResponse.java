@@ -6,5 +6,6 @@ public record LessonDetailResponse(
         String mediaUrl,
         Integer durationSeconds,
         Boolean freePreview,
+        Boolean accessible,
         Integer sortOrder
 ) {}

@@ -83,6 +83,23 @@ CREATE TABLE IF NOT EXISTS course_lesson (
     KEY idx_lesson_media_asset (media_asset_id)
 );
 
+CREATE TABLE IF NOT EXISTS course_order (
+    id BIGINT PRIMARY KEY,
+    order_no VARCHAR(64) NOT NULL,
+    user_id BIGINT NOT NULL,
+    course_id BIGINT NOT NULL,
+    course_title VARCHAR(160) NOT NULL,
+    original_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    paid_amount DECIMAL(12,2) NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    paid_at DATETIME(3) NULL,
+    UNIQUE KEY uk_course_order_no (order_no),
+    UNIQUE KEY uk_course_order_user_course (user_id, course_id),
+    KEY idx_course_order_course_status (course_id, status)
+);
+
 CREATE TABLE IF NOT EXISTS learning_progress (
     id BIGINT PRIMARY KEY,
     user_id BIGINT NOT NULL,
