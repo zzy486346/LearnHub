@@ -10,6 +10,8 @@ export const authApi = {
     form.append('file', file)
     return http.post<ApiResult<User>>('/auth/me/avatar', form)
   },
+  changePassword: (body: { currentPassword: string; newPassword: string }) =>
+    http.put<ApiResult<void>>('/auth/me/password', body),
   logout: () => http.post<ApiResult<void>>('/auth/logout'),
 }
 
@@ -37,6 +39,7 @@ export const learningApi = {
 }
 
 export const orderApi = {
+  mine: () => http.get<ApiResult<CourseOrder[]>>('/orders/mine'),
   createCourseOrder: (courseId: string | number) =>
     http.post<ApiResult<CourseOrder>>(`/orders/courses/${courseId}`),
   pay: (orderId: string | number) =>

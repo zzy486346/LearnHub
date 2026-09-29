@@ -617,6 +617,37 @@ body { color:var(--ink); background:#fff; }
   .profile-loading-dot { animation:none; }
 }
 
+/* Profile management: course orders and account security. */
+.profile-management-grid { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(300px,.75fr); gap:24px; margin-top:24px; align-items:start; }
+.profile-orders-card,.profile-security-card { min-width:0; }
+.profile-text-action { min-height:40px; padding:0 14px; border:1px solid #dfe3ee; border-radius:10px; color:#4b5eff; background:#fff; font-weight:700; cursor:pointer; }
+.profile-order-list { display:grid; gap:12px; }
+.profile-order-item { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:20px; align-items:center; padding:18px; border:1px solid #e8eaf5; border-radius:16px; background:linear-gradient(120deg,#fafbff,#f7fcfd); }
+.profile-order-main { min-width:0; }
+.profile-order-title { display:flex; align-items:center; gap:9px; min-width:0; }
+.profile-order-title a { overflow:hidden; color:var(--ink); font-size:16px; font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
+.profile-order-title a:hover { color:#4b5eff; }
+.profile-order-main p { margin:7px 0 4px; overflow-wrap:anywhere; color:var(--muted); font-size:12px; }
+.profile-order-main small { color:#8a928e; }
+.profile-order-amount { display:grid; justify-items:end; min-width:86px; }
+.profile-order-amount span,.profile-order-amount small { color:var(--muted); font-size:12px; }
+.profile-order-amount strong { margin:2px 0; color:#4050dc; font-size:21px; font-variant-numeric:tabular-nums; }
+.profile-order-action { min-height:40px; display:inline-flex; align-items:center; justify-content:center; padding:0 15px; border:1px solid #dfe3ee; border-radius:10px; color:#4452d5; background:#fff; font-weight:700; white-space:nowrap; }
+.profile-security-illustration { width:70px; height:70px; display:grid; place-items:center; margin:8px auto 18px; border-radius:22px; color:#4b5eff; background:linear-gradient(135deg,rgba(75,94,255,.12),rgba(99,215,239,.2)); }
+.profile-security-illustration svg { width:36px; height:36px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.profile-security-note { margin:0 0 20px; color:var(--muted); font-size:14px; line-height:1.7; }
+.password-dialog .el-form-item { margin-bottom:17px; }
+.password-dialog .login-dialog-brand>span svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.password-form-error { margin:-4px 0 14px; color:#c73d4b; font-size:13px; line-height:1.5; }
+@media (max-width:900px) {
+  .profile-management-grid { grid-template-columns:1fr; }
+}
+@media (max-width:640px) {
+  .profile-order-item { grid-template-columns:1fr auto; gap:14px; }
+  .profile-order-item>.el-button,.profile-order-action { grid-column:1/-1; width:100%; }
+  .profile-order-amount { align-self:start; }
+}
+
 /* Admin course workspace: dense enough for authoring, spacious enough for long sessions. */
 .admin-title { align-items:center; }
 .admin-title .el-button { min-height:46px; padding-inline:22px; border:0; background:linear-gradient(115deg,#4b5eff,#7868f8 55%,#28bfd8); box-shadow:0 12px 28px rgba(75,94,255,.2); }
