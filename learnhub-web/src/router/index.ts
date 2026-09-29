@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -13,15 +14,22 @@ const router = createRouter({
     { path: '/questions/:id', component: () => import('@/views/QuestionDetailView.vue') },
     { path: '/coupons', component: () => import('@/views/CouponView.vue') },
     { path: '/profile', component: () => import('@/views/ProfileView.vue'), meta: { requiresAuth: true } },
-    { path: '/admin', component: () => import('@/views/AdminView.vue'), meta: { requiresAuth: true } },
+    { path: '/admin', component: () => import('@/views/AdminView.vue'), meta: { requiresAuth: true, requiresAdmin: true } },
     { path: '/:pathMatch(.*)*', redirect: '/courses' },
   ],
   scrollBehavior: () => ({ top: 0 }),
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   if (to.meta.requiresAuth && !localStorage.getItem('learnhub_access_token')) {
     return { path: '/login', query: { redirect: to.fullPath } }
+  }
+  if (to.meta.requiresAdmin) {
+    const auth = useAuthStore()
+    if (!auth.user) {
+      try { await auth.fetchMe() } catch { return { path: '/login', query: { redirect: to.fullPath } } }
+    }
+    if (!auth.isAdmin) return { path: '/courses' }
   }
 })
 

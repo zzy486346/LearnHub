@@ -107,6 +107,14 @@ public class MediaAssetService {
         return upload(userId, file, "AVATAR", userId);
     }
 
+    public MediaResponses.Asset uploadCourseVideo(Long userId, Long lessonId, MultipartFile file) {
+        String contentType = file == null ? null : file.getContentType();
+        if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("video/")) {
+            throw new BusinessException("COURSE_VIDEO_TYPE_INVALID", "课程视频仅支持视频文件");
+        }
+        return upload(userId, file, "COURSE_LESSON", lessonId);
+    }
+
     public String readyAccessUrl(Long assetId) {
         if (assetId == null) return null;
         MediaAsset asset = mapper.selectById(assetId);

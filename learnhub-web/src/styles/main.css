@@ -587,6 +587,51 @@ body { color:var(--ink); background:#fff; }
   .avatar-edit:hover,.avatar-action:hover { transform:none; }
 }
 
+/* Admin course workspace: dense enough for authoring, spacious enough for long sessions. */
+.admin-title { align-items:center; }
+.admin-title .el-button { min-height:46px; padding-inline:22px; border:0; background:linear-gradient(115deg,#4b5eff,#7868f8 55%,#28bfd8); box-shadow:0 12px 28px rgba(75,94,255,.2); }
+.admin-workspace { min-height:560px; display:grid; grid-template-columns:330px minmax(0,1fr); gap:22px; align-items:start; }
+.admin-course-list,.admin-editor { padding:20px; }
+.admin-course-list { position:sticky; top:94px; display:grid; gap:10px; }
+.admin-panel-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; padding:4px 4px 16px; }
+.admin-panel-heading>div>span,.admin-panel-heading h2 { margin:0; color:var(--ink); font-size:18px; font-weight:800; }
+.admin-panel-heading small { display:block; margin-top:5px; color:var(--muted); line-height:1.55; }
+.admin-course-item { width:100%; min-height:74px; display:flex; align-items:center; justify-content:space-between; gap:14px; padding:14px; border:1px solid transparent; border-radius:14px; color:#35443e; background:#f7f9f8; text-align:left; transition:background-color .2s ease,border-color .2s ease,box-shadow .2s ease; }
+.admin-course-item:hover { border-color:rgba(75,94,255,.2); background:#f3f4ff; }
+.admin-course-item.active { border-color:rgba(75,94,255,.28); background:linear-gradient(110deg,rgba(75,94,255,.11),rgba(99,215,239,.11)); box-shadow:0 8px 22px rgba(75,94,255,.08); }
+.admin-course-item>span:first-child { min-width:0; }
+.admin-course-item strong,.admin-course-item small { display:block; }
+.admin-course-item strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.admin-course-item small { margin-top:6px; color:var(--muted); }
+.admin-editor { min-height:560px; }
+.admin-detail-heading { padding:4px 4px 22px; border-bottom:1px solid #edf0f3; }
+.admin-detail-heading .eyebrow { margin:0 0 5px; font-size:11px; }
+.admin-chapter-list { display:grid; gap:16px; padding-top:20px; }
+.admin-chapter-card { overflow:hidden; border:1px solid #e5e9ef; border-radius:16px; background:#fbfcff; }
+.admin-chapter-card>header { min-height:72px; display:flex; align-items:center; justify-content:space-between; gap:20px; padding:16px 18px; background:linear-gradient(100deg,rgba(75,94,255,.06),rgba(99,215,239,.06)); }
+.admin-chapter-card h3 { margin:4px 0 0; font-size:17px; }.admin-chapter-card header small { color:#6874a2; }
+.admin-lesson-list { display:grid; padding:8px 14px 14px; }
+.admin-lesson-row { min-height:64px; display:grid; grid-template-columns:34px minmax(0,1fr) auto auto; gap:12px; align-items:center; padding:9px 4px; border-bottom:1px solid #edf0f4; }
+.admin-lesson-row:last-child { border-bottom:0; }
+.admin-lesson-index { width:30px; height:30px; display:grid; place-items:center; border-radius:9px; color:#4b5eff; background:#eef0ff; font-size:13px; font-weight:800; }
+.admin-lesson-copy strong,.admin-lesson-copy small { display:block; }.admin-lesson-copy small { margin-top:4px; color:var(--muted); font-size:12px; }
+.admin-upload-state { color:#4756c9; font-size:13px; font-weight:750; }
+.admin-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.admin-form-grid .el-select,.admin-form-grid .el-input-number { width:100%; }
+@media (max-width:900px) {
+  .admin-workspace { grid-template-columns:1fr; }
+  .admin-course-list { position:static; }
+}
+@media (max-width:600px) {
+  .admin-title { align-items:flex-start; }.admin-title .el-button { width:100%; }
+  .admin-form-grid { grid-template-columns:1fr; gap:0; }
+  .admin-lesson-row { grid-template-columns:34px minmax(0,1fr) auto; }
+  .admin-upload-state { grid-column:2; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .admin-course-item { transition-duration:.01ms!important; }
+}
+
 /* Course learning closure: real catalog, playback, and progress states. */
 .course-detail-page { min-height: 420px; }
 .course-description { max-width: 760px; color: var(--muted); line-height: 1.8; }

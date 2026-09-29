@@ -91,6 +91,16 @@ class MediaAssetServiceTest {
     }
 
     @Test
+    void rejectsNonVideoCourseMedia() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "notes.pdf", "application/pdf", new byte[] {1});
+
+        assertThatThrownBy(() -> service.uploadCourseVideo(7L, 3001L, file))
+                .isInstanceOf(BusinessException.class)
+                .extracting("code").isEqualTo("COURSE_VIDEO_TYPE_INVALID");
+    }
+
+    @Test
     void resolvesOnlyReadyAssetUrl() {
         MediaAsset asset = uploadingAsset();
         asset.setStatus("READY");

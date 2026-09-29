@@ -32,6 +32,27 @@ export const learningApi = {
     http.put<ApiResult<LearningProgress>>(`/learning/progress/${courseId}`, body),
 }
 
+export const adminCourseApi = {
+  list: () => http.get<ApiResult<Course[]>>('/admin/courses'),
+  detail: (courseId: string | number) => http.get<ApiResult<Course>>(`/admin/courses/${courseId}`),
+  createCourse: (body: { categoryId: number; title: string; description?: string; instructor: string; price: number; status: 'DRAFT' | 'PUBLISHED' }) =>
+    http.post<ApiResult<number>>('/admin/courses', body),
+  createChapter: (courseId: string | number, body: { title: string; sortOrder: number }) =>
+    http.post<ApiResult<number>>(`/admin/courses/${courseId}/chapters`, body),
+  createLesson: (chapterId: string | number, body: { title: string; durationSeconds: number; freePreview: boolean; sortOrder: number }) =>
+    http.post<ApiResult<number>>(`/admin/chapters/${chapterId}/lessons`, body),
+  uploadLessonVideo: (lessonId: string | number, file: File, onProgress?: (percentage: number) => void) => {
+    const form = new FormData()
+    form.append('file', file)
+    return http.post<ApiResult<unknown>>(`/admin/lessons/${lessonId}/video`, form, {
+      timeout: 10 * 60_000,
+      onUploadProgress: (event) => {
+        if (event.total) onProgress?.(Math.round((event.loaded / event.total) * 100))
+      },
+    })
+  },
+}
+
 export const questionApi = {
   list: (params: Record<string, unknown>) => http.get<ApiResult<PageResult<Question>>>('/questions', { params }),
   detail: (id: string | number) => http.get<ApiResult<Question>>(`/questions/${id}`),
