@@ -7,7 +7,7 @@
 ## 功能概览
 
 - 用户认证：Spring Security + RS256 JWT 双令牌，Access Token 15 分钟、Refresh Token 7 天，支持刷新轮换和退出撤销。
-- 课程学习：课程分页、详情与学习进度记录，前端提供课程发现、详情和个人学习中心。
+- 课程学习：课程分页、章节课时聚合、视频学习页与学习进度记录，支持恢复播放位置、课时切换和完成状态同步。
 - 互动社区：问题与回答持久化到 MySQL，支持问题列表/详情、回答分页和真实作者昵称；点赞使用 Redis Set 判重并通过 RabbitMQ 异步聚合。
 - 优惠券：普通领取与限量秒杀；Lua 原子校验/预扣 Redis 库存，RabbitMQ 异步削峰。
 - 课程搜索：Elasticsearch 关键词检索、标签过滤、业务热度排序与联想建议。
@@ -150,7 +150,7 @@ VITE_API_BASE_URL=/api
 | 认证 | `POST /api/auth/refresh` | 轮换刷新令牌 |
 | 认证 | `POST /api/auth/logout` | 撤销当前会话 |
 | 课程 | `GET /api/courses` | 分页查询课程 |
-| 课程 | `GET /api/courses/{id}` | 查询课程详情 |
+| 课程 | `GET /api/courses/{id}` | 查询课程、章节与课时聚合详情 |
 | 进度 | `GET/PUT /api/learning/progress/{courseId}` | 查询/幂等更新课程进度 |
 | 问答 | `GET/POST /api/questions` | 分页查询/发布问题 |
 | 问答 | `GET /api/questions/{id}` | 查询问题详情 |
@@ -170,6 +170,8 @@ Authorization: Bearer <access-token>
 ```
 
 前端 Axios 响应拦截器会在 `401` 时合并并发刷新请求，刷新成功后重放原请求；刷新失败则清理本地令牌并跳转登录页。
+
+课程详情页使用 `/courses/:id`，课时学习页使用 `/courses/:courseId/lessons/:lessonId`。登录用户播放视频时按约 10 秒节流保存进度，并在暂停、切换课时或离开页面时补充上报；重新进入课时后恢复到最后保存位置。
 
 ## 高并发设计摘要
 
