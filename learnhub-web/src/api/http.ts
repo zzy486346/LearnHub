@@ -3,6 +3,7 @@ import type { ApiResult, TokenPair } from '@/types'
 
 const ACCESS_KEY = 'learnhub_access_token'
 const REFRESH_KEY = 'learnhub_refresh_token'
+export const AUTH_SESSION_CLEARED_EVENT = 'learnhub:auth-session-cleared'
 
 export const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
@@ -19,6 +20,7 @@ export function saveTokens(tokens: TokenPair) {
 export function clearTokens() {
   localStorage.removeItem(ACCESS_KEY)
   localStorage.removeItem(REFRESH_KEY)
+  window.dispatchEvent(new Event(AUTH_SESSION_CLEARED_EVENT))
 }
 
 http.interceptors.request.use((config) => {
