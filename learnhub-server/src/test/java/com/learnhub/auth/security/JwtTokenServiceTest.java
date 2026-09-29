@@ -30,7 +30,7 @@ class JwtTokenServiceTest {
 
     @Test
     void issuesRs256AccessAndRefreshTokensWithExpectedClaims() {
-        TokenResponse response = service.issue(42L, "learner");
+        TokenResponse response = service.issue(42L, "learner", 4);
 
         Jws<Claims> access = service.require(response.accessToken(), "access");
         Jws<Claims> refresh = service.require(response.refreshToken(), "refresh");
@@ -38,6 +38,8 @@ class JwtTokenServiceTest {
         assertThat(access.getHeader().getAlgorithm()).isEqualTo("RS256");
         assertThat(access.getPayload().getSubject()).isEqualTo("42");
         assertThat(access.getPayload().get("username", String.class)).isEqualTo("learner");
+        assertThat(service.tokenVersion(access)).isEqualTo(4);
+        assertThat(service.tokenVersion(refresh)).isEqualTo(4);
         assertThat(refresh.getPayload().get("type", String.class)).isEqualTo("refresh");
         assertThat(response.accessExpiresIn()).isEqualTo(900);
         assertThat(response.refreshExpiresIn()).isEqualTo(604800);

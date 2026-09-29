@@ -14,6 +14,8 @@ import com.learnhub.common.exception.BusinessException;
 import com.learnhub.course.mapper.CourseMapper;
 import com.learnhub.course.model.Course;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.apache.ibatis.session.Configuration;
 import org.junit.jupiter.api.BeforeAll;
@@ -78,5 +80,30 @@ class CourseOrderServiceTest {
         assertThatThrownBy(() -> service.pay(8L, 9001L))
                 .isInstanceOfSatisfying(BusinessException.class,
                         exception -> assertThat(exception.getCode()).isEqualTo("ORDER_NOT_FOUND"));
+    }
+
+    @Test
+    void listsOnlyCurrentUsersOrdersFromMapperResult() {
+        CourseOrder newer = order(9002L, 7L, 1002L, "Spring Boot 3 实战", CourseOrderService.PAID);
+        CourseOrder older = order(9001L, 7L, 1001L, "大模型应用开发入门", CourseOrderService.PENDING);
+        when(orderMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(newer, older));
+
+        List<CourseOrderResponse> result = service.listMine(7L);
+
+        assertThat(result).extracting(CourseOrderResponse::id).containsExactly("9002", "9001");
+        assertThat(result).extracting(CourseOrderResponse::courseTitle)
+                .containsExactly("Spring Boot 3 实战", "大模型应用开发入门");
+    }
+
+    private CourseOrder order(Long id, Long userId, Long courseId, String title, String status) {
+        CourseOrder order = new CourseOrder();
+        order.setId(id);
+        order.setUserId(userId);
+        order.setCourseId(courseId);
+        order.setCourseTitle(title);
+        order.setOriginalAmount(new BigDecimal("99.00"));
+        order.setStatus(status);
+        order.setCreatedAt(LocalDateTime.now());
+        return order;
     }
 }

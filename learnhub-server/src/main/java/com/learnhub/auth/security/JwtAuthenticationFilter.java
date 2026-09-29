@@ -1,6 +1,8 @@
 package com.learnhub.auth.security;
 
 import com.learnhub.auth.service.RoleService;
+import com.learnhub.auth.mapper.UserMapper;
+import com.learnhub.auth.model.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
@@ -21,10 +23,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenService tokenService;
     private final RoleService roleService;
+    private final UserMapper userMapper;
 
-    public JwtAuthenticationFilter(JwtTokenService tokenService, RoleService roleService) {
+    public JwtAuthenticationFilter(JwtTokenService tokenService, RoleService roleService, UserMapper userMapper) {
         this.tokenService = tokenService;
         this.roleService = roleService;
+        this.userMapper = userMapper;
     }
 
     @Override
@@ -35,7 +39,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 Jws<Claims> token = tokenService.require(authorization.substring(7), "access");
                 Claims claims = token.getPayload();
-                if (!tokenService.isAccessDenied(claims.getId())) {
+                User user = userMapper.selectById(Long.valueOf(claims.getSubject()));
+                int currentVersion = user == null || user.getTokenVersion() == null ? 0 : user.getTokenVersion();
+                if (user != null && "ACTIVE".equals(user.getStatus())
+                        && tokenService.tokenVersion(token) == currentVersion
+                        && !tokenService.isAccessDenied(claims.getId())) {
                     LearnHubPrincipal principal = new LearnHubPrincipal(
                             Long.valueOf(claims.getSubject()), claims.get("username", String.class));
                     List<SimpleGrantedAuthority> authorities = roleService.rolesForUser(principal.userId()).stream()

@@ -7,6 +7,7 @@ import com.learnhub.course.mapper.CourseMapper;
 import com.learnhub.course.model.Course;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,15 @@ public class CourseOrderService {
                 .eq(CourseOrder::getUserId, userId)
                 .eq(CourseOrder::getCourseId, courseId)
                 .eq(CourseOrder::getStatus, PAID)) > 0;
+    }
+
+    public List<CourseOrderResponse> listMine(Long userId) {
+        return orderMapper.selectList(new LambdaQueryWrapper<CourseOrder>()
+                        .eq(CourseOrder::getUserId, userId)
+                        .orderByDesc(CourseOrder::getCreatedAt)
+                        .orderByDesc(CourseOrder::getId)).stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Transactional

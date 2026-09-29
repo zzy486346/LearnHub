@@ -2,6 +2,7 @@ package com.learnhub.auth.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.learnhub.auth.dto.LoginRequest;
+import com.learnhub.auth.dto.ChangePasswordRequest;
 import com.learnhub.auth.dto.CurrentUserResponse;
 import com.learnhub.auth.dto.RefreshTokenRequest;
 import com.learnhub.auth.dto.RegisterRequest;
@@ -54,7 +55,7 @@ public class AuthService {
         if (user == null || !"ACTIVE".equals(user.getStatus()) || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new BusinessException("用户名或密码错误");
         }
-        return tokenService.issue(user.getId(), user.getUsername());
+        return tokenService.issue(user.getId(), user.getUsername(), tokenVersion(user));
     }
 
     public TokenResponse refresh(RefreshTokenRequest request) {
@@ -64,7 +65,10 @@ public class AuthService {
             Long userId = Long.valueOf(refresh.getPayload().getSubject());
             User user = userMapper.selectById(userId);
             if (user == null || !"ACTIVE".equals(user.getStatus())) throw new BusinessException("用户不可用");
-            return tokenService.issue(user.getId(), user.getUsername());
+            if (tokenService.tokenVersion(refresh) != tokenVersion(user)) {
+                throw new BusinessException("登录状态已失效，请重新登录");
+            }
+            return tokenService.issue(user.getId(), user.getUsername(), tokenVersion(user));
         } catch (JwtException | IllegalArgumentException exception) {
             throw new BusinessException("刷新令牌无效");
         }
@@ -95,6 +99,23 @@ public class AuthService {
                 roleService.rolesForUser(userId));
     }
 
+    @Transactional
+    public void changePassword(Long userId, ChangePasswordRequest request) {
+        User user = userMapper.selectById(userId);
+        if (user == null || !"ACTIVE".equals(user.getStatus())) {
+            throw new BusinessException("用户不存在或已停用");
+        }
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw new BusinessException("CURRENT_PASSWORD_INCORRECT", "当前密码不正确");
+        }
+        if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
+            throw new BusinessException("PASSWORD_UNCHANGED", "新密码不能与当前密码相同");
+        }
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        user.setTokenVersion(tokenVersion(user) + 1);
+        userMapper.updateById(user);
+    }
+
     public void logout(String accessToken, String refreshToken) {
         if (accessToken != null) {
             try { tokenService.denyAccess(tokenService.require(accessToken, "access")); } catch (JwtException ignored) { }
@@ -107,5 +128,9 @@ public class AuthService {
 
     private User findByUsername(String username) {
         return userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getUsername, username));
+    }
+
+    private int tokenVersion(User user) {
+        return user.getTokenVersion() == null ? 0 : user.getTokenVersion();
     }
 }

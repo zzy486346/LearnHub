@@ -1,6 +1,7 @@
 package com.learnhub.auth.controller;
 
 import com.learnhub.auth.dto.LoginRequest;
+import com.learnhub.auth.dto.ChangePasswordRequest;
 import com.learnhub.auth.dto.CurrentUserResponse;
 import com.learnhub.auth.dto.RefreshTokenRequest;
 import com.learnhub.auth.dto.RegisterRequest;
@@ -14,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -60,5 +62,12 @@ public class AuthController {
             @AuthenticationPrincipal LearnHubPrincipal principal,
             @RequestPart("file") MultipartFile file) {
         return ApiResponse.success(authService.updateAvatar(principal.userId(), file));
+    }
+
+    @PutMapping("/me/password")
+    public ApiResponse<Void> changePassword(@AuthenticationPrincipal LearnHubPrincipal principal,
+                                            @Valid @RequestBody ChangePasswordRequest request) {
+        authService.changePassword(principal.userId(), request);
+        return ApiResponse.success(null);
     }
 }

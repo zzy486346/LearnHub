@@ -79,8 +79,12 @@ public class JwtTokenService {
     }
 
     public TokenResponse issue(Long userId, String username) {
-        Token access = create(userId, username, "access", properties.getAccessTokenTtl());
-        Token refresh = create(userId, username, "refresh", properties.getRefreshTokenTtl());
+        return issue(userId, username, 0);
+    }
+
+    public TokenResponse issue(Long userId, String username, int tokenVersion) {
+        Token access = create(userId, username, tokenVersion, "access", properties.getAccessTokenTtl());
+        Token refresh = create(userId, username, tokenVersion, "refresh", properties.getRefreshTokenTtl());
         redisTemplate.opsForValue().set(REFRESH_PREFIX + refresh.jti(), userId.toString(), properties.getRefreshTokenTtl());
         return new TokenResponse("Bearer", access.value(), properties.getAccessTokenTtl().toSeconds(),
                 refresh.value(), properties.getRefreshTokenTtl().toSeconds());
@@ -102,6 +106,11 @@ public class JwtTokenService {
         return Boolean.TRUE.equals(redisTemplate.hasKey(DENY_PREFIX + jti));
     }
 
+    public int tokenVersion(Jws<Claims> token) {
+        Integer version = token.getPayload().get("tokenVersion", Integer.class);
+        return version == null ? 0 : version;
+    }
+
     public boolean consumeRefresh(Jws<Claims> token) {
         String userId = token.getPayload().getSubject();
         return userId.equals(redisTemplate.opsForValue().getAndDelete(REFRESH_PREFIX + token.getPayload().getId()));
@@ -118,11 +127,12 @@ public class JwtTokenService {
         }
     }
 
-    private Token create(Long userId, String username, String type, Duration ttl) {
+    private Token create(Long userId, String username, int tokenVersion, String type, Duration ttl) {
         Instant now = clock.instant();
         String jti = UUID.randomUUID().toString();
         String value = Jwts.builder()
-                .subject(userId.toString()).claim("username", username).claim("type", type)
+                .subject(userId.toString()).claim("username", username).claim("tokenVersion", tokenVersion)
+                .claim("type", type)
                 .id(jti).issuedAt(Date.from(now)).expiration(Date.from(now.plus(ttl)))
                 .signWith(privateKey, Jwts.SIG.RS256).compact();
         return new Token(value, jti);
