@@ -575,13 +575,16 @@ body { color:var(--ink); background:#fff; }
 .profile-identity { position:relative; z-index:1; }
 .profile-identity .eyebrow { margin:0 0 4px; color:#baf4ff!important; font-size:11px; }
 .profile-identity>p:not(.eyebrow) { opacity:.85; }
-.avatar-action { min-height:44px; margin-top:16px; padding:0 18px; border:1px solid rgba(255,255,255,.55); border-radius:999px; color:#fff; background:rgba(255,255,255,.13); backdrop-filter:blur(8px); font-weight:750; transition:background-color .2s ease,transform .2s ease; }
+.profile-banner-actions { margin-top:16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.avatar-action { min-height:44px; padding:0 18px; border:1px solid rgba(255,255,255,.55); border-radius:999px; color:#fff; background:rgba(255,255,255,.13); backdrop-filter:blur(8px); font-weight:750; transition:background-color .2s ease,transform .2s ease; }
+.password-action { border-color:rgba(186,244,255,.6); background:rgba(99,215,239,.15); }
 .avatar-action:hover { background:rgba(255,255,255,.22); transform:translateY(-1px); }
 .avatar-action:disabled { cursor:wait; opacity:.7; }
-.profile-identity small { margin-left:12px; color:rgba(255,255,255,.7); }
+.profile-identity small { margin-left:2px; color:rgba(255,255,255,.7); }
 @media (max-width:640px) {
   .profile-banner { align-items:flex-start; padding:28px 22px; }
-  .profile-identity small { display:block; margin:9px 0 0; }
+  .profile-banner-actions { align-items:flex-start; }
+  .profile-identity small { flex-basis:100%; display:block; margin:2px 0 0; }
 }
 @media (prefers-reduced-motion:reduce) {
   .avatar-edit,.avatar-action { transition-duration:.01ms!important; }
@@ -619,7 +622,8 @@ body { color:var(--ink); background:#fff; }
 
 /* Profile management: course orders and account security. */
 .profile-management-grid { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(300px,.75fr); gap:24px; margin-top:24px; align-items:start; }
-.profile-orders-card,.profile-security-card { min-width:0; }
+.profile-management-grid.profile-orders-only { grid-template-columns:1fr; }
+.profile-orders-card { min-width:0; }
 .profile-text-action { min-height:40px; padding:0 14px; border:1px solid #dfe3ee; border-radius:10px; color:#4b5eff; background:#fff; font-weight:700; cursor:pointer; }
 .profile-order-list { display:grid; gap:12px; }
 .profile-order-item { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:20px; align-items:center; padding:18px; border:1px solid #e8eaf5; border-radius:16px; background:linear-gradient(120deg,#fafbff,#f7fcfd); }
@@ -633,9 +637,6 @@ body { color:var(--ink); background:#fff; }
 .profile-order-amount span,.profile-order-amount small { color:var(--muted); font-size:12px; }
 .profile-order-amount strong { margin:2px 0; color:#4050dc; font-size:21px; font-variant-numeric:tabular-nums; }
 .profile-order-action { min-height:40px; display:inline-flex; align-items:center; justify-content:center; padding:0 15px; border:1px solid #dfe3ee; border-radius:10px; color:#4452d5; background:#fff; font-weight:700; white-space:nowrap; }
-.profile-security-illustration { width:70px; height:70px; display:grid; place-items:center; margin:8px auto 18px; border-radius:22px; color:#4b5eff; background:linear-gradient(135deg,rgba(75,94,255,.12),rgba(99,215,239,.2)); }
-.profile-security-illustration svg { width:36px; height:36px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-.profile-security-note { margin:0 0 20px; color:var(--muted); font-size:14px; line-height:1.7; }
 .password-dialog .el-form-item { margin-bottom:17px; }
 .password-dialog .login-dialog-brand>span svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
 .password-form-error { margin:-4px 0 14px; color:#c73d4b; font-size:13px; line-height:1.5; }

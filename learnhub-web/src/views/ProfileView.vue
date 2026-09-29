@@ -215,10 +215,15 @@ onBeforeUnmount(() => {
         <p class="eyebrow">{{ profileLabel }}</p>
         <h1>{{ auth.user?.nickname || '学习者' }}</h1>
         <p>@{{ auth.user?.username }} · {{ profileDescription }}</p>
-        <button class="avatar-action" type="button" :disabled="uploading" @click="chooseAvatar">
-          {{ uploading ? '正在上传头像…' : '更换头像' }}
-        </button>
-        <small>支持 PNG、JPG、WebP，最大 5 MB</small>
+        <div class="profile-banner-actions">
+          <button class="avatar-action" type="button" :disabled="uploading" @click="chooseAvatar">
+            {{ uploading ? '正在上传头像…' : '更换头像' }}
+          </button>
+          <button class="avatar-action password-action" type="button" @click="openPasswordDialog">
+            修改密码
+          </button>
+          <small>支持 PNG、JPG、WebP，最大 5 MB</small>
+        </div>
       </div>
     </div>
 
@@ -255,7 +260,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div class="profile-management-grid">
+    <div class="profile-management-grid profile-orders-only">
       <div class="content-card profile-orders-card" :aria-busy="loadingOrders">
         <div class="profile-section-heading">
           <div><h2>订单管理</h2><p>查看课程订单和支付状态。</p></div>
@@ -281,12 +286,6 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="content-card profile-security-card">
-        <div class="profile-section-heading"><div><h2>账号安全</h2><p>定期更换密码，保护课程与学习数据。</p></div></div>
-        <div class="profile-security-illustration" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-5"/></svg></div>
-        <p class="profile-security-note">修改密码后，所有已登录会话将立即失效，需要使用新密码重新登录。</p>
-        <el-button type="primary" class="full" @click="openPasswordDialog">修改密码</el-button>
-      </div>
     </div>
 
     <el-dialog
