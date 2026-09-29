@@ -11,6 +11,7 @@
 - 互动社区：问题与回答持久化到 MySQL，支持问题列表/详情、回答分页和真实作者昵称；点赞使用 Redis Set 判重并通过 RabbitMQ 异步聚合。
 - 优惠券：普通领取与限量秒杀；Lua 原子校验/预扣 Redis 库存，RabbitMQ 异步削峰。
 - 课程搜索：Elasticsearch 关键词检索、标签过滤、业务热度排序与联想建议。
+- 文件存储：阿里云 OSS SDK V2，支持后端直传、浏览器预签名直传、上传确认、临时访问和删除，MySQL 记录媒体资产归属与状态。
 - 最小管理端：课程和优惠券管理页面入口，便于后续扩展完整 CRUD 与权限控制。
 - 工程化：统一响应与异常处理、MyBatis-Plus、Swagger UI、Actuator、Docker Compose 中间件编排。
 
@@ -115,7 +116,7 @@ npm run dev
 
 ## 配置说明
 
-后端配置均可通过环境变量覆盖，完整样例见根目录 `.env.example`：
+后端配置均可通过环境变量覆盖，本地运行所需的常用配置样例见根目录 `.env.example`；未列出的可选项继续使用 `application.yml` 默认值：
 
 | 配置 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -127,6 +128,12 @@ npm run dev
 | `LEARNHUB_ES_URIS` | `http://localhost:9200` | Elasticsearch 地址 |
 | `LEARNHUB_JWT_PRIVATE_KEY_PATH` | classpath 占位路径 | RSA 私钥资源位置 |
 | `LEARNHUB_JWT_PUBLIC_KEY_PATH` | classpath 占位路径 | RSA 公钥资源位置 |
+| `LEARNHUB_OSS_ENABLED` | `false` | 是否启用阿里云 OSS；未启用时文件接口返回 `STORAGE_DISABLED` |
+| `LEARNHUB_OSS_REGION` | 空 | Bucket 地域，如 `cn-hangzhou` |
+| `LEARNHUB_OSS_ENDPOINT` | 空 | 可选自定义 Endpoint；公有云可由 SDK 根据 region 解析 |
+| `LEARNHUB_OSS_BUCKET` | 空 | OSS Bucket 名称 |
+| `LEARNHUB_OSS_PUBLIC_BASE_URL` | 空 | 可选 CDN/公开域名；为空时返回短期签名访问地址 |
+| `OSS_ACCESS_KEY_ID` / `OSS_ACCESS_KEY_SECRET` | 空 | 本地写入被 Git 忽略的 `.env`，生产环境由部署平台注入 |
 
 前端变量位于 `learnhub-web/.env.local`：
 
@@ -162,6 +169,10 @@ VITE_API_BASE_URL=/api
 | 秒杀 | `POST /api/coupons/{id}/seckill` | 秒杀领取 |
 | 搜索 | `GET /api/search/courses` | 关键词和标签搜索 |
 | 联想 | `GET /api/search/courses/suggest` | 前缀建议 |
+| 文件 | `POST /api/media/uploads/presign` | 申请浏览器 PUT 直传地址和必需请求头 |
+| 文件 | `POST /api/media/uploads/{id}/complete` | HEAD 校验大小/类型并确认上传完成 |
+| 文件 | `POST /api/media/uploads` | 小文件 multipart 后端直传 |
+| 文件 | `GET/DELETE /api/media/{id}` | 获取临时访问地址/删除本人文件 |
 
 需要认证的请求使用：
 
