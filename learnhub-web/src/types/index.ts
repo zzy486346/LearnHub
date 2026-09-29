@@ -14,6 +14,14 @@ export interface Lesson {
 export interface LearningProgress {
   id?: number; userId?: number; lessonId: number; positionSeconds: number; completed: boolean; lastLearnedAt?: string
 }
+export interface ProfileRecentLearning {
+  courseId: number; courseTitle: string; lessonId: number; lessonTitle: string
+  positionSeconds: number; durationSeconds: number; completed: boolean; percentage: number; lastLearnedAt: string
+}
+export interface ProfileOverview {
+  learningCourseCount: number; completedLessonCount: number; favoriteCourseCount: number; qaContributionCount: number
+  recentLearning?: ProfileRecentLearning
+}
 export interface Question {
   id: string; userId: string; nickname: string; courseId?: string; title: string; content: string
   status: string; answerCount: number; likeCount: number; createdAt: string

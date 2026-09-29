@@ -1,5 +1,5 @@
 import { http } from './http'
-import type { Answer, ApiResult, Coupon, Course, LearningProgress, LikeState, PageResult, Question, TokenPair, User } from '@/types'
+import type { Answer, ApiResult, Coupon, Course, LearningProgress, LikeState, PageResult, ProfileOverview, Question, TokenPair, User } from '@/types'
 
 export const authApi = {
   login: (body: { username: string; password: string }) => http.post<ApiResult<TokenPair>>('/auth/login', body),
@@ -11,6 +11,10 @@ export const authApi = {
     return http.post<ApiResult<User>>('/auth/me/avatar', form)
   },
   logout: () => http.post<ApiResult<void>>('/auth/logout'),
+}
+
+export const profileApi = {
+  overview: () => http.get<ApiResult<ProfileOverview>>('/profile/overview'),
 }
 
 export const courseApi = {

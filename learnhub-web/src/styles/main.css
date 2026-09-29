@@ -587,6 +587,35 @@ body { color:var(--ink); background:#fff; }
   .avatar-edit:hover,.avatar-action:hover { transform:none; }
 }
 
+/* Profile overview: real learning data, resilient loading, and useful empty states. */
+.profile-learning-card { min-height:190px; }
+.profile-section-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; margin-bottom:20px; }
+.profile-section-heading h2 { margin:0 0 6px; }
+.profile-section-heading p { margin:0; color:var(--muted); }
+.profile-state { min-height:88px; display:flex; align-items:center; justify-content:center; gap:10px; color:var(--muted); }
+.profile-loading-dot { width:10px; height:10px; border-radius:50%; background:#5967f2; box-shadow:0 0 0 6px rgba(89,103,242,.12); animation:profile-pulse 1.2s ease-in-out infinite; }
+.profile-state-error { flex-wrap:wrap; }
+.profile-state-error button,.profile-empty-state>a,.recent-learning-action { min-height:44px; display:inline-flex; align-items:center; justify-content:center; padding:0 18px; border:0; border-radius:12px; color:#fff; background:linear-gradient(115deg,#4b5eff,#7467ee); font-weight:750; }
+.profile-state-error button { margin-left:8px; cursor:pointer; }
+.profile-empty-state { justify-content:space-between; padding:16px 18px; border:1px dashed #dfe3ee; border-radius:14px; background:#fafbff; }
+.profile-empty-state div { display:grid; gap:5px; }
+.profile-empty-state strong { color:var(--ink); }
+.profile-empty-state span { color:var(--muted); }
+.recent-learning { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px 24px; align-items:center; padding:18px; border:1px solid #e8eaf5; border-radius:16px; background:linear-gradient(120deg,#fafbff,#f5fbfc); }
+.recent-course { color:#5967f2; font-size:13px; font-weight:750; }
+.recent-learning h3 { margin:6px 0; font-size:20px; }
+.recent-learning p { margin:0; color:var(--muted); }
+.recent-learning-progress { grid-column:1/-1; }
+@keyframes profile-pulse { 50% { opacity:.45; transform:scale(.82); } }
+@media (max-width:640px) {
+  .profile-empty-state,.recent-learning { grid-template-columns:1fr; align-items:stretch; }
+  .profile-empty-state { gap:18px; }
+  .recent-learning-action { width:100%; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .profile-loading-dot { animation:none; }
+}
+
 /* Admin course workspace: dense enough for authoring, spacious enough for long sessions. */
 .admin-title { align-items:center; }
 .admin-title .el-button { min-height:46px; padding-inline:22px; border:0; background:linear-gradient(115deg,#4b5eff,#7868f8 55%,#28bfd8); box-shadow:0 12px 28px rgba(75,94,255,.2); }
