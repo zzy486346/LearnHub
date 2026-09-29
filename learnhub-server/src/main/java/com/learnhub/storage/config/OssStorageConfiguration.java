@@ -2,7 +2,7 @@ package com.learnhub.storage.config;
 
 import com.aliyun.sdk.service.oss2.OSSClient;
 import com.aliyun.sdk.service.oss2.OSSClientBuilder;
-import com.aliyun.sdk.service.oss2.credentials.EnvironmentVariableCredentialsProvider;
+import com.aliyun.sdk.service.oss2.credentials.StaticCredentialsProvider;
 import com.learnhub.storage.AliyunOssObjectStorageService;
 import com.learnhub.storage.DisabledObjectStorageService;
 import com.learnhub.storage.ObjectStorageService;
@@ -20,14 +20,24 @@ public class OssStorageConfiguration {
     OSSClient aliyunOssClient(OssStorageProperties properties) {
         requireText(properties.getRegion(), "LEARNHUB_OSS_REGION");
         requireText(properties.getBucket(), "LEARNHUB_OSS_BUCKET");
+        requireText(properties.getAccessKeyId(), "OSS_ACCESS_KEY_ID");
+        requireText(properties.getAccessKeySecret(), "OSS_ACCESS_KEY_SECRET");
 
         OSSClientBuilder builder = OSSClient.newBuilder()
-                .credentialsProvider(new EnvironmentVariableCredentialsProvider())
+                .credentialsProvider(credentialsProvider(properties))
                 .region(properties.getRegion());
         if (StringUtils.hasText(properties.getEndpoint())) {
             builder.endpoint(properties.getEndpoint());
         }
         return builder.build();
+    }
+
+    private StaticCredentialsProvider credentialsProvider(OssStorageProperties properties) {
+        if (StringUtils.hasText(properties.getSecurityToken())) {
+            return new StaticCredentialsProvider(properties.getAccessKeyId(),
+                    properties.getAccessKeySecret(), properties.getSecurityToken());
+        }
+        return new StaticCredentialsProvider(properties.getAccessKeyId(), properties.getAccessKeySecret());
     }
 
     @Bean

@@ -52,6 +52,9 @@ learnhub:
       region: ${LEARNHUB_OSS_REGION:}
       bucket: ${LEARNHUB_OSS_BUCKET:}
       public-base-url: ${LEARNHUB_OSS_PUBLIC_BASE_URL:}
+      access-key-id: ${OSS_ACCESS_KEY_ID:}
+      access-key-secret: ${OSS_ACCESS_KEY_SECRET:}
+      security-token: ${OSS_SESSION_TOKEN:}
       upload-url-ttl: ${LEARNHUB_OSS_UPLOAD_URL_TTL:PT15M}
       download-url-ttl: ${LEARNHUB_OSS_DOWNLOAD_URL_TTL:PT30M}
       max-file-size: ${LEARNHUB_OSS_MAX_FILE_SIZE:524288000}

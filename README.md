@@ -133,7 +133,7 @@ npm run dev
 | `LEARNHUB_OSS_ENDPOINT` | 空 | 可选自定义 Endpoint；公有云可由 SDK 根据 region 解析 |
 | `LEARNHUB_OSS_BUCKET` | 空 | OSS Bucket 名称 |
 | `LEARNHUB_OSS_PUBLIC_BASE_URL` | 空 | 可选 CDN/公开域名；为空时返回短期签名访问地址 |
-| `OSS_ACCESS_KEY_ID` / `OSS_ACCESS_KEY_SECRET` | 空 | OSS SDK 官方环境变量凭证，禁止写入配置文件 |
+| `OSS_ACCESS_KEY_ID` / `OSS_ACCESS_KEY_SECRET` | 空 | 本地写入被 Git 忽略的 `.env`，生产环境由部署平台注入 |
 
 前端变量位于 `learnhub-web/.env.local`：
 

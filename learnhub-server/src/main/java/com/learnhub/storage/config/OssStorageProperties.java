@@ -10,6 +10,9 @@ public class OssStorageProperties {
     private String region;
     private String bucket;
     private String publicBaseUrl;
+    private String accessKeyId;
+    private String accessKeySecret;
+    private String securityToken;
     private Duration uploadUrlTtl = Duration.ofMinutes(15);
     private Duration downloadUrlTtl = Duration.ofMinutes(30);
     private long maxFileSize = 500L * 1024 * 1024;
@@ -24,6 +27,12 @@ public class OssStorageProperties {
     public void setBucket(String bucket) { this.bucket = bucket; }
     public String getPublicBaseUrl() { return publicBaseUrl; }
     public void setPublicBaseUrl(String publicBaseUrl) { this.publicBaseUrl = publicBaseUrl; }
+    public String getAccessKeyId() { return accessKeyId; }
+    public void setAccessKeyId(String accessKeyId) { this.accessKeyId = accessKeyId; }
+    public String getAccessKeySecret() { return accessKeySecret; }
+    public void setAccessKeySecret(String accessKeySecret) { this.accessKeySecret = accessKeySecret; }
+    public String getSecurityToken() { return securityToken; }
+    public void setSecurityToken(String securityToken) { this.securityToken = securityToken; }
     public Duration getUploadUrlTtl() { return uploadUrlTtl; }
     public void setUploadUrlTtl(Duration uploadUrlTtl) { this.uploadUrlTtl = uploadUrlTtl; }
     public Duration getDownloadUrlTtl() { return downloadUrlTtl; }
