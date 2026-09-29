@@ -19,10 +19,11 @@ class AuthServiceTest {
         user.setId(42L);
         user.setUsername("learner");
         user.setNickname("张同学");
+        user.setAvatarMediaId(99L);
         user.setStatus("ACTIVE");
         when(userMapper.selectById(42L)).thenReturn(user);
         MediaAssetService mediaAssetService = mock(MediaAssetService.class);
-        when(mediaAssetService.readyAccessUrl(null)).thenReturn(null);
+        when(mediaAssetService.readyAccessUrl(99L)).thenReturn("https://signed.example/avatar.png");
         AuthService service = new AuthService(
                 userMapper, mock(PasswordEncoder.class), mock(JwtTokenService.class), mediaAssetService);
 
@@ -31,6 +32,6 @@ class AuthServiceTest {
         assertThat(response.id()).isEqualTo(42L);
         assertThat(response.username()).isEqualTo("learner");
         assertThat(response.nickname()).isEqualTo("张同学");
-        assertThat(response.avatarUrl()).isNull();
+        assertThat(response.avatarUrl()).isEqualTo("https://signed.example/avatar.png");
     }
 }
