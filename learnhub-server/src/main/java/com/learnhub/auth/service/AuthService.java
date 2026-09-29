@@ -25,13 +25,15 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenService tokenService;
     private final MediaAssetService mediaAssetService;
+    private final RoleService roleService;
 
     public AuthService(UserMapper userMapper, PasswordEncoder passwordEncoder, JwtTokenService tokenService,
-                       MediaAssetService mediaAssetService) {
+                       MediaAssetService mediaAssetService, RoleService roleService) {
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
         this.mediaAssetService = mediaAssetService;
+        this.roleService = roleService;
     }
 
     @Transactional
@@ -75,7 +77,8 @@ public class AuthService {
         }
         String avatarUrl = mediaAssetService.readyAccessUrl(user.getAvatarMediaId());
         if (avatarUrl == null) avatarUrl = user.getAvatarUrl();
-        return new CurrentUserResponse(user.getId(), user.getUsername(), user.getNickname(), avatarUrl);
+        return new CurrentUserResponse(user.getId(), user.getUsername(), user.getNickname(), avatarUrl,
+                roleService.rolesForUser(userId));
     }
 
     @Transactional
@@ -88,7 +91,8 @@ public class AuthService {
         user.setAvatarMediaId(asset.id());
         user.setAvatarUrl(null);
         userMapper.updateById(user);
-        return new CurrentUserResponse(user.getId(), user.getUsername(), user.getNickname(), asset.url());
+        return new CurrentUserResponse(user.getId(), user.getUsername(), user.getNickname(), asset.url(),
+                roleService.rolesForUser(userId));
     }
 
     public void logout(String accessToken, String refreshToken) {

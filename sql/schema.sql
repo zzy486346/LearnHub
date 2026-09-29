@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS course_category (
 );
 
 CREATE TABLE IF NOT EXISTS course (
-    id BIGINT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     category_id BIGINT NOT NULL,
     title VARCHAR(160) NOT NULL,
     subtitle VARCHAR(255),
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS course (
 );
 
 CREATE TABLE IF NOT EXISTS course_chapter (
-    id BIGINT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     course_id BIGINT NOT NULL,
     title VARCHAR(160) NOT NULL,
     sort_order INT NOT NULL DEFAULT 0,
@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS course_chapter (
 );
 
 CREATE TABLE IF NOT EXISTS course_lesson (
-    id BIGINT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     chapter_id BIGINT NOT NULL,
     title VARCHAR(160) NOT NULL,
     media_url VARCHAR(512),

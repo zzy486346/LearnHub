@@ -5,7 +5,7 @@ export interface User { id: number; username: string; nickname: string; avatarUr
 export interface Course {
   id: number; title: string; subtitle?: string; coverUrl?: string; description?: string
   teacherName?: string; instructor?: string; price?: number; likeCount?: number; favoriteCount?: number
-  tags?: string[]; chapters?: Chapter[]; liked?: boolean; favorited?: boolean
+  categoryId?: number; status?: 'DRAFT' | 'PUBLISHED'; tags?: string[]; chapters?: Chapter[]; liked?: boolean; favorited?: boolean
 }
 export interface Chapter { id: number; title: string; sortOrder?: number; lessons: Lesson[] }
 export interface Lesson {

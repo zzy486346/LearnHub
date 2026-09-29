@@ -45,7 +45,17 @@ public class CourseService {
     }
 
     public CourseDetailResponse detail(Long id) {
-        Course course = requirePublished(id);
+        return buildDetail(requirePublished(id));
+    }
+
+    public CourseDetailResponse detailForAdmin(Long id) {
+        Course course = courseMapper.selectById(id);
+        if (course == null) throw new BusinessException("课程不存在");
+        return buildDetail(course);
+    }
+
+    private CourseDetailResponse buildDetail(Course course) {
+        Long id = course.getId();
         List<CourseChapter> chapters = chapterMapper.selectList(new LambdaQueryWrapper<CourseChapter>()
                 .eq(CourseChapter::getCourseId, id)
                 .orderByAsc(CourseChapter::getSortOrder).orderByAsc(CourseChapter::getId)).stream()
