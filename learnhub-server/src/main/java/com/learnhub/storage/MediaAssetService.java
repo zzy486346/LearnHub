@@ -98,6 +98,22 @@ public class MediaAssetService {
         return toResponse(asset, true);
     }
 
+    public MediaResponses.Asset uploadAvatar(Long userId, MultipartFile file) {
+        String contentType = file == null ? null : file.getContentType();
+        if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/")
+                || "image/svg+xml".equalsIgnoreCase(contentType)) {
+            throw new BusinessException("AVATAR_TYPE_INVALID", "头像仅支持常见图片格式");
+        }
+        return upload(userId, file, "AVATAR", userId);
+    }
+
+    public String readyAccessUrl(Long assetId) {
+        if (assetId == null) return null;
+        MediaAsset asset = mapper.selectById(assetId);
+        if (asset == null || !READY.equals(asset.getStatus())) return null;
+        return storage.accessUrl(asset.getObjectKey(), properties.getDownloadUrlTtl()).toString();
+    }
+
     public MediaResponses.Asset detail(Long userId, Long assetId) {
         return toResponse(requireOwned(userId, assetId), true);
     }

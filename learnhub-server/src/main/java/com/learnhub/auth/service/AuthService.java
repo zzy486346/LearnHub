@@ -10,23 +10,28 @@ import com.learnhub.auth.mapper.UserMapper;
 import com.learnhub.auth.model.User;
 import com.learnhub.auth.security.JwtTokenService;
 import com.learnhub.common.exception.BusinessException;
+import com.learnhub.storage.MediaAssetService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class AuthService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenService tokenService;
+    private final MediaAssetService mediaAssetService;
 
-    public AuthService(UserMapper userMapper, PasswordEncoder passwordEncoder, JwtTokenService tokenService) {
+    public AuthService(UserMapper userMapper, PasswordEncoder passwordEncoder, JwtTokenService tokenService,
+                       MediaAssetService mediaAssetService) {
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
+        this.mediaAssetService = mediaAssetService;
     }
 
     @Transactional
@@ -68,7 +73,22 @@ public class AuthService {
         if (user == null || !"ACTIVE".equals(user.getStatus())) {
             throw new BusinessException("用户不存在或已停用");
         }
-        return new CurrentUserResponse(user.getId(), user.getUsername(), user.getNickname());
+        String avatarUrl = mediaAssetService.readyAccessUrl(user.getAvatarMediaId());
+        if (avatarUrl == null) avatarUrl = user.getAvatarUrl();
+        return new CurrentUserResponse(user.getId(), user.getUsername(), user.getNickname(), avatarUrl);
+    }
+
+    @Transactional
+    public CurrentUserResponse updateAvatar(Long userId, MultipartFile file) {
+        User user = userMapper.selectById(userId);
+        if (user == null || !"ACTIVE".equals(user.getStatus())) {
+            throw new BusinessException("用户不存在或已停用");
+        }
+        var asset = mediaAssetService.uploadAvatar(userId, file);
+        user.setAvatarMediaId(asset.id());
+        user.setAvatarUrl(null);
+        userMapper.updateById(user);
+        return new CurrentUserResponse(user.getId(), user.getUsername(), user.getNickname(), asset.url());
     }
 
     public void logout(String accessToken, String refreshToken) {

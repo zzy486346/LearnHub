@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import com.learnhub.auth.mapper.UserMapper;
 import com.learnhub.auth.model.User;
 import com.learnhub.auth.security.JwtTokenService;
+import com.learnhub.storage.MediaAssetService;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -20,13 +21,16 @@ class AuthServiceTest {
         user.setNickname("张同学");
         user.setStatus("ACTIVE");
         when(userMapper.selectById(42L)).thenReturn(user);
+        MediaAssetService mediaAssetService = mock(MediaAssetService.class);
+        when(mediaAssetService.readyAccessUrl(null)).thenReturn(null);
         AuthService service = new AuthService(
-                userMapper, mock(PasswordEncoder.class), mock(JwtTokenService.class));
+                userMapper, mock(PasswordEncoder.class), mock(JwtTokenService.class), mediaAssetService);
 
         var response = service.currentUser(42L);
 
         assertThat(response.id()).isEqualTo(42L);
         assertThat(response.username()).isEqualTo("learner");
         assertThat(response.nickname()).isEqualTo("张同学");
+        assertThat(response.avatarUrl()).isNull();
     }
 }

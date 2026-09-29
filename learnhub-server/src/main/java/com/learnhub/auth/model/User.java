@@ -11,6 +11,8 @@ public class User {
     private String username;
     private String passwordHash;
     private String nickname;
+    private String avatarUrl;
+    private Long avatarMediaId;
     private String status;
     private Integer tokenVersion;
 
@@ -22,6 +24,10 @@ public class User {
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     public String getNickname() { return nickname; }
     public void setNickname(String nickname) { this.nickname = nickname; }
+    public String getAvatarUrl() { return avatarUrl; }
+    public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
+    public Long getAvatarMediaId() { return avatarMediaId; }
+    public void setAvatarMediaId(Long avatarMediaId) { this.avatarMediaId = avatarMediaId; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public Integer getTokenVersion() { return tokenVersion; }

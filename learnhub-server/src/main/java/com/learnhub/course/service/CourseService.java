@@ -12,6 +12,7 @@ import com.learnhub.course.mapper.CourseMapper;
 import com.learnhub.course.model.Course;
 import com.learnhub.course.model.CourseChapter;
 import com.learnhub.course.model.CourseLesson;
+import com.learnhub.storage.MediaAssetService;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -23,12 +24,14 @@ public class CourseService {
     private final CourseMapper courseMapper;
     private final CourseChapterMapper chapterMapper;
     private final CourseLessonMapper lessonMapper;
+    private final MediaAssetService mediaAssetService;
 
     public CourseService(CourseMapper courseMapper, CourseChapterMapper chapterMapper,
-                         CourseLessonMapper lessonMapper) {
+                         CourseLessonMapper lessonMapper, MediaAssetService mediaAssetService) {
         this.courseMapper = courseMapper;
         this.chapterMapper = chapterMapper;
         this.lessonMapper = lessonMapper;
+        this.mediaAssetService = mediaAssetService;
     }
 
     public Page<Course> list(long page, long size, Long categoryId, String keyword) {
@@ -78,9 +81,14 @@ public class CourseService {
     private ChapterDetailResponse toChapterResponse(CourseChapter chapter,
                                                      Map<Long, List<CourseLesson>> lessonsByChapter) {
         List<LessonDetailResponse> lessons = lessonsByChapter.getOrDefault(chapter.getId(), List.of()).stream()
-                .map(lesson -> new LessonDetailResponse(lesson.getId(), lesson.getTitle(), lesson.getMediaUrl(),
+                .map(lesson -> new LessonDetailResponse(lesson.getId(), lesson.getTitle(), resolveMediaUrl(lesson),
                         lesson.getDurationSeconds(), lesson.getFreePreview(), lesson.getSortOrder()))
                 .toList();
         return new ChapterDetailResponse(chapter.getId(), chapter.getTitle(), chapter.getSortOrder(), lessons);
+    }
+
+    private String resolveMediaUrl(CourseLesson lesson) {
+        String signedUrl = mediaAssetService.readyAccessUrl(lesson.getMediaAssetId());
+        return signedUrl == null ? lesson.getMediaUrl() : signedUrl;
     }
 }
