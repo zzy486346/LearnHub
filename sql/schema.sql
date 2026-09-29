@@ -9,12 +9,14 @@ CREATE TABLE IF NOT EXISTS user (
     password_hash VARCHAR(100) NOT NULL,
     nickname VARCHAR(64) NOT NULL,
     avatar_url VARCHAR(512),
+    avatar_media_id BIGINT,
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
     token_version INT NOT NULL DEFAULT 0,
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
     deleted TINYINT NOT NULL DEFAULT 0,
-    UNIQUE KEY uk_user_username (username)
+    UNIQUE KEY uk_user_username (username),
+    KEY idx_user_avatar_media (avatar_media_id)
 );
 
 CREATE TABLE IF NOT EXISTS user_role (
@@ -71,12 +73,14 @@ CREATE TABLE IF NOT EXISTS course_lesson (
     chapter_id BIGINT NOT NULL,
     title VARCHAR(160) NOT NULL,
     media_url VARCHAR(512),
+    media_asset_id BIGINT,
     duration_seconds INT NOT NULL DEFAULT 0,
     free_preview TINYINT NOT NULL DEFAULT 0,
     sort_order INT NOT NULL DEFAULT 0,
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-    KEY idx_lesson_chapter (chapter_id, sort_order)
+    KEY idx_lesson_chapter (chapter_id, sort_order),
+    KEY idx_lesson_media_asset (media_asset_id)
 );
 
 CREATE TABLE IF NOT EXISTS learning_progress (

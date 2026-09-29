@@ -5,6 +5,11 @@ export const authApi = {
   login: (body: { username: string; password: string }) => http.post<ApiResult<TokenPair>>('/auth/login', body),
   register: (body: { username: string; password: string; nickname: string }) => http.post<ApiResult<void>>('/auth/register', body),
   me: () => http.get<ApiResult<User>>('/auth/me'),
+  updateAvatar: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return http.post<ApiResult<User>>('/auth/me/avatar', form)
+  },
   logout: () => http.post<ApiResult<void>>('/auth/logout'),
 }
 

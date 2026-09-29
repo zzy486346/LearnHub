@@ -31,6 +31,11 @@ async function restoreLoginFocus() {
   await nextTick()
   lastLoginTrigger?.focus()
 }
+
+function handleAvatarError(event: Event) {
+  const image = event.currentTarget as HTMLImageElement
+  image.remove()
+}
 </script>
 
 <template>
@@ -47,7 +52,10 @@ async function restoreLoginFocus() {
       <div class="header-actions">
       <template v-if="auth.authenticated">
           <RouterLink class="user-entry" to="/profile" aria-label="进入个人中心">
-            <span class="user-avatar">{{ auth.user?.nickname?.slice(0, 1) || '学' }}</span>
+            <span class="user-avatar">
+              <span>{{ auth.user?.nickname?.slice(0, 1) || '学' }}</span>
+              <img v-if="auth.user?.avatarUrl" :src="auth.user.avatarUrl" alt="" referrerpolicy="no-referrer" @error="handleAvatarError" />
+            </span>
             <span>{{ auth.user?.nickname || auth.user?.username || '学习者' }}</span>
           </RouterLink>
           <el-button text @click="logout">退出</el-button>

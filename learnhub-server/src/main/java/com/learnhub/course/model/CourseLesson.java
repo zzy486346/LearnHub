@@ -8,6 +8,7 @@ public class CourseLesson {
     private Long chapterId;
     private String title;
     private String mediaUrl;
+    private Long mediaAssetId;
     private Integer durationSeconds;
     private Boolean freePreview;
     private Integer sortOrder;
@@ -20,6 +21,8 @@ public class CourseLesson {
     public void setTitle(String title) { this.title = title; }
     public String getMediaUrl() { return mediaUrl; }
     public void setMediaUrl(String mediaUrl) { this.mediaUrl = mediaUrl; }
+    public Long getMediaAssetId() { return mediaAssetId; }
+    public void setMediaAssetId(Long mediaAssetId) { this.mediaAssetId = mediaAssetId; }
     public Integer getDurationSeconds() { return durationSeconds; }
     public void setDurationSeconds(Integer durationSeconds) { this.durationSeconds = durationSeconds; }
     public Boolean getFreePreview() { return freePreview; }

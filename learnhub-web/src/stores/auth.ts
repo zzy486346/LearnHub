@@ -58,9 +58,13 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function updateAvatar(file: File) {
+    user.value = (await authApi.updateAvatar(file)).data.data
+  }
+
   async function logout() {
     try { await authApi.logout() } finally { clearTokens(); resetSession() }
   }
 
-  return { user, loading, authenticated, isAdmin, login, register, fetchMe, logout }
+  return { user, loading, authenticated, isAdmin, login, register, fetchMe, updateAvatar, logout }
 })

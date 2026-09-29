@@ -12,6 +12,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import org.springframework.mock.web.MockMultipartFile;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -77,6 +78,26 @@ class MediaAssetServiceTest {
         assertThat(response.url()).isEqualTo("https://download.example/key");
         assertThat(asset.getEtag()).isEqualTo("etag-1");
         verify(mapper).updateById(asset);
+    }
+
+    @Test
+    void rejectsNonImageAvatar() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "avatar.mp4", "video/mp4", new byte[] {1});
+
+        assertThatThrownBy(() -> service.uploadAvatar(7L, file))
+                .isInstanceOf(BusinessException.class)
+                .extracting("code").isEqualTo("AVATAR_TYPE_INVALID");
+    }
+
+    @Test
+    void resolvesOnlyReadyAssetUrl() {
+        MediaAsset asset = uploadingAsset();
+        asset.setStatus("READY");
+        when(mapper.selectById(11L)).thenReturn(asset);
+        when(storage.accessUrl(any(), any())).thenReturn(URI.create("https://download.example/key"));
+
+        assertThat(service.readyAccessUrl(11L)).isEqualTo("https://download.example/key");
     }
 
     private MediaAsset uploadingAsset() {
