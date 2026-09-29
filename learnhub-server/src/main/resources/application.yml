@@ -29,6 +29,10 @@ spring:
     uris: ${LEARNHUB_ES_URIS:http://localhost:9200}
   jackson:
     default-property-inclusion: non_null
+  servlet:
+    multipart:
+      max-file-size: ${LEARNHUB_MULTIPART_MAX_FILE_SIZE:500MB}
+      max-request-size: ${LEARNHUB_MULTIPART_MAX_REQUEST_SIZE:500MB}
 
 mybatis-plus:
   configuration:
@@ -39,6 +43,16 @@ mybatis-plus:
       logic-delete-field: deleted
 
 learnhub:
+  storage:
+    oss:
+      enabled: ${LEARNHUB_OSS_ENABLED:false}
+      endpoint: ${LEARNHUB_OSS_ENDPOINT:}
+      region: ${LEARNHUB_OSS_REGION:}
+      bucket: ${LEARNHUB_OSS_BUCKET:}
+      public-base-url: ${LEARNHUB_OSS_PUBLIC_BASE_URL:}
+      upload-url-ttl: ${LEARNHUB_OSS_UPLOAD_URL_TTL:PT15M}
+      download-url-ttl: ${LEARNHUB_OSS_DOWNLOAD_URL_TTL:PT30M}
+      max-file-size: ${LEARNHUB_OSS_MAX_FILE_SIZE:524288000}
   rabbit:
     enabled: ${LEARNHUB_MESSAGING_ENABLED:true}
   jwt:
