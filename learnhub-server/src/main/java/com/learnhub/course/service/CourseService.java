@@ -12,6 +12,8 @@ import com.learnhub.course.mapper.CourseMapper;
 import com.learnhub.course.model.Course;
 import com.learnhub.course.model.CourseChapter;
 import com.learnhub.course.model.CourseLesson;
+import com.learnhub.interaction.like.LikeService;
+import com.learnhub.interaction.like.LikeTargetType;
 import com.learnhub.storage.MediaAssetService;
 import java.util.Comparator;
 import java.util.List;
@@ -25,13 +27,16 @@ public class CourseService {
     private final CourseChapterMapper chapterMapper;
     private final CourseLessonMapper lessonMapper;
     private final MediaAssetService mediaAssetService;
+    private final LikeService likeService;
 
     public CourseService(CourseMapper courseMapper, CourseChapterMapper chapterMapper,
-                         CourseLessonMapper lessonMapper, MediaAssetService mediaAssetService) {
+                         CourseLessonMapper lessonMapper, MediaAssetService mediaAssetService,
+                         LikeService likeService) {
         this.courseMapper = courseMapper;
         this.chapterMapper = chapterMapper;
         this.lessonMapper = lessonMapper;
         this.mediaAssetService = mediaAssetService;
+        this.likeService = likeService;
     }
 
     public Page<Course> list(long page, long size, Long categoryId, String keyword) {
@@ -41,7 +46,9 @@ public class CourseService {
                 .eq(categoryId != null, Course::getCategoryId, categoryId)
                 .like(keyword != null && !keyword.isBlank(), Course::getTitle, keyword)
                 .orderByDesc(Course::getLikeCount).orderByDesc(Course::getId);
-        return courseMapper.selectPage(Page.of(safePage, safeSize), query);
+        Page<Course> result = courseMapper.selectPage(Page.of(safePage, safeSize), query);
+        result.getRecords().forEach(course -> course.setLikeCount(liveLikeCount(course.getId())));
+        return result;
     }
 
     public CourseDetailResponse detail(Long id) {
@@ -78,7 +85,7 @@ public class CourseService {
                 .toList();
         return new CourseDetailResponse(course.getId(), course.getTitle(), course.getDescription(),
                 course.getCoverUrl(), course.getInstructor(), course.getCategoryId(), course.getPrice(),
-                course.getStatus(), course.getLikeCount(), chapterResponses);
+                course.getStatus(), liveLikeCount(course.getId()), chapterResponses);
     }
 
     public Course requirePublished(Long id) {
@@ -100,5 +107,9 @@ public class CourseService {
     private String resolveMediaUrl(CourseLesson lesson) {
         String signedUrl = mediaAssetService.readyAccessUrl(lesson.getMediaAssetId());
         return signedUrl == null ? lesson.getMediaUrl() : signedUrl;
+    }
+
+    private long liveLikeCount(Long courseId) {
+        return likeService.count(LikeTargetType.COURSE, courseId);
     }
 }

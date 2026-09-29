@@ -12,6 +12,7 @@ const auth = useAuthStore()
 const course = ref<Course | null>(null)
 const loading = ref(false)
 const errorMessage = ref('')
+const likeAnnouncement = ref('')
 const lessons = computed(() => course.value?.chapters?.flatMap((chapter) => chapter.lessons || []) ?? [])
 const firstLesson = computed(() => lessons.value[0] ?? null)
 
@@ -53,11 +54,12 @@ async function toggle(action: 'like' | 'favorite') {
       const response = await (course.value.liked ? courseApi.unlike(course.value.id) : courseApi.like(course.value.id))
       course.value.liked = response.data.data.liked
       course.value.likeCount = response.data.data.count
+      likeAnnouncement.value = `${course.value.liked ? '已喜欢' : '已取消喜欢'}，当前 ${course.value.likeCount} 人喜欢`
     } else {
       const response = await (course.value.favorited ? courseApi.unfavorite(course.value.id) : courseApi.favorite(course.value.id))
       course.value.favorited = response.data.data
     }
-    ElMessage.success('操作成功')
+    ElMessage.success(action === 'like' ? likeAnnouncement.value : '收藏状态已更新')
   } catch { ElMessage.error('请先登录或稍后再试') }
 }
 
@@ -72,7 +74,7 @@ watch(() => route.params.id, loadCourse, { immediate: true })
       <el-button type="primary" @click="loadCourse">重新加载</el-button>
     </div>
     <template v-else-if="course">
-      <div class="detail-hero"><div><div class="tag-row"><el-tag v-for="tag in course.tags" :key="tag">{{ tag }}</el-tag></div><h1>{{ course.title }}</h1><p>{{ course.subtitle || course.description }}</p><p class="muted">讲师 · {{ course.teacherName || course.instructor || '问课讲师' }}</p><div class="button-row"><el-button type="primary" size="large" :disabled="!firstLesson" @click="startLearning">{{ firstLesson ? '开始学习' : '暂无课时' }}</el-button><el-button size="large" @click="toggle('like')">{{ course.liked ? '已点赞' : '点赞' }} {{ course.likeCount || 0 }}</el-button><el-button size="large" @click="toggle('favorite')">{{ course.favorited ? '已收藏' : '收藏' }}</el-button></div></div><div class="detail-art">LEARN<br />WITHOUT<br />LIMITS</div></div>
+      <div class="detail-hero"><div><div class="tag-row"><el-tag v-for="tag in course.tags" :key="tag">{{ tag }}</el-tag></div><h1>{{ course.title }}</h1><p>{{ course.subtitle || course.description }}</p><p class="muted">讲师 · {{ course.teacherName || course.instructor || '问课讲师' }}</p><div class="button-row"><el-button type="primary" size="large" :disabled="!firstLesson" @click="startLearning">{{ firstLesson ? '开始学习' : '暂无课时' }}</el-button><el-button size="large" :aria-pressed="course.liked" @click="toggle('like')">{{ course.liked ? '已喜欢' : '喜欢' }} {{ course.likeCount || 0 }}</el-button><el-button size="large" @click="toggle('favorite')">{{ course.favorited ? '已收藏' : '收藏' }}</el-button></div><span class="sr-only" role="status" aria-atomic="true">{{ likeAnnouncement }}</span></div><div class="detail-art">LEARN<br />WITHOUT<br />LIMITS</div></div>
       <div class="detail-grid"><article class="content-card course-content-card"><h2>课程介绍</h2><p class="course-description">{{ course.description || '讲师正在完善课程介绍。' }}</p><div class="catalog-heading"><div><h2>课程目录</h2><p>{{ course.chapters?.length || 0 }} 个章节 · {{ lessons.length }} 个课时</p></div></div><el-collapse v-if="course.chapters?.length"><el-collapse-item v-for="chapter in course.chapters" :key="chapter.id" :title="chapter.title"><button v-for="lesson in chapter.lessons" :key="lesson.id" class="lesson" type="button" @click="openLesson(lesson)"><span class="lesson-main"><span class="lesson-play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 5 11 7-11 7V5Z" /></svg></span><span>{{ lesson.title }}</span><el-tag v-if="lesson.freePreview" size="small">试看</el-tag></span><span class="lesson-duration">{{ Math.ceil((lesson.durationSeconds || 0) / 60) }} 分钟</span></button></el-collapse-item></el-collapse><el-empty v-else description="课程目录正在准备中" :image-size="92" /></article><aside class="content-card learning-benefits"><p class="eyebrow">LEARNING OUTCOMES</p><h3>学习收获</h3><ul><li>系统化知识框架</li><li>真实项目实践</li><li>问答社区支持</li></ul></aside></div>
     </template>
   </section>

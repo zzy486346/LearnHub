@@ -14,6 +14,8 @@ import com.learnhub.course.mapper.CourseMapper;
 import com.learnhub.course.model.Course;
 import com.learnhub.course.model.CourseChapter;
 import com.learnhub.course.model.CourseLesson;
+import com.learnhub.interaction.like.LikeService;
+import com.learnhub.interaction.like.LikeTargetType;
 import com.learnhub.storage.MediaAssetService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -23,7 +25,8 @@ class CourseServiceTest {
     private final CourseChapterMapper chapterMapper = mock(CourseChapterMapper.class);
     private final CourseLessonMapper lessonMapper = mock(CourseLessonMapper.class);
     private final MediaAssetService mediaAssetService = mock(MediaAssetService.class);
-    private final CourseService service = new CourseService(mapper, chapterMapper, lessonMapper, mediaAssetService);
+    private final LikeService likeService = mock(LikeService.class);
+    private final CourseService service = new CourseService(mapper, chapterMapper, lessonMapper, mediaAssetService, likeService);
 
     @Test
     void returnsPublishedCourseDetailWithSortedChaptersAndLessons() {
@@ -31,6 +34,7 @@ class CourseServiceTest {
         course.setId(1L);
         course.setTitle("Java 入门");
         when(mapper.selectOne(any())).thenReturn(course);
+        when(likeService.count(LikeTargetType.COURSE, 1L)).thenReturn(7L);
         CourseChapter firstChapter = chapter(11L, 1L, "基础", 1);
         CourseChapter secondChapter = chapter(12L, 1L, "进阶", 2);
         when(chapterMapper.selectList(any())).thenReturn(List.of(secondChapter, firstChapter));
@@ -44,6 +48,7 @@ class CourseServiceTest {
         CourseDetailResponse detail = service.detail(1L);
 
         assertThat(detail.title()).isEqualTo("Java 入门");
+        assertThat(detail.likeCount()).isEqualTo(7L);
         assertThat(detail.chapters()).extracting(chapter -> chapter.title())
                 .containsExactly("基础", "进阶");
         assertThat(detail.chapters().get(0).lessons()).extracting(lesson -> lesson.title())

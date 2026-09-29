@@ -29,6 +29,7 @@ footer { padding: 28px; text-align: center; color: #7a857f; border-top: 1px soli
   --el-color-primary: #0d7457; --el-color-primary-light-3: #4b9d83; --el-color-primary-light-5: #86bca9;
   --el-color-primary-light-7: #bddbd0; --el-color-primary-light-9: #edf7f3; --el-color-primary-dark-2: #085f47;
 }
+.sr-only { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important; }
 html { scroll-behavior:smooth; }
 body { overflow-x:hidden; background:var(--canvas); }
 button,input,textarea,select { font:inherit; }
