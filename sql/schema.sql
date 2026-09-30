@@ -210,11 +210,17 @@ CREATE TABLE IF NOT EXISTS seckill_order (
     coupon_id BIGINT NOT NULL,
     user_id BIGINT NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    publish_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    publish_attempts INT NOT NULL DEFAULT 0,
+    compensated TINYINT NOT NULL DEFAULT 0,
     failure_reason VARCHAR(255),
+    reserved_at DATETIME(3) NOT NULL,
+    next_retry_at DATETIME(3),
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
     UNIQUE KEY uk_seckill_request (request_id),
-    UNIQUE KEY uk_seckill_coupon_user (coupon_id, user_id)
+    UNIQUE KEY uk_seckill_coupon_user (coupon_id, user_id),
+    KEY idx_seckill_recovery (status, compensated, next_retry_at)
 );
 
 CREATE TABLE IF NOT EXISTS mq_consume_log (

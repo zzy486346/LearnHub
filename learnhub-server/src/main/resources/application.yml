@@ -21,9 +21,13 @@ spring:
     username: ${LEARNHUB_RABBITMQ_USERNAME:learnhub}
     password: ${LEARNHUB_RABBITMQ_PASSWORD:learnhub}
     publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
     listener:
       simple:
         acknowledge-mode: auto
+        default-requeue-rejected: false
         retry:
           enabled: true
           max-attempts: 3
@@ -60,6 +64,12 @@ learnhub:
       max-file-size: ${LEARNHUB_OSS_MAX_FILE_SIZE:524288000}
   rabbit:
     enabled: ${LEARNHUB_MESSAGING_ENABLED:true}
+  seckill:
+    max-publish-attempts: ${LEARNHUB_SECKILL_MAX_PUBLISH_ATTEMPTS:5}
+    consumer-confirmation-timeout: ${LEARNHUB_SECKILL_CONSUMER_CONFIRMATION_TIMEOUT:PT1M}
+    reservation-orphan-timeout: ${LEARNHUB_SECKILL_RESERVATION_ORPHAN_TIMEOUT:PT1M}
+    reconciliation-enabled: ${LEARNHUB_SECKILL_RECONCILIATION_ENABLED:true}
+    reconciliation-delay: ${LEARNHUB_SECKILL_RECONCILIATION_DELAY:10000}
   jwt:
     access-token-ttl: PT15M
     refresh-token-ttl: P7D

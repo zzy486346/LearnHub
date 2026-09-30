@@ -11,8 +11,13 @@ public class SeckillConsumer {
 
     public SeckillConsumer(CouponService service) { this.service = service; }
 
-    @RabbitListener(queues = "learnhub.coupon.seckill")
+    @RabbitListener(queues = CouponService.QUEUE)
     public void consume(SeckillMessage message) {
-        service.confirm(message.couponId(), message.userId());
+        service.confirm(message);
+    }
+
+    @RabbitListener(queues = CouponService.DEAD_LETTER_QUEUE)
+    public void consumeDeadLetter(SeckillMessage message) {
+        service.failAndCompensate(message, "Consumer retries exhausted; message moved to DLQ");
     }
 }
