@@ -94,15 +94,19 @@ Spring Boot 模块化单体
 已实现：
 
 - 收藏记录持久化到 MySQL，通过唯一索引保证幂等。
-- 点赞使用 Redis Set 保存用户成员关系，可查询点赞状态和实时数量。
-- 点赞变化可发送 RabbitMQ，消费者将增量聚合到 Redis Hash。
+- 点赞使用 Redis Set 原子判重，可立即查询状态和近实时数量，请求链不再同步更新业务表。
+- 点赞事件使用 publisher confirm、有限消费重试和 DLQ；消费者批量写入 MySQL inbox 后再聚合 Redis 增量。
+- 定时任务通过 Lua 原子 claim 增量，事务内分块 upsert `like_record`、更新目标 `like_count` 并标记 inbox 事件完成。
+- 事件 ID 唯一约束、关系单调序列和批次日志共同处理跨批次重投、乱序消息和刷库重入。
+- 失败批次保留重试；Redis 聚合状态丢失时可从 MySQL inbox 重放，对账任务在分布式互斥窗口内修复关系和计数。
+- 启动时会把旧版 `learnhub:likes:*` 成员集合幂等迁移到新键空间。
 - 前端课程点赞、收藏状态可保存并在刷新后恢复。
 
 当前边界：
 
-- 点赞聚合增量尚未通过可靠定时任务批量落入 MySQL。
-- 缺少 outbox、消息 ID、消费日志、重试/死信和批次幂等。
-- Redis 不可用时会回退到单机内存集合；该状态无法跨实例共享，也会在重启后丢失。
+- Redis 或 RabbitMQ 不可用时点赞接口会明确失败，不再回退到本机内存。
+- DLQ 目前需要运维人工检查与重放，尚未接入指标、告警和管理端操作入口。
+- 当前 Redis 键使用单一 Cluster hash slot 保证批次 Lua 原子性；更高吞吐需要按固定分区拆槽。
 - 尚未校验所有被点赞/收藏目标是否真实存在及是否允许互动。
 
 ### 3.4 问答社区
@@ -212,7 +216,7 @@ Spring Boot 模块化单体
 | 课程 | MySQL | 是 | 已聚合章节课时；继续增加媒体资产、权限、统计和管理 CRUD |
 | 学习进度 | MySQL | 是 | 已支持课时续播与完成同步；继续增加最近学习、完课规则和统计 |
 | 收藏 | MySQL | 是 | 增加列表、目标校验和统计回写 |
-| 点赞成员关系 | Redis Set | 依赖 Redis | 增加可靠消息、事实表和对账 |
+| 点赞关系与计数 | MySQL `like_record`/目标表；Redis Set 提供实时视图 | 是 | 已完成 inbox、批量刷库、重放和对账；继续增加告警与分区扩展 |
 | 问答 | MySQL | 是 | 增加采纳、审核、编辑/删除和集成测试 |
 | 优惠券活动/领取 | MySQL + Redis 预扣 + RabbitMQ | 是 | 已完成事实表、幂等消费、补偿与对账；继续增加风控和监控 |
 | 搜索 | ES + MySQL 回退 + JVM 缓存 | 部分 | 改为 ES 原生查询和可靠索引同步 |
@@ -420,7 +424,7 @@ DELETE /api/users/me/sessions/{sessionId}
 - [已完成] 将问题、回答迁移到 MySQL Mapper/Service，并移除生产路径内存数据源。
 - [已完成] 增加问题详情、问题/回答分页、真实作者昵称与前端回答入口。
 - [待完成] 增加采纳、编辑、删除、举报和审核。
-- 为点赞实现 outbox 或可靠发布、事件 ID、消费日志、批量落库和对账。
+- [已完成] 为点赞实现可靠发布、MySQL inbox、事件 ID、批量落库、失败重放和对账。
 - 删除生产环境的本地内存降级，改为明确失败、熔断和告警。
 
 验收：服务重启不丢数据；重复点赞、取消和消息重投不造成计数漂移。
@@ -499,6 +503,7 @@ DELETE /api/users/me/sessions/{sessionId}
 docker compose -f deploy/docker-compose.yml up -d
 D:\Android\apache-maven-3.9.10\bin\mvn.cmd test
 D:\Android\apache-maven-3.9.10\bin\mvn.cmd verify
+D:\Android\apache-maven-3.9.10\bin\mvn.cmd -pl learnhub-server -am "-Dtest=LikeInfrastructureIntegrationTest" "-Dsurefire.failIfNoSpecifiedTests=false" "-Dlearnhub.it.enabled=true" test
 cd learnhub-web
 npm run build
 ```

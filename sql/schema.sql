@@ -140,9 +140,39 @@ CREATE TABLE IF NOT EXISTS like_record (
     target_type VARCHAR(20) NOT NULL,
     target_id BIGINT NOT NULL,
     active TINYINT NOT NULL DEFAULT 1,
+    event_sequence BIGINT NOT NULL DEFAULT 0,
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-    UNIQUE KEY uk_like_user_target (user_id, target_type, target_id)
+    UNIQUE KEY uk_like_user_target (user_id, target_type, target_id),
+    KEY idx_like_target_active (target_type, target_id, active)
+);
+
+CREATE TABLE IF NOT EXISTS like_sync_batch (
+    id BIGINT PRIMARY KEY,
+    batch_id VARCHAR(64) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    relation_count INT NOT NULL DEFAULT 0,
+    target_count INT NOT NULL DEFAULT 0,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    UNIQUE KEY uk_like_sync_batch (batch_id)
+);
+
+CREATE TABLE IF NOT EXISTS like_event_inbox (
+    id BIGINT PRIMARY KEY,
+    event_id VARCHAR(64) NOT NULL,
+    user_id BIGINT NOT NULL,
+    target_type VARCHAR(20) NOT NULL,
+    target_id BIGINT NOT NULL,
+    liked TINYINT NOT NULL,
+    event_sequence BIGINT NOT NULL,
+    event_version INT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    occurred_at DATETIME(3) NOT NULL,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    processed_at DATETIME(3) NULL,
+    UNIQUE KEY uk_like_event_inbox_event (event_id),
+    KEY idx_like_event_inbox_status (status, id)
 );
 
 CREATE TABLE IF NOT EXISTS question (

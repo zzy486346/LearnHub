@@ -16,7 +16,8 @@ class RabbitMessageConfigTest {
     void serializesAndDeserializesLikeEventAsJson() {
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         MessageConverter converter = new RabbitMessageConfig().rabbitMessageConverter(objectMapper);
-        LikeEvent event = new LikeEvent(10L, LikeTargetType.COURSE, 1002L, true, Instant.now());
+        LikeEvent event = new LikeEvent("event-1", 10L, LikeTargetType.COURSE, 1002L,
+                true, 1L, Instant.now(), 1);
 
         Message message = converter.toMessage(event, new MessageProperties());
         Object restored = converter.fromMessage(message);

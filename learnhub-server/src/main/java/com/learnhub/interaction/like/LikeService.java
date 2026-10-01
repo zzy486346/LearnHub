@@ -1,99 +1,154 @@
 package com.learnhub.interaction.like;
 
-import com.learnhub.course.mapper.CourseMapper;
-import com.learnhub.course.model.Course;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Instant;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
-
-import java.time.Instant;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class LikeService {
     public static final String EXCHANGE = "learnhub.interaction";
-    public static final String ROUTING_KEY = "like.changed";
+    public static final String ROUTING_KEY = "like.changed.v2";
+    public static final String QUEUE = "learnhub.like.events.v2";
+    public static final String DEAD_LETTER_EXCHANGE = "learnhub.interaction.dlx";
+    public static final String DEAD_LETTER_ROUTING_KEY = "like.changed.v2.dead";
+    public static final String DEAD_LETTER_QUEUE = "learnhub.like.events.v2.dlq";
+    private static final DefaultRedisScript<Long> TOGGLE_SCRIPT = new DefaultRedisScript<>();
+
+    static {
+        TOGGLE_SCRIPT.setLocation(new ClassPathResource("lua/like_toggle.lua"));
+        TOGGLE_SCRIPT.setResultType(Long.class);
+    }
 
     private final StringRedisTemplate redis;
     private final RabbitTemplate rabbit;
-    private final CourseMapper courseMapper;
+    private final LikeEventAggregationService aggregationService;
+    private final ObjectMapper objectMapper;
     private final boolean rabbitEnabled;
-    private final ConcurrentHashMap<String, Set<String>> fallback = new ConcurrentHashMap<>();
+    private final Duration publisherConfirmTimeout;
+    private final LikeSequenceService sequences;
 
     public LikeService(ObjectProvider<StringRedisTemplate> redisProvider,
                        ObjectProvider<RabbitTemplate> rabbitProvider,
-                       CourseMapper courseMapper,
-                       @Value("${learnhub.rabbit.enabled:false}") boolean rabbitEnabled) {
+                       LikeEventAggregationService aggregationService,
+                       ObjectMapper objectMapper,
+                       @Value("${learnhub.rabbit.enabled:false}") boolean rabbitEnabled,
+                       @Value("${learnhub.like.publisher-confirm-timeout:10s}") Duration publisherConfirmTimeout,
+                       LikeSequenceService sequences) {
         this.redis = redisProvider.getIfAvailable();
         this.rabbit = rabbitProvider.getIfAvailable();
-        this.courseMapper = courseMapper;
+        this.aggregationService = aggregationService;
+        this.objectMapper = objectMapper;
         this.rabbitEnabled = rabbitEnabled;
+        this.publisherConfirmTimeout = publisherConfirmTimeout;
+        this.sequences = sequences;
     }
 
     public LikeResult setLike(Long userId, LikeTargetType type, Long targetId, boolean liked) {
-        String key = key(type, targetId);
-        boolean changed;
-        long count;
-        try {
-            if (redis == null) throw new IllegalStateException("Redis unavailable");
-            changed = liked
-                    ? Boolean.TRUE.equals(redis.opsForSet().add(key, userId.toString()) == 1)
-                    : Boolean.TRUE.equals(redis.opsForSet().remove(key, userId.toString()) == 1);
-            Long size = redis.opsForSet().size(key);
-            count = size == null ? 0 : size;
-        } catch (RuntimeException ex) {
-            Set<String> users = fallback.computeIfAbsent(key, ignored -> ConcurrentHashMap.newKeySet());
-            changed = liked ? users.add(userId.toString()) : users.remove(userId.toString());
-            count = users.size();
-        }
-        if (changed && rabbitEnabled && rabbit != null) {
-            try {
-                rabbit.convertAndSend(EXCHANGE, ROUTING_KEY,
-                        new LikeEvent(userId, type, targetId, liked, Instant.now()));
-            } catch (RuntimeException ignored) {
-                // The Redis Set remains the source of truth; MQ publishing can be retried by an outbox in a later version.
-            }
-        }
-        synchronizeCourseCount(type, targetId, count);
-        return new LikeResult(liked, count);
+        requireRedis();
+        long sequence = sequences.next();
+        LikeEvent event = new LikeEvent(UUID.randomUUID().toString(), userId, type, targetId,
+                liked, sequence, Instant.now(), 1);
+        String serialized = serialize(event);
+        Long changed = redis.execute(TOGGLE_SCRIPT, List.of(
+                        LikeRedisKeys.userSet(type, targetId),
+                        LikeRedisKeys.PENDING_PUBLISH,
+                        LikeRedisKeys.TARGETS,
+                        LikeRedisKeys.RECONCILE_LOCK),
+                userId.toString(), liked ? "1" : "0", event.eventId(), serialized,
+                LikeRedisKeys.targetField(type, targetId));
+        if (changed == null) throw new IllegalStateException("Redis did not apply like state");
+        if (changed == -1) throw new IllegalStateException("Like reconciliation is running; retry shortly");
+        if (changed == 1) publish(event);
+        Long size = redis.opsForSet().size(LikeRedisKeys.userSet(type, targetId));
+        return new LikeResult(liked, size == null ? 0 : size);
     }
 
     public LikeResult status(Long userId, LikeTargetType type, Long targetId) {
-        String key = key(type, targetId);
-        try {
-            if (redis == null) throw new IllegalStateException("Redis unavailable");
-            Boolean member = redis.opsForSet().isMember(key, userId.toString());
-            Long size = redis.opsForSet().size(key);
-            return new LikeResult(Boolean.TRUE.equals(member), size == null ? 0 : size);
-        } catch (RuntimeException ex) {
-            Set<String> users = fallback.getOrDefault(key, Set.of());
-            return new LikeResult(users.contains(userId.toString()), users.size());
-        }
+        requireRedis();
+        String key = LikeRedisKeys.userSet(type, targetId);
+        Boolean member = redis.opsForSet().isMember(key, userId.toString());
+        Long size = redis.opsForSet().size(key);
+        return new LikeResult(Boolean.TRUE.equals(member), size == null ? 0 : size);
     }
 
     public long count(LikeTargetType type, Long targetId) {
-        String key = key(type, targetId);
-        try {
-            if (redis == null) throw new IllegalStateException("Redis unavailable");
-            Long size = redis.opsForSet().size(key);
-            return size == null ? 0 : size;
-        } catch (RuntimeException ex) {
-            return fallback.getOrDefault(key, Set.of()).size();
+        requireRedis();
+        Long size = redis.opsForSet().size(LikeRedisKeys.userSet(type, targetId));
+        return size == null ? 0 : size;
+    }
+
+    public void republishPending(int limit) {
+        requireRedis();
+        int published = 0;
+        try (Cursor<Map.Entry<Object, Object>> cursor = redis.opsForHash().scan(
+                LikeRedisKeys.PENDING_PUBLISH, ScanOptions.scanOptions().count(limit).build())) {
+            while (cursor.hasNext() && published++ < limit) {
+                try {
+                    publish(deserialize(cursor.next().getValue().toString()));
+                } catch (IllegalStateException ignored) {
+                    // Keep the pending event for a later bounded retry; continue past malformed or unavailable events.
+                }
+            }
         }
     }
 
-    private void synchronizeCourseCount(LikeTargetType type, Long targetId, long count) {
-        if (type != LikeTargetType.COURSE) return;
-        Course course = new Course();
-        course.setId(targetId);
-        course.setLikeCount(count);
-        courseMapper.updateById(course);
+    void publish(LikeEvent event) {
+        if (!rabbitEnabled) {
+            aggregationService.aggregate(List.of(event));
+            return;
+        }
+        if (rabbit == null) throw new IllegalStateException("RabbitMQ unavailable; like event was not accepted");
+        CorrelationData correlation = new CorrelationData(event.eventId());
+        try {
+            rabbit.convertAndSend(EXCHANGE, ROUTING_KEY, event, correlation);
+            CorrelationData.Confirm confirm = correlation.getFuture().get(
+                    publisherConfirmTimeout.toMillis(), TimeUnit.MILLISECONDS);
+            if (!confirm.isAck()) {
+                throw new IllegalStateException("RabbitMQ rejected like event: " + confirm.getReason());
+            }
+            if (correlation.getReturned() != null) {
+                throw new IllegalStateException("RabbitMQ returned unroutable like event");
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while confirming like event", ex);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Like event was not confirmed and remains pending", ex);
+        }
     }
 
-    private String key(LikeTargetType type, Long targetId) {
-        return "learnhub:likes:" + type.name().toLowerCase() + ":" + targetId;
+    private void requireRedis() {
+        if (redis == null) throw new IllegalStateException("Redis unavailable; likes are temporarily unavailable");
+    }
+
+    private String serialize(LikeEvent event) {
+        try {
+            return objectMapper.writeValueAsString(event);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Cannot serialize like event", ex);
+        }
+    }
+
+    private LikeEvent deserialize(String json) {
+        try {
+            return objectMapper.readValue(json, LikeEvent.class);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Cannot deserialize like event", ex);
+        }
     }
 }
