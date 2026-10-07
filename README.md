@@ -51,7 +51,21 @@ LearnHub/
 - Node.js 20+ 与 npm 10+
 - Docker Desktop / Docker Compose（推荐用于启动 MySQL、Redis、RabbitMQ、Elasticsearch）
 
-中间件默认端口：MySQL `3306`、Redis `6379`、RabbitMQ `5672`（管理台 `15672`）、Elasticsearch `9200`。请确认本机端口未被占用。
+中间件默认端口：MySQL `3306`、Redis `6379`、RabbitMQ `5672`（管理台 `15672`）、Elasticsearch `9200`、Kibana `5601`（仅本机访问）。请确认本机端口未被占用。
+
+### Elasticsearch 可视化管理
+
+Compose 包含与 ES 匹配的 Kibana 8.15.3，通过容器网络连接 `http://elasticsearch:9200`，中文界面访问地址为 http://localhost:5601。当前本地 ES 关闭安全认证，因此无需登录或 enrollment token；此配置仅用于本地开发，不应暴露到公网。
+
+仅安装/启动 Kibana（不重启现有 ES 或后端）：
+
+```powershell
+docker compose -f deploy/docker-compose.yml up -d --no-deps kibana
+docker compose -f deploy/docker-compose.yml ps kibana
+docker compose -f deploy/docker-compose.yml logs --tail=50 kibana
+```
+
+在“开发工具 / Dev Tools”中执行 `GET _cat/indices?v` 查看索引，执行 `GET _cat/aliases?v` 查看搜索别名。查看课程内容可执行 `GET learnhub-courses-search/_search`；使用 Discover 前创建匹配课程索引的数据视图，课程列表无需指定时间字段。首次启动会迁移 Kibana 自身系统索引，等待健康检查通过再使用。
 
 ## 快速启动
 
