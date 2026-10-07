@@ -110,8 +110,8 @@ class SeckillInfrastructureIntegrationTest {
                     try {
                         couponService.seckill(couponId, userId);
                         accepted.incrementAndGet();
-                    } catch (IllegalStateException expectedWhenSoldOut) {
-                        assertEquals("Coupon sold out", expectedWhenSoldOut.getMessage());
+                    } catch (com.learnhub.common.exception.BusinessException expectedWhenSoldOut) {
+                        assertEquals("COUPON_SOLD_OUT", expectedWhenSoldOut.getCode());
                     }
                     return null;
                 }));

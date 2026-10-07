@@ -14,6 +14,7 @@ import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
+import com.learnhub.common.exception.BusinessException;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.ObjectProvider;
@@ -99,6 +100,10 @@ public class CouponService {
 
     public List<Coupon> list() {
         return persistence.listCoupons().stream().map(this::toCoupon).toList();
+    }
+
+    public List<MyCoupon> mine(Long userId) {
+        return persistence.listMyCoupons(userId);
     }
 
     public CouponClaim claim(Long couponId, Long userId) {
@@ -223,8 +228,8 @@ public class CouponService {
                     Long.toString(System.currentTimeMillis()));
         }
         if (code == null || code == 3) throw new IllegalStateException("Seckill stock is not initialized");
-        if (code == 1) throw new IllegalStateException("Coupon sold out");
-        if (code == 2) throw new IllegalStateException("Coupon already claimed");
+        if (code == 1) throw new BusinessException("COUPON_SOLD_OUT", "优惠券已抢光");
+        if (code == 2) throw new BusinessException("COUPON_ALREADY_CLAIMED", "已领取或正在处理中，请刷新查看结果");
         if (code != 0) throw new IllegalStateException("Unexpected seckill result: " + code);
     }
 
@@ -320,18 +325,25 @@ public class CouponService {
 
     private CouponEntity requireActive(Long couponId, boolean seckill) {
         CouponEntity coupon = persistence.findCoupon(couponId);
-        if (coupon == null) throw new IllegalArgumentException("Coupon not found: " + couponId);
-        if (("SECKILL".equals(coupon.getType())) != seckill) throw new IllegalStateException("Coupon type mismatch");
+        if (coupon == null) throw new BusinessException("COUPON_NOT_FOUND", "优惠券不存在");
+        if (("SECKILL".equals(coupon.getType())) != seckill) throw new BusinessException("COUPON_TYPE_MISMATCH", "优惠券领取方式不正确");
         LocalDateTime now = LocalDateTime.now();
-        if (!"ACTIVE".equals(coupon.getStatus()) || now.isBefore(coupon.getClaimStartAt()) || !now.isBefore(coupon.getClaimEndAt())) {
-            throw new IllegalStateException("Coupon is not active");
-        }
+        if (!"ACTIVE".equals(coupon.getStatus())) throw new BusinessException("COUPON_DISABLED", "优惠券活动已下架");
+        if (now.isBefore(coupon.getClaimStartAt())) throw new BusinessException("COUPON_NOT_STARTED", "优惠券活动尚未开始");
+        if (!now.isBefore(coupon.getClaimEndAt())) throw new BusinessException("COUPON_ENDED", "优惠券活动已结束");
         return coupon;
     }
 
     private Coupon toCoupon(CouponEntity entity) {
-        return new Coupon(entity.getId(), entity.getName(), entity.getTotalStock(),
-                instant(entity.getClaimStartAt()), instant(entity.getClaimEndAt()), "SECKILL".equals(entity.getType()));
+        LocalDateTime now = LocalDateTime.now();
+        String status = !"ACTIVE".equals(entity.getStatus()) ? "DISABLED"
+                : now.isBefore(entity.getClaimStartAt()) ? "UPCOMING"
+                : !now.isBefore(entity.getClaimEndAt()) ? "ENDED"
+                : entity.getAvailableStock() <= 0 ? "SOLD_OUT" : "ACTIVE";
+        return new Coupon(entity.getId(), entity.getName(), entity.getAvailableStock(),
+                instant(entity.getClaimStartAt()), instant(entity.getClaimEndAt()), "SECKILL".equals(entity.getType()),
+                entity.getDiscountAmount(), entity.getThresholdAmount(),
+                instant(entity.getUseStartAt()), instant(entity.getUseEndAt()), status);
     }
 
     private CouponClaim toClaim(CouponClaimEntity entity) {

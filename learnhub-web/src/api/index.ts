@@ -1,5 +1,5 @@
 import { http } from './http'
-import type { Answer, ApiResult, Coupon, Course, CourseOrder, LearningProgress, LikeState, PageResult, ProfileOverview, Question, TokenPair, User } from '@/types'
+import type { Answer, ApiResult, Coupon, CouponClaim, MyCoupon, Course, CourseOrder, LearningProgress, LikeState, PageResult, ProfileOverview, Question, TokenPair, User } from '@/types'
 
 export const authApi = {
   login: (body: { username: string; password: string }) => http.post<ApiResult<TokenPair>>('/auth/login', body),
@@ -87,7 +87,9 @@ export const likeApi = {
 }
 
 export const couponApi = {
-  available: () => http.get<ApiResult<Array<{ id: number; name: string; stock: number; seckill: boolean }>>>('/coupons'),
-  claim: (id: number) => http.post<ApiResult<unknown>>(`/coupons/${id}/claim`),
-  seckill: (id: number) => http.post<ApiResult<{ couponId: number; userId: number; status: string }>>(`/coupons/${id}/seckill`),
+  available: () => http.get<ApiResult<Coupon[]>>('/coupons'),
+  mine: () => http.get<ApiResult<MyCoupon[]>>('/coupons/me'),
+  status: (id: string) => http.get<ApiResult<CouponClaim | null>>(`/coupons/${id}/claims/me`),
+  claim: (id: string) => http.post<ApiResult<CouponClaim>>(`/coupons/${id}/claim`),
+  seckill: (id: string) => http.post<ApiResult<CouponClaim>>(`/coupons/${id}/seckill`),
 }

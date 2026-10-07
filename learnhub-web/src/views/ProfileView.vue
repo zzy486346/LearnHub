@@ -7,6 +7,7 @@ import { authApi, orderApi, profileApi } from '@/api'
 import { clearTokens } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
 import type { ApiResult, CourseOrder, ProfileOverview } from '@/types'
+import MyCoupons from '@/components/MyCoupons.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -259,6 +260,8 @@ onBeforeUnmount(() => {
         <RouterLink to="/courses">浏览课程</RouterLink>
       </div>
     </div>
+
+    <MyCoupons />
 
     <div class="profile-management-grid profile-orders-only">
       <div class="content-card profile-orders-card" :aria-busy="loadingOrders">

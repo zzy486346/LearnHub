@@ -2,6 +2,8 @@ package com.learnhub.marketing.coupon;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
+import com.learnhub.common.exception.BusinessException;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -71,11 +73,48 @@ class CouponServiceTest {
         CouponService service = service(false);
         when(redis.execute(any(RedisScript.class), anyList(), any(Object[].class))).thenReturn(1L);
 
-        IllegalStateException error = assertThrows(IllegalStateException.class,
+        BusinessException error = assertThrows(BusinessException.class,
                 () -> service.seckill(7L, 21L));
 
-        assertEquals("Coupon sold out", error.getMessage());
+        assertEquals("优惠券已抢光", error.getMessage());
         verify(persistence, never()).createPendingOrder(any(), any(), any(), any());
+    }
+
+    @Test
+    void expiredSeckillReturnsClearReasonBeforeReserving() {
+        CouponEntity expired = new CouponEntity();
+        expired.setId(7L);
+        expired.setType("SECKILL");
+        expired.setStatus("ACTIVE");
+        expired.setClaimStartAt(LocalDateTime.now().minusDays(2));
+        expired.setClaimEndAt(LocalDateTime.now().minusDays(1));
+        when(persistence.findCoupon(7L)).thenReturn(expired);
+        BusinessException error = assertThrows(BusinessException.class, () -> service(true).seckill(7L, 21L));
+        assertEquals("优惠券活动已结束", error.getMessage());
+        org.mockito.Mockito.verifyNoInteractions(redis, rabbit);
+    }
+
+    @Test
+    void listReturnsRealAmountRemainingStockAndEndedState() {
+        CouponEntity coupon = new CouponEntity();
+        coupon.setId(7L);
+        coupon.setName("秒杀券");
+        coupon.setType("SECKILL");
+        coupon.setStatus("ACTIVE");
+        coupon.setTotalStock(100);
+        coupon.setAvailableStock(98);
+        coupon.setDiscountAmount(new BigDecimal("30.00"));
+        coupon.setThresholdAmount(new BigDecimal("100.00"));
+        coupon.setClaimStartAt(LocalDateTime.now().minusDays(2));
+        coupon.setClaimEndAt(LocalDateTime.now().minusDays(1));
+        coupon.setUseStartAt(LocalDateTime.now().minusDays(2));
+        coupon.setUseEndAt(LocalDateTime.now().plusDays(1));
+        when(persistence.listCoupons()).thenReturn(List.of(coupon));
+        Coupon result = service(true).list().get(0);
+        assertEquals(98, result.stock());
+        assertEquals(new BigDecimal("30.00"), result.discountAmount());
+        assertEquals(new BigDecimal("100.00"), result.thresholdAmount());
+        assertEquals("ENDED", result.status());
     }
 
     @Test
@@ -84,10 +123,10 @@ class CouponServiceTest {
         CouponService service = service(false);
         when(redis.execute(any(RedisScript.class), anyList(), any(Object[].class))).thenReturn(2L);
 
-        IllegalStateException error = assertThrows(IllegalStateException.class,
+        BusinessException error = assertThrows(BusinessException.class,
                 () -> service.seckill(7L, 21L));
 
-        assertEquals("Coupon already claimed", error.getMessage());
+        assertEquals("已领取或正在处理中，请刷新查看结果", error.getMessage());
         verify(persistence, never()).createPendingOrder(any(), any(), any(), any());
     }
 

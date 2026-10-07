@@ -139,13 +139,17 @@ Spring Boot 模块化单体
 - Redisson 分布式锁只保护确认临界区，最终一致性由数据库事务和唯一约束保证。
 - 回补 Lua、reservation hash 和定时对账可恢复发布失败、消费失败、进程中断及 Redis 数据丢失场景。
 - 已提供真实 MySQL、Redis、RabbitMQ 并发集成测试和既有环境升级手册。
+- 优惠券列表返回实际优惠金额、门槛、剩余库存和活动状态；过期、未开始、售罄活动不再提供可点击的领取入口。
+- 秒杀受理后前端显示“处理中”并查询真实结果，确认成功后才显示“已领取”；业务失败返回明确原因。
+- 个人中心通过 `/api/coupons/me` 查询当前用户券包，展示普通券/秒杀券、金额、门槛、有效期、使用状态及待确认请求；刷新后仍可查看。
+- 验证命令：前端 `npm run test:coupon`；真实中间件测试 `mvn -q -pl learnhub-server -am "-Dtest=CouponWalletIntegrationTest,SeckillInfrastructureIntegrationTest" "-Dsurefire.failIfNoSpecifiedTests=false" "-Dlearnhub.it.enabled=true" test`。测试仅清理独立创建的测试券。
 
 当前边界：
 
 - 当前可靠发布以 `seckill_order` 状态机兼任可重放记录，尚未拆分为通用 Outbox。
 - 既有 MySQL 数据卷需要显式执行 `sql/migrations/V20260929__seckill_consistency.sql`；队列和 Redis key 升级步骤见 `docs/SECKILL_CONSISTENCY_RUNBOOK.md`。
 - 尚未接入限流、设备/IP 风控、监控告警和运营端人工重放入口。
-- 未实现优惠券核销、订单抵扣、过期处理、退款返券和风控规则。
+- 未实现优惠券核销、订单抵扣、退款返券和风控规则；券包已按有效期展示“已过期”，不会自动延长已结束活动。
 
 ### 3.6 搜索
 

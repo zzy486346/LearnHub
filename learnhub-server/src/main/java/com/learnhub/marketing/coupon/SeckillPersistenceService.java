@@ -8,6 +8,7 @@ import java.util.List;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.learnhub.common.exception.BusinessException;
 
 @Service
 public class SeckillPersistenceService {
@@ -39,7 +40,7 @@ public class SeckillPersistenceService {
         CouponClaimEntity existing = findClaim(couponId, userId);
         if (existing != null) return existing;
         if (couponMapper.decrementAvailableStock(couponId) != 1) {
-            throw new IllegalStateException("Coupon sold out or inactive");
+            throw new BusinessException("COUPON_SOLD_OUT", "优惠券已抢光或活动已下架");
         }
         CouponClaimEntity claim = new CouponClaimEntity();
         claim.setCouponId(couponId);
@@ -140,6 +141,10 @@ public class SeckillPersistenceService {
     public List<CouponEntity> listCoupons() {
         return couponMapper.selectList(new LambdaQueryWrapper<CouponEntity>()
                 .orderByDesc(CouponEntity::getCreatedAt));
+    }
+
+    public List<MyCoupon> listMyCoupons(Long userId) {
+        return claimMapper.selectMyCoupons(userId);
     }
 
     public List<CouponEntity> listActiveSeckillCoupons() {

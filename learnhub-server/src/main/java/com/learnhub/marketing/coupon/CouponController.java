@@ -23,6 +23,11 @@ public class CouponController {
     @GetMapping
     public ApiResponse<List<Coupon>> list() { return ApiResponse.success(service.list()); }
 
+    @GetMapping("/me")
+    public ApiResponse<List<MyCoupon>> mine(@AuthenticationPrincipal LearnHubPrincipal principal) {
+        return ApiResponse.success(service.mine(principal.userId()));
+    }
+
     @PostMapping("/{couponId}/claim")
     public ApiResponse<CouponClaim> claim(@AuthenticationPrincipal LearnHubPrincipal principal, @PathVariable Long couponId) {
         return ApiResponse.success(service.claim(couponId, principal.userId()));

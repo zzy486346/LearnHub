@@ -35,5 +35,15 @@ export interface Answer {
   id: string; questionId: string; userId: string; nickname: string; content: string
   accepted: boolean; likeCount: number; createdAt: string
 }
-export interface Coupon { id: number; name: string; stock?: number; seckill?: boolean; discountAmount?: number; thresholdAmount?: number; availableStock?: number; type?: string; claimed?: boolean }
+export interface Coupon {
+  id: string; name: string; stock: number; seckill: boolean; discountAmount: number; thresholdAmount: number
+  startAt: string; endAt: string; useStartAt: string; useEndAt: string
+  status: 'ACTIVE' | 'UPCOMING' | 'ENDED' | 'DISABLED' | 'SOLD_OUT'
+}
+export interface CouponClaim { couponId: string; userId: string; claimedAt: string; status: 'RESERVED' | 'CONFIRMED' | 'REJECTED' }
+export interface MyCoupon {
+  couponId: string; name: string; type: 'NORMAL' | 'SECKILL'; discountAmount: number; thresholdAmount: number
+  useStartAt: string; useEndAt: string; claimedAt: string
+  status: 'AVAILABLE' | 'UPCOMING' | 'USED' | 'EXPIRED' | 'RESERVED' | 'REJECTED'
+}
 export interface LikeState { liked: boolean; count: number }
