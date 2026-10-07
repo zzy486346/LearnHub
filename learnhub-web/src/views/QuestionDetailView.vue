@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { questionApi } from '@/api'
 import type { Answer, Question } from '@/types'
+import VoteButton from '@/components/VoteButton.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -78,6 +79,7 @@ onMounted(load)
         <h1>{{ question.title }}</h1>
         <p class="question-detail-content">{{ question.content }}</p>
         <div class="question-meta"><span>{{ question.nickname }}</span><span>{{ formatDate(question.createdAt) }}</span><span>{{ question.answerCount }} 个回答</span></div>
+        <VoteButton :key="question.id" target-type="QUESTION" :target-id="question.id" />
       </article>
 
       <div class="answer-layout">
@@ -87,6 +89,7 @@ onMounted(load)
           <article v-for="item in answers" :key="item.id" class="answer-card">
             <div class="answer-author"><span class="answer-avatar">{{ item.nickname.slice(0, 1) }}</span><div><strong>{{ item.nickname }}</strong><small>{{ formatDate(item.createdAt) }}</small></div><el-tag v-if="item.accepted" type="success">已采纳</el-tag></div>
             <p>{{ item.content }}</p>
+            <VoteButton target-type="ANSWER" :target-id="item.id" />
           </article>
           <el-pagination v-if="total > pageSize" v-model:current-page="page" :page-size="pageSize" :total="total" layout="prev, pager, next" @current-change="load" />
         </main>

@@ -77,6 +77,15 @@ export const questionApi = {
     http.post<ApiResult<Question>>(`/questions/${id}/answers`, body),
 }
 
+export const likeApi = {
+  status: (type: 'QUESTION' | 'ANSWER', id: string) =>
+    http.get<ApiResult<LikeState>>(`/likes/${type}/${id}`),
+  like: (type: 'QUESTION' | 'ANSWER', id: string) =>
+    http.put<ApiResult<LikeState>>(`/likes/${type}/${id}`),
+  unlike: (type: 'QUESTION' | 'ANSWER', id: string) =>
+    http.delete<ApiResult<LikeState>>(`/likes/${type}/${id}`),
+}
+
 export const couponApi = {
   available: () => http.get<ApiResult<Array<{ id: number; name: string; stock: number; seckill: boolean }>>>('/coupons'),
   claim: (id: number) => http.post<ApiResult<unknown>>(`/coupons/${id}/claim`),

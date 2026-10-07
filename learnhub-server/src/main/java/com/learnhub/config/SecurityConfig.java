@@ -27,6 +27,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/refresh",
                                 "/api/courses/**", "/api/search/courses/**", "/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/questions/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/likes/**").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();

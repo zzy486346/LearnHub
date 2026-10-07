@@ -32,6 +32,8 @@ public class LikeController {
     public ApiResponse<LikeResult> status(@AuthenticationPrincipal LearnHubPrincipal principal,
                              @PathVariable LikeTargetType type,
                              @PathVariable Long targetId) {
-        return ApiResponse.success(service.status(principal.userId(), type, targetId));
+        return ApiResponse.success(principal == null
+                ? new LikeResult(false, service.count(type, targetId))
+                : service.status(principal.userId(), type, targetId));
     }
 }

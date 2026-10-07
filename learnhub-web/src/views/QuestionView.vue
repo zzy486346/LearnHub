@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { questionApi } from '@/api'
 import type { Question } from '@/types'
+import VoteButton from '@/components/VoteButton.vue'
 
 const questions = ref<Question[]>([])
 const loading = ref(false)
@@ -66,13 +67,13 @@ onMounted(load)
           <h3>暂时无法加载问题</h3><p>{{ loadError }}</p><el-button @click="load">重新加载</el-button>
         </div>
         <el-empty v-else-if="!loading && !questions.length" description="还没有问题，来发布第一个问题吧" />
-        <RouterLink v-for="item in questions" :key="item.id" :to="`/questions/${item.id}`" class="question-card question-link">
-          <div class="vote">{{ item.likeCount || 0 }}<small>赞同</small></div>
-          <div>
+        <article v-for="item in questions" :key="item.id" class="question-card">
+          <VoteButton target-type="QUESTION" :target-id="item.id" compact />
+          <RouterLink :to="`/questions/${item.id}`" class="question-link">
             <h3>{{ item.title }}</h3><p>{{ item.content }}</p>
             <span class="muted">{{ item.nickname }} · {{ formatDate(item.createdAt) }} · {{ item.answerCount }} 个回答</span>
-          </div>
-        </RouterLink>
+          </RouterLink>
+        </article>
         <el-pagination v-if="total > pageSize" v-model:current-page="page" :page-size="pageSize" :total="total" layout="prev, pager, next" @current-change="load" />
       </div>
       <aside class="content-card"><h3>提问小贴士</h3><p>描述你的目标、环境和已尝试的方法，通常会更快获得好答案。</p></aside>
