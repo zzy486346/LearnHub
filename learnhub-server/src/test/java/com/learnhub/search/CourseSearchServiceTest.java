@@ -1,56 +1,82 @@
 package com.learnhub.search;
 
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.learnhub.course.model.Course;
-import com.learnhub.course.service.CourseService;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.ObjectProvider;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learnhub.common.exception.BusinessException;
 import java.util.List;
 import java.util.Set;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.Mockito.*;
 
 class CourseSearchServiceTest {
+    private final ObjectMapper mapper = new ObjectMapper();
+
     @Test
-    void searchesDatabaseCoursesByInstructorWhenElasticsearchIsEmpty() {
-        @SuppressWarnings("unchecked")
-        ObjectProvider<CourseSearchRepository> repositoryProvider = mock(ObjectProvider.class);
-        CourseSearchRepository repository = mock(CourseSearchRepository.class);
-        CourseService courseService = mock(CourseService.class);
-        Course course = new Course();
-        course.setId(1002L);
-        course.setTitle("大模型应用开发入门");
-        course.setDescription("面向开发者的大模型应用课程。");
-        course.setInstructor("周老师");
-        course.setLikeCount(0L);
-        Page<Course> page = Page.of(1, 100);
-        page.setRecords(List.of(course));
-        when(repositoryProvider.getIfAvailable()).thenReturn(repository);
-        when(repository.findAll()).thenReturn(List.of());
-        when(courseService.list(1, 100, null, null)).thenReturn(page);
-        CourseSearchService service = new CourseSearchService(repositoryProvider, courseService);
-
-        var results = service.search("周老师", Set.of(), 10);
-
-        assertEquals(1, results.size());
-        assertEquals(1002L, results.get(0).id());
-        assertEquals("周老师", results.get(0).instructor());
+    void queryUsesNativeBm25BoundedBusinessWeightAndEveryTagFilter() throws Exception {
+        var query = mapper.valueToTree(CourseSearchService.query("Java", Set.of("Java", "架构"), 2, 12));
+        assertEquals(12, query.path("from").asInt());
+        assertEquals(12, query.path("size").asInt());
+        var function = query.path("query").path("function_score");
+        assertEquals("sum", function.path("boost_mode").asText());
+        assertEquals(1.0, function.path("max_boost").asDouble());
+        assertEquals("log1p", function.path("field_value_factor").path("modifier").asText());
+        assertEquals("Java", function.path("query").path("bool").path("must").get(0).path("multi_match").path("query").asText());
+        assertEquals(3, function.path("query").path("bool").path("filter").size());
+        assertEquals("PUBLISHED", function.path("query").path("bool").path("filter").get(0).path("term").path("status").asText());
     }
 
     @Test
-    void fallsBackToMemoryAndRanksLikesAsBusinessWeight() {
-        @SuppressWarnings("unchecked")
-        ObjectProvider<CourseSearchRepository> repositoryProvider = mock(ObjectProvider.class);
-        CourseSearchService service = new CourseSearchService(repositoryProvider);
-        service.index(new CourseSearchDocument(1L, "Java 并发", "线程与锁", Set.of("Java"), 10));
-        service.index(new CourseSearchDocument(2L, "Java 基础", "语法入门", Set.of("Java"), 100));
+    void searchReadsOnlyReturnedPageAndPreservesNativeScores() throws Exception {
+        CourseSearchGateway gateway = mock(CourseSearchGateway.class);
+        when(gateway.search(anyMap())).thenReturn(mapper.readTree("""
+                {"hits":{"total":{"value":25},"hits":[{"_score":8.25,"_source":{
+                "id":"1002","title":"Java","description":"课程","instructorName":"老师","coverUrl":"",
+                "tags":["Java"],"likeCount":20}}]}}
+                """));
+        SearchPage page = new CourseSearchService(gateway).searchPage("Java", Set.of(), 2, 12);
+        assertEquals(25, page.total());
+        assertEquals(2, page.current());
+        assertEquals(8.25, page.records().get(0).score());
+        assertEquals("老师", page.records().get(0).instructor());
+        verify(gateway, times(1)).search(anyMap());
+    }
 
-        var results = service.search("Java", Set.of("Java"), 10);
+    @Test
+    @SuppressWarnings("unchecked")
+    void suggestionsUseCompletionAndPublicationContextNotPrefixScan() throws Exception {
+        CourseSearchGateway gateway = mock(CourseSearchGateway.class);
+        when(gateway.search(anyMap())).thenReturn(mapper.readTree("""
+                {"suggest":{"course_titles":[{"options":[{"text":"Java课程"},{"text":"Java课程"},{"text":"Java实战"}]}]}}
+                """));
+        var service = new CourseSearchService(gateway);
+        assertEquals(List.of(), service.suggest(" ", 10));
+        verifyNoInteractions(gateway);
+        assertEquals(List.of("Java课程", "Java实战"), service.suggest("Java", 2));
+        ArgumentCaptor<java.util.Map<String, Object>> query = ArgumentCaptor.forClass(java.util.Map.class);
+        verify(gateway).search(query.capture());
+        var completion = mapper.valueToTree(query.getValue()).path("suggest").path("course_titles").path("completion");
+        assertEquals("suggest", completion.path("field").asText());
+        assertTrue(completion.path("skip_duplicates").asBoolean());
+        assertEquals("PUBLISHED", completion.path("contexts").path("publication").get(0).asText());
+    }
 
-        assertEquals(2L, results.get(0).id());
-        assertEquals("Java 并发", service.suggest("Java 并", 10).get(0));
+    @Test
+    void invalidPageAndInputFailBeforeCallingElasticsearch() {
+        CourseSearchGateway gateway = mock(CourseSearchGateway.class);
+        var service = new CourseSearchService(gateway);
+        assertThrows(BusinessException.class, () -> service.searchPage("Java", Set.of(), 101, 100));
+        assertThrows(BusinessException.class, () -> service.searchPage("Java", Set.of(), 0, 20));
+        assertThrows(BusinessException.class, () -> service.suggest("Java", 21));
+        assertThrows(BusinessException.class, () -> service.searchPage("a".repeat(201), Set.of(), 1, 20));
+        verifyNoInteractions(gateway);
+    }
+
+    @Test
+    void unavailableElasticsearchNeverFallsBackToMemoryOrDatabase() {
+        CourseSearchGateway gateway = mock(CourseSearchGateway.class);
+        when(gateway.search(anyMap())).thenThrow(new SearchUnavailableException(new java.io.IOException("offline")));
+        assertThrows(SearchUnavailableException.class, () -> new CourseSearchService(gateway).search("", Set.of(), 20));
     }
 }

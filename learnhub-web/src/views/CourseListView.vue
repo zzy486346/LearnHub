@@ -1,35 +1,114 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { courseApi } from '@/api'
-import type { Course } from '@/types'
+import type { Course, CourseSearchResult } from '@/types'
 
-const courses = ref<Course[]>([])
+interface CourseCard {
+  id: number
+  title: string
+  subtitle?: string
+  description?: string
+  teacherName?: string
+  instructor?: string
+  coverUrl?: string
+  tags?: string[]
+  likeCount?: number
+}
+type Suggestion = { value: string }
+
+const courses = ref<CourseCard[]>([])
 const loading = ref(false)
-const filters = reactive({ keyword: '', tag: '', current: 1, size: 12 })
+const loadError = ref('')
+const total = ref(0)
+const filters = reactive({ keyword: '', tags: [] as string[], current: 1, size: 12 })
 const quickTags = ['Java', '架构', '搜索']
 let scrollFrame: number | undefined
-const fallback: Course[] = [
-  { id: 1, title: 'Java 高并发与系统设计', subtitle: '从线程模型到分布式一致性', teacherName: '林老师', tags: ['Java', '架构'], likeCount: 2380 },
-  { id: 2, title: 'Spring Boot 企业级实战', subtitle: '完成一套可上线的业务系统', teacherName: '陈老师', tags: ['Spring', '后端'], likeCount: 1926 },
-  { id: 3, title: 'Elasticsearch 搜索实践', subtitle: '相关性、联想与业务排序', teacherName: '周老师', tags: ['搜索', 'ES'], likeCount: 986 },
-]
+let loadGeneration = 0
+let suggestionGeneration = 0
+
+function toCourseCard(course: Course | CourseSearchResult): CourseCard {
+  return {
+    id: course.id,
+    title: course.title,
+    description: course.description,
+    instructor: course.instructor,
+    coverUrl: course.coverUrl,
+    tags: course.tags,
+    likeCount: course.likeCount,
+    ...('subtitle' in course ? { subtitle: course.subtitle, teacherName: course.teacherName } : {}),
+  }
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  return (error as { response?: { data?: { message?: string } } }).response?.data?.message || fallback
+}
+
 async function load() {
+  const generation = ++loadGeneration
   loading.value = true
+  loadError.value = ''
   try {
-    if (filters.keyword || filters.tag) {
-      courses.value = (await courseApi.search({ keyword: filters.keyword, tags: filters.tag || undefined, limit: filters.size })).data.data
+    const keyword = filters.keyword.trim()
+    if (keyword || filters.tags.length) {
+      const result = (await courseApi.searchPage({
+        keyword,
+        tags: filters.tags.length ? filters.tags.join(',') : undefined,
+        page: filters.current,
+        size: filters.size,
+      })).data.data
+      if (generation !== loadGeneration) return
+      courses.value = result.records.map(toCourseCard)
+      total.value = result.total
     } else {
-      courses.value = (await courseApi.list({ page: filters.current, size: filters.size })).data.data.records
+      const result = (await courseApi.list({ page: filters.current, size: filters.size })).data.data
+      if (generation !== loadGeneration) return
+      courses.value = result.records.map(toCourseCard)
+      total.value = result.total
     }
   }
-  catch { courses.value = fallback }
-  finally { loading.value = false }
+  catch (error) {
+    if (generation !== loadGeneration) return
+    courses.value = []
+    total.value = 0
+    loadError.value = errorMessage(error, '课程加载失败，请检查网络连接后重试')
+  }
+  finally {
+    if (generation === loadGeneration) loading.value = false
+  }
 }
 onMounted(load)
 
+function submitSearch() {
+  filters.current = 1
+  return load()
+}
+
 function selectTag(tag: string) {
-  filters.tag = filters.tag === tag ? '' : tag
-  load()
+  const index = filters.tags.indexOf(tag)
+  if (index >= 0) filters.tags.splice(index, 1)
+  else filters.tags.push(tag)
+  filters.current = 1
+  return load()
+}
+
+async function fetchSuggestions(prefix: string, callback: (items: Suggestion[]) => void) {
+  const query = prefix.trim()
+  const generation = ++suggestionGeneration
+  if (!query) {
+    callback([])
+    return
+  }
+  try {
+    const suggestions = (await courseApi.suggestions({ prefix: query, limit: 8 })).data.data
+    callback(generation === suggestionGeneration ? suggestions.map(value => ({ value })) : [])
+  } catch {
+    if (generation === suggestionGeneration) callback([])
+  }
+}
+
+function selectSuggestion(item: Suggestion) {
+  filters.keyword = item.value
+  return submitSearch()
 }
 
 function scrollToCourses() {
@@ -86,8 +165,8 @@ onBeforeUnmount(() => {
   </div>
 
   <div class="search-dock" role="search">
-    <div class="search-input"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg><el-input v-model="filters.keyword" size="large" placeholder="搜索课程、技能或讲师" clearable @keyup.enter="load" /></div>
-    <el-button type="primary" size="large" aria-label="搜索课程" @click="load"><span class="search-label-full">搜索课程</span><span class="search-label-short">搜索</span></el-button>
+    <div class="search-input"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg><el-autocomplete v-model="filters.keyword" :fetch-suggestions="fetchSuggestions" :trigger-on-focus="false" size="large" placeholder="搜索课程、技能或讲师" clearable @keyup.enter="submitSearch" @clear="submitSearch" @select="selectSuggestion" /></div>
+    <el-button type="primary" size="large" aria-label="搜索课程" @click="submitSearch"><span class="search-label-full">搜索课程</span><span class="search-label-short">搜索</span></el-button>
   </div>
 
   <section class="audience-section" aria-labelledby="audience-title">
@@ -106,16 +185,19 @@ onBeforeUnmount(() => {
 
   <div id="featured-courses" class="section-heading">
     <div><p class="eyebrow">CURATED LEARNING</p><h2>精选课程</h2><p>按能力成长设计，让每一次学习都更接近真实工作。</p></div>
-    <div class="filter-chips" aria-label="课程标签筛选"><button v-for="tag in quickTags" :key="tag" type="button" :class="{ active: filters.tag === tag }" @click="selectTag(tag)">{{ tag }}</button></div>
+    <div class="filter-chips" aria-label="课程标签筛选"><button v-for="tag in quickTags" :key="tag" type="button" :class="{ active: filters.tags.includes(tag) }" :aria-pressed="filters.tags.includes(tag)" @click="selectTag(tag)">{{ tag }}</button></div>
   </div>
-  <div v-loading="loading" class="course-grid"><RouterLink v-for="(course, index) in courses" :key="course.id" class="course-card" :to="`/courses/${course.id}`">
+  <div v-if="loadError" class="content-card state-panel course-search-state" role="alert"><h3>暂时无法加载课程</h3><p>{{ loadError }}</p><el-button @click="load">重新加载</el-button></div>
+  <p v-else-if="filters.keyword.trim() || filters.tags.length" class="search-result-summary" aria-live="polite">找到 {{ total }} 门匹配课程</p>
+  <div v-if="!loadError" v-loading="loading" class="course-grid"><RouterLink v-for="(course, index) in courses" :key="course.id" class="course-card" :to="`/courses/${course.id}`">
     <div class="course-cover" :class="`cover-${index % 3}`" :style="course.coverUrl ? { backgroundImage: `linear-gradient(180deg, transparent 30%, rgba(7, 43, 33, .75)), url(${course.coverUrl})` } : {}">
       <span>{{ course.tags?.[0] || '精品课程' }}</span><b>0{{ index + 1 }}</b>
       <div class="cover-mark" aria-hidden="true"><span></span><span></span><span></span></div>
     </div>
     <div class="course-body"><div class="course-meta"><span>{{ course.tags?.slice(0, 2).join(' · ') || '职业技能' }}</span><span>{{ course.likeCount || 0 }} 人喜欢</span></div><h3>{{ course.title }}</h3><p>{{ course.subtitle || course.description }}</p><div class="course-footer"><span class="teacher-avatar">{{ (course.teacherName || course.instructor || '问').slice(0, 1) }}</span><span>{{ course.teacherName || course.instructor || '问课讲师' }}</span><span class="course-arrow" aria-hidden="true">→</span></div></div>
   </RouterLink></div>
-  <el-empty v-if="!loading && !courses.length" description="暂时没有匹配的课程" />
+  <el-empty v-if="!loading && !loadError && !courses.length" description="暂时没有匹配的课程" />
+  <el-pagination v-if="!loadError && total > filters.size" v-model:current-page="filters.current" :page-size="filters.size" :total="total" layout="prev, pager, next" class="course-pagination" @current-change="load" />
 
   <section class="benefits-section" aria-labelledby="benefits-title">
     <div class="benefits-heading"><p class="eyebrow">WHY LEARNHUB</p><h2 id="benefits-title">不止是看完一门课</h2><p>从知识输入到问题解决，让成长真正发生。</p></div>

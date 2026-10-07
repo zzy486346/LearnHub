@@ -12,6 +12,7 @@ import com.learnhub.course.mapper.CourseLessonMapper;
 import com.learnhub.course.mapper.CourseMapper;
 import com.learnhub.course.model.Course;
 import com.learnhub.course.model.CourseLesson;
+import com.learnhub.search.CourseIndexTaskService;
 import com.learnhub.storage.MediaAssetService;
 import com.learnhub.storage.MediaResponses;
 import java.math.BigDecimal;
@@ -27,12 +28,13 @@ class AdminCourseServiceTest {
     private final CourseLessonMapper lessonMapper = mock(CourseLessonMapper.class);
     private final CourseService courseService = mock(CourseService.class);
     private final MediaAssetService mediaAssetService = mock(MediaAssetService.class);
+    private final CourseIndexTaskService indexTaskService = mock(CourseIndexTaskService.class);
     private AdminCourseService service;
 
     @BeforeEach
     void setUp() {
         service = new AdminCourseService(courseMapper, chapterMapper, lessonMapper,
-                courseService, mediaAssetService);
+                courseService, mediaAssetService, indexTaskService);
     }
 
     @Test
@@ -48,6 +50,19 @@ class AdminCourseServiceTest {
                 1L, "  Spring Boot 进阶  ", "课程说明", "讲师", new BigDecimal("99.00"), null));
 
         assertThat(id).isEqualTo(77L);
+        verify(indexTaskService).enqueue(77L);
+    }
+
+    @Test
+    void publishingCourseEnqueuesIndexRefresh() {
+        Course course = new Course();
+        course.setId(88L);
+        when(courseMapper.selectById(88L)).thenReturn(course);
+
+        service.publishCourse(88L);
+
+        verify(courseMapper).update(any(), any());
+        verify(indexTaskService).enqueue(88L);
     }
 
     @Test

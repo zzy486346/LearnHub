@@ -11,6 +11,7 @@ import com.learnhub.course.mapper.CourseMapper;
 import com.learnhub.course.model.Course;
 import com.learnhub.course.model.CourseChapter;
 import com.learnhub.course.model.CourseLesson;
+import com.learnhub.search.CourseIndexTaskService;
 import com.learnhub.storage.MediaAssetService;
 import com.learnhub.storage.MediaResponses;
 import java.util.List;
@@ -25,15 +26,18 @@ public class AdminCourseService {
     private final CourseLessonMapper lessonMapper;
     private final CourseService courseService;
     private final MediaAssetService mediaAssetService;
+    private final CourseIndexTaskService indexTaskService;
 
     public AdminCourseService(CourseMapper courseMapper, CourseChapterMapper chapterMapper,
                               CourseLessonMapper lessonMapper, CourseService courseService,
-                              MediaAssetService mediaAssetService) {
+                              MediaAssetService mediaAssetService,
+                              CourseIndexTaskService indexTaskService) {
         this.courseMapper = courseMapper;
         this.chapterMapper = chapterMapper;
         this.lessonMapper = lessonMapper;
         this.courseService = courseService;
         this.mediaAssetService = mediaAssetService;
+        this.indexTaskService = indexTaskService;
     }
 
     public List<Course> list() {
@@ -55,7 +59,49 @@ public class AdminCourseService {
         course.setStatus(request.status() == null ? "DRAFT" : request.status());
         course.setLikeCount(0L);
         courseMapper.insert(course);
+        if ("PUBLISHED".equals(course.getStatus())) {
+            courseMapper.update(null, new UpdateWrapper<Course>()
+                    .eq("id", course.getId())
+                    .set("published_at", java.time.LocalDateTime.now()));
+        }
+        indexTaskService.enqueue(course.getId());
         return course.getId();
+    }
+
+    @Transactional
+    public void updateCourse(Long courseId, AdminCourseRequests.UpdateCourse request) {
+        requireCourse(courseId);
+        UpdateWrapper<Course> update = new UpdateWrapper<Course>().eq("id", courseId);
+        boolean changed = false;
+        if (request.categoryId() != null) { update.set("category_id", request.categoryId()); changed = true; }
+        if (request.title() != null) { update.set("title", requiredTrim(request.title(), "课程标题不能为空")); changed = true; }
+        if (request.subtitle() != null) { update.set("subtitle", nullableTrim(request.subtitle())); changed = true; }
+        if (request.coverUrl() != null) { update.set("cover_url", nullableTrim(request.coverUrl())); changed = true; }
+        if (request.description() != null) { update.set("description", nullableTrim(request.description())); changed = true; }
+        if (request.instructor() != null) { update.set("instructor", requiredTrim(request.instructor(), "讲师不能为空")); changed = true; }
+        if (request.price() != null) { update.set("price", request.price()); changed = true; }
+        if (!changed) throw new BusinessException("没有可更新的课程字段");
+        courseMapper.update(null, update);
+        indexTaskService.enqueue(courseId);
+    }
+
+    @Transactional
+    public void publishCourse(Long courseId) {
+        requireCourse(courseId);
+        courseMapper.update(null, new UpdateWrapper<Course>()
+                .eq("id", courseId)
+                .set("status", "PUBLISHED")
+                .setSql("published_at = COALESCE(published_at, CURRENT_TIMESTAMP(3))"));
+        indexTaskService.enqueue(courseId);
+    }
+
+    @Transactional
+    public void offlineCourse(Long courseId) {
+        requireCourse(courseId);
+        courseMapper.update(null, new UpdateWrapper<Course>()
+                .eq("id", courseId)
+                .set("status", "OFFLINE"));
+        indexTaskService.enqueue(courseId);
     }
 
     @Transactional
@@ -97,5 +143,16 @@ public class AdminCourseService {
         Course course = courseMapper.selectById(courseId);
         if (course == null) throw new BusinessException("课程不存在");
         return course;
+    }
+
+    private String requiredTrim(String value, String message) {
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) throw new BusinessException(message);
+        return trimmed;
+    }
+
+    private String nullableTrim(String value) {
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

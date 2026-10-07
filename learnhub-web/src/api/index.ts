@@ -1,5 +1,5 @@
 import { http } from './http'
-import type { Answer, ApiResult, Coupon, CouponClaim, MyCoupon, Course, CourseOrder, LearningProgress, LikeState, PageResult, ProfileOverview, Question, TokenPair, User } from '@/types'
+import type { Answer, ApiResult, Coupon, CouponClaim, MyCoupon, Course, CourseOrder, CourseSearchResult, LearningProgress, LikeState, PageResult, ProfileOverview, Question, TokenPair, User } from '@/types'
 
 export const authApi = {
   login: (body: { username: string; password: string }) => http.post<ApiResult<TokenPair>>('/auth/login', body),
@@ -22,7 +22,9 @@ export const profileApi = {
 export const courseApi = {
   list: (params: Record<string, unknown>) => http.get<ApiResult<PageResult<Course>>>('/courses', { params }),
   detail: (id: string | number) => http.get<ApiResult<Course>>(`/courses/${id}`),
-  search: (params: Record<string, unknown>) => http.get<ApiResult<Course[]>>('/search/courses', { params }),
+  search: (params: Record<string, unknown>) => http.get<ApiResult<CourseSearchResult[]>>('/search/courses', { params }),
+  searchPage: (params: Record<string, unknown>) => http.get<ApiResult<PageResult<CourseSearchResult>>>('/search/courses/page', { params }),
+  suggestions: (params: { prefix: string; limit?: number }) => http.get<ApiResult<string[]>>('/search/courses/suggestions', { params }),
   favoriteStatus: (id: number) => http.get<ApiResult<boolean>>(`/favorites/COURSE/${id}`),
   favorite: (id: number) => http.put<ApiResult<boolean>>(`/favorites/COURSE/${id}`),
   unfavorite: (id: number) => http.delete<ApiResult<boolean>>(`/favorites/COURSE/${id}`),

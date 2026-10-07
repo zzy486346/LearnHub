@@ -1,0 +1,18 @@
+{
+  "settings": { "number_of_shards": 1, "number_of_replicas": 0 },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "id": { "type": "keyword" },
+      "title": { "type": "text", "analyzer": "standard", "search_analyzer": "standard", "fields": { "exact": { "type": "keyword" } } },
+      "description": { "type": "text", "analyzer": "standard", "search_analyzer": "standard" },
+      "instructorName": { "type": "text", "analyzer": "standard", "search_analyzer": "standard" },
+      "coverUrl": { "type": "keyword", "index": false },
+      "tags": { "type": "keyword" },
+      "likeCount": { "type": "long" },
+      "status": { "type": "keyword" },
+      "publishedAt": { "type": "date" },
+      "suggest": { "type": "completion", "analyzer": "standard", "search_analyzer": "standard", "max_input_length": 100, "contexts": [{ "name": "publication", "type": "category", "path": "status" }] }
+    }
+  }
+}

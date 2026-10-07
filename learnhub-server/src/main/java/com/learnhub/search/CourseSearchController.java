@@ -16,23 +16,21 @@ public class CourseSearchController {
     @GetMapping
     public ApiResponse<List<SearchResult>> search(@RequestParam(defaultValue = "") String keyword,
                                      @RequestParam(required = false) Set<String> tags,
+                                     @RequestParam(defaultValue = "1") int page,
                                      @RequestParam(defaultValue = "20") int limit) {
-        return ApiResponse.success(service.search(keyword, tags, limit));
+        return ApiResponse.success(service.searchPage(keyword, tags, page, limit).records());
     }
 
-    @GetMapping("/suggest")
+    @GetMapping({"/suggest", "/suggestions"})
     public ApiResponse<List<String>> suggest(@RequestParam String prefix,
                                 @RequestParam(defaultValue = "10") int limit) {
         return ApiResponse.success(service.suggest(prefix, limit));
     }
 
-    @PutMapping("/{courseId}")
-    public ApiResponse<CourseSearchDocument> index(@PathVariable Long courseId,
-                                      @RequestBody IndexCourse request) {
-        return ApiResponse.success(service.index(new CourseSearchDocument(courseId, request.title(), request.description(),
-                request.instructor(), request.coverUrl(), request.tags(), request.likeCount())));
+    @GetMapping("/page")
+    public ApiResponse<SearchPage> page(@RequestParam(defaultValue = "") String keyword,
+            @RequestParam(required = false) Set<String> tags,
+            @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.success(service.searchPage(keyword, tags, page, size));
     }
-
-    public record IndexCourse(String title, String description, String instructor, String coverUrl,
-                              Set<String> tags, long likeCount) {}
 }

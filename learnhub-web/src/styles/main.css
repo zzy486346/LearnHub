@@ -146,6 +146,7 @@ body { color:var(--ink); background:#fff; }
 @keyframes badge-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(7px)} }
 
 .search-dock { margin-top:-30px; border-color:#eff0f5; box-shadow:0 18px 50px rgba(58,68,124,.13); }.search-input svg { color:#4b5eff; }
+.search-input .el-autocomplete { min-width:0; width:100%; }.search-result-summary { margin:0 0 18px; color:var(--muted); font-size:14px; }.course-search-state { margin-bottom:28px; }.course-pagination { margin-top:30px; justify-content:center; }
 
 .audience-section { margin-top:88px; display:grid; grid-template-columns:280px 1fr; overflow:hidden; border-radius:20px; background:linear-gradient(120deg,#f4f6ff,#edf8ff); box-shadow:0 20px 60px rgba(62,74,133,.08); }
 .audience-intro { position:relative; overflow:hidden; padding:40px 34px; color:#fff; background:linear-gradient(145deg,#4556e8,#7567f8); }

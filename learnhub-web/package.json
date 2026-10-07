@@ -6,6 +6,7 @@
   "scripts": {
     "test:vote": "node --test scripts/vote-button.test.mjs",
     "test:coupon": "node --test scripts/coupon.test.mjs",
+    "test:search": "node --test scripts/course-search.test.mjs",
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview"

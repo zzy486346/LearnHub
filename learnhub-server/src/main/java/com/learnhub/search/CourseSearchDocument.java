@@ -6,6 +6,7 @@ import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 
 import java.util.Set;
+import java.time.Instant;
 
 @Document(indexName = "learnhub-courses", createIndex = false)
 public class CourseSearchDocument {
@@ -23,6 +24,9 @@ public class CourseSearchDocument {
     private Set<String> tags;
     @Field(type = FieldType.Long)
     private long likeCount;
+    private String status = "PUBLISHED";
+    private Instant publishedAt;
+    private boolean deleted;
 
     public CourseSearchDocument() {}
 
@@ -48,4 +52,10 @@ public class CourseSearchDocument {
     public String getCoverUrl() { return coverUrl; }
     public Set<String> getTags() { return tags; }
     public long getLikeCount() { return likeCount; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public Instant getPublishedAt() { return publishedAt; }
+    public void setPublishedAt(Instant publishedAt) { this.publishedAt = publishedAt; }
+    public boolean isDeleted() { return deleted; }
+    public void setDeleted(boolean deleted) { this.deleted = deleted; }
 }

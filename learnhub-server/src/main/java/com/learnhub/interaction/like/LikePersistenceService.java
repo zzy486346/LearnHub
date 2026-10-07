@@ -2,6 +2,7 @@ package com.learnhub.interaction.like;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
+import com.learnhub.search.CourseIndexTaskService;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -18,15 +19,18 @@ public class LikePersistenceService {
     private final LikeSyncBatchMapper batchMapper;
     private final LikeCountMapper countMapper;
     private final LikeEventInboxService inbox;
+    private final CourseIndexTaskService indexTaskService;
 
     public LikePersistenceService(LikeRecordMapper recordMapper,
                                   LikeSyncBatchMapper batchMapper,
                                   LikeCountMapper countMapper,
-                                  LikeEventInboxService inbox) {
+                                  LikeEventInboxService inbox,
+                                  CourseIndexTaskService indexTaskService) {
         this.recordMapper = recordMapper;
         this.batchMapper = batchMapper;
         this.countMapper = countMapper;
         this.inbox = inbox;
+        this.indexTaskService = indexTaskService;
     }
 
     @Transactional
@@ -91,6 +95,7 @@ public class LikePersistenceService {
                 .toList();
         if (!states.isEmpty()) recordMapper.upsertBatch(toEntities(states, LocalDateTime.now()));
         setAbsoluteCount(targetType, targetId, activeUsers.size());
+        if (targetType == LikeTargetType.COURSE) indexTaskService.enqueue(targetId);
     }
 
     private LikeSyncBatchEntity findBatch(String batchId) {
@@ -149,7 +154,10 @@ public class LikePersistenceService {
             for (int from = 0; from < items.size(); from += 500) {
                 List<LikeCountDelta> chunk = items.subList(from, Math.min(from + 500, items.size()));
                 switch (type) {
-                    case COURSE -> countMapper.updateCourseCounts(chunk);
+                    case COURSE -> {
+                        countMapper.updateCourseCounts(chunk);
+                        indexTaskService.enqueueAll(chunk.stream().map(LikeCountDelta::targetId).toList());
+                    }
                     case QUESTION -> countMapper.updateQuestionCounts(chunk);
                     case ANSWER -> countMapper.updateAnswerCounts(chunk);
                 }

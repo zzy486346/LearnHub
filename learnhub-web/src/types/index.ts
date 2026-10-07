@@ -8,6 +8,10 @@ export interface Course {
   categoryId?: number; status?: 'DRAFT' | 'PUBLISHED'; tags?: string[]; chapters?: Chapter[]; liked?: boolean; favorited?: boolean
   accessLevel?: 'LOGIN_REQUIRED' | 'PREVIEW' | 'FULL'
 }
+export interface CourseSearchResult {
+  id: number; title: string; description?: string; instructor?: string; coverUrl?: string
+  tags?: string[]; likeCount?: number; score?: number
+}
 export interface Chapter { id: number; title: string; sortOrder?: number; lessons: Lesson[] }
 export interface Lesson {
   id: number; title: string; mediaUrl?: string; durationSeconds?: number; freePreview?: boolean; accessible?: boolean; sortOrder?: number

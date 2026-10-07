@@ -20,6 +20,16 @@ public final class AdminCourseRequests {
             @Pattern(regexp = "DRAFT|PUBLISHED") String status
     ) {}
 
+    public record UpdateCourse(
+            Long categoryId,
+            @Size(max = 160) String title,
+            @Size(max = 255) String subtitle,
+            @Size(max = 512) String coverUrl,
+            @Size(max = 5000) String description,
+            @Size(max = 80) String instructor,
+            @DecimalMin("0.00") BigDecimal price
+    ) {}
+
     public record CreateChapter(
             @NotBlank @Size(max = 160) String title,
             @NotNull @Min(0) Integer sortOrder

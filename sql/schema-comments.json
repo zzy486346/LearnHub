@@ -20,7 +20,8 @@
     "coupon_claim": "用户优惠券领取记录表",
     "seckill_order": "优惠券秒杀请求及可靠发布状态表",
     "mq_consume_log": "消息消费幂等日志表",
-    "media_asset": "媒体文件资源表"
+    "media_asset": "媒体文件资源表",
+    "search_index_task": "课程搜索索引同步任务表"
   },
   "columns": {
     "id": "主键编号",
@@ -107,7 +108,10 @@
     "file_size": "文件大小，单位为字节",
     "etag": "对象存储返回的文件实体标识",
     "biz_type": "媒体关联业务类型，如AVATAR头像、COURSE_LESSON课时视频",
-    "biz_id": "媒体关联业务记录编号，可为空"
+    "biz_id": "媒体关联业务记录编号，可为空",
+    "generation": "任务代次，每次课程变更时递增，用于完成和失败更新的并发校验",
+    "attempts": "当前代次已失败的同步尝试次数",
+    "last_error": "最近一次索引同步失败的错误摘要，成功或新代次时为空"
   },
   "overrides": {
     "user.status": "账号状态：ACTIVE正常，DISABLED禁用",
@@ -132,6 +136,8 @@
     "coupon_claim.status": "领取券状态：AVAILABLE可用、USED已使用、EXPIRED已过期；到期状态可按有效期计算",
     "seckill_order.status": "秒杀请求状态：PENDING待确认、SUCCESS领取成功、FAILED领取失败",
     "mq_consume_log.status": "消息消费结果状态，如SUCCESS消费成功",
-    "media_asset.status": "媒体资源状态：UPLOADING上传中、READY可用、FAILED失败"
+    "media_asset.status": "媒体资源状态：UPLOADING上传中、READY可用、FAILED失败",
+    "search_index_task.course_id": "待同步的课程编号，关联课程表",
+    "search_index_task.next_retry_at": "下次允许执行索引同步的时间，精确到毫秒"
   }
 }

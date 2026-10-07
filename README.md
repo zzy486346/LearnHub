@@ -199,7 +199,7 @@ Redis Set 以“用户 + 目标”判重，点赞事件进入 RabbitMQ 后聚合
 
 ### 搜索
 
-Elasticsearch 使用 BM25 相关性并融合点赞热度等业务权重，标签作为过滤条件；联想使用前缀查询/Completion 思路提供低延迟建议。Elasticsearch 只保存可重建投影，不作为业务事实源。
+Elasticsearch 使用原生 bool/multi_match/function_score，以 BM25 融合有上限的点赞热度；标签作为过滤条件，联想使用 completion suggester。课程及点赞计数变化通过 MySQL 持久化任务同步，管理员可全量重建并原子切换 alias。ES 故障明确返回 503，不静默拼接不完整结果。配置、迁移和验证见 [搜索升级手册](docs/SEARCH_ELASTICSEARCH_RUNBOOK.md)。Elasticsearch 只保存可重建投影，不作为业务事实源。
 
 ### 本地开发降级
 

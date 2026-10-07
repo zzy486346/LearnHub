@@ -14,6 +14,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -42,6 +43,25 @@ public class AdminCourseController {
     @PostMapping("/courses")
     public ApiResponse<Long> createCourse(@Valid @RequestBody AdminCourseRequests.CreateCourse request) {
         return ApiResponse.success(service.createCourse(request));
+    }
+
+    @PutMapping("/courses/{courseId}")
+    public ApiResponse<Void> updateCourse(@PathVariable Long courseId,
+                                          @Valid @RequestBody AdminCourseRequests.UpdateCourse request) {
+        service.updateCourse(courseId, request);
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/courses/{courseId}/publish")
+    public ApiResponse<Void> publishCourse(@PathVariable Long courseId) {
+        service.publishCourse(courseId);
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/courses/{courseId}/offline")
+    public ApiResponse<Void> offlineCourse(@PathVariable Long courseId) {
+        service.offlineCourse(courseId);
+        return ApiResponse.success(null);
     }
 
     @PostMapping("/courses/{courseId}/chapters")

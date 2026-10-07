@@ -2,6 +2,7 @@ package com.learnhub.infrastructure;
 
 import com.learnhub.common.api.ApiResponse;
 import com.learnhub.common.exception.BusinessException;
+import com.learnhub.search.SearchUnavailableException;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +15,13 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(SearchUnavailableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSearchUnavailable(SearchUnavailableException exception) {
+        log.warn("Elasticsearch search temporarily unavailable", exception);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.failure("SEARCH_UNAVAILABLE", exception.getMessage()));
+    }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException exception) {

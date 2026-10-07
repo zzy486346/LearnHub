@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.learnhub.search.CourseIndexTaskService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -20,7 +21,9 @@ class LikePersistenceServiceTest {
         LikeSyncBatchMapper batchMapper = mock(LikeSyncBatchMapper.class);
         LikeCountMapper countMapper = mock(LikeCountMapper.class);
         LikeEventInboxService inbox = mock(LikeEventInboxService.class);
-        LikePersistenceService service = new LikePersistenceService(recordMapper, batchMapper, countMapper, inbox);
+        CourseIndexTaskService indexTaskService = mock(CourseIndexTaskService.class);
+        LikePersistenceService service = new LikePersistenceService(
+                recordMapper, batchMapper, countMapper, inbox, indexTaskService);
         LikeSyncBatchEntity completed = new LikeSyncBatchEntity();
         completed.setBatchId("batch-1");
         completed.setStatus("SUCCESS");
@@ -45,6 +48,7 @@ class LikePersistenceServiceTest {
         assertThat(repeated).isTrue();
         verify(recordMapper, times(1)).upsertBatch(anyList());
         verify(countMapper, times(1)).updateCourseCounts(deltas);
+        verify(indexTaskService, times(1)).enqueueAll(List.of(1002L));
         verify(batchMapper, times(1)).insert(any(LikeSyncBatchEntity.class));
     }
 
@@ -55,7 +59,9 @@ class LikePersistenceServiceTest {
         LikeSyncBatchMapper batchMapper = mock(LikeSyncBatchMapper.class);
         LikeCountMapper countMapper = mock(LikeCountMapper.class);
         LikeEventInboxService inbox = mock(LikeEventInboxService.class);
-        LikePersistenceService service = new LikePersistenceService(recordMapper, batchMapper, countMapper, inbox);
+        CourseIndexTaskService indexTaskService = mock(CourseIndexTaskService.class);
+        LikePersistenceService service = new LikePersistenceService(
+                recordMapper, batchMapper, countMapper, inbox, indexTaskService);
         LikeEventInboxEntity pending = new LikeEventInboxEntity();
         pending.setEventId("event-1");
         pending.setUserId(7L);
