@@ -7,7 +7,7 @@ SET @user_avatar_media_id_exists = (
 );
 SET @user_avatar_media_id_sql = IF(
     @user_avatar_media_id_exists = 0,
-    'ALTER TABLE user ADD COLUMN avatar_media_id BIGINT NULL AFTER avatar_url, ADD KEY idx_user_avatar_media (avatar_media_id)',
+    'ALTER TABLE user ADD COLUMN avatar_media_id BIGINT NULL COMMENT ''头像媒体资源编号，关联媒体资源表'' AFTER avatar_url, ADD KEY idx_user_avatar_media (avatar_media_id)',
     'SELECT 1'
 );
 PREPARE user_avatar_media_stmt FROM @user_avatar_media_id_sql;
@@ -20,7 +20,7 @@ SET @lesson_media_asset_id_exists = (
 );
 SET @lesson_media_asset_id_sql = IF(
     @lesson_media_asset_id_exists = 0,
-    'ALTER TABLE course_lesson ADD COLUMN media_asset_id BIGINT NULL AFTER media_url, ADD KEY idx_lesson_media_asset (media_asset_id)',
+    'ALTER TABLE course_lesson ADD COLUMN media_asset_id BIGINT NULL COMMENT ''课时媒体资源编号，关联媒体资源表'' AFTER media_url, ADD KEY idx_lesson_media_asset (media_asset_id)',
     'SELECT 1'
 );
 PREPARE lesson_media_asset_stmt FROM @lesson_media_asset_id_sql;
