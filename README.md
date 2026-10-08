@@ -1,254 +1,104 @@
 # 问课尚学（LearnHub）
 
-问课尚学是一个面向职业学习者的在线教育平台。MVP 已覆盖“注册登录 → 浏览/搜索课程 → 互动问答与点赞 → 领取优惠券”的核心链路，并提供课程与优惠券的最小管理入口。
+问课尚学是一个面向职业学习者的在线教育平台，将课程学习、互动问答、学习权益与课程检索整合在一起，围绕“发现课程 → 持续学习 → 交流答疑”的过程提供完整的基础体验。
 
-> 当前版本用于展示模块化单体的业务设计与关键并发方案；支付、直播、视频转码、复杂审核和推荐系统不在 MVP 范围内。
+项目采用前后端分离的模块化单体架构。在实现业务功能的同时，重点关注高并发场景下的幂等处理、异步协作、数据一致性与故障恢复。
 
-## 功能概览
+## 核心功能
 
-- 用户认证：Spring Security + RS256 JWT 双令牌，Access Token 15 分钟、Refresh Token 7 天，支持刷新轮换和退出撤销。
-- 课程学习：课程分页、章节课时聚合、视频学习页与学习进度记录，支持恢复播放位置、课时切换和完成状态同步。
-- 互动社区：问题与回答持久化到 MySQL，支持问题列表/详情、回答分页和真实作者昵称；点赞使用 Redis Set 判重并通过 RabbitMQ 异步聚合。
-- 优惠券：普通领取与限量秒杀；Lua 原子校验/预扣 Redis 库存，RabbitMQ 异步削峰。
-- 课程搜索：Elasticsearch 关键词检索、标签过滤、业务热度排序与联想建议。
-- 文件存储：阿里云 OSS SDK V2，支持后端直传、浏览器预签名直传、上传确认、临时访问和删除，MySQL 记录媒体资产归属与状态。
-- 最小管理端：课程和优惠券管理页面入口，便于后续扩展完整 CRUD 与权限控制。
-- 工程化：统一响应与异常处理、MyBatis-Plus、Swagger UI、Actuator、Docker Compose 中间件编排。
+### 课程与学习
+
+- 课程列表、分类筛选及课程详情展示。
+- 按章节和课时组织课程内容，支持视频播放与课时切换。
+- 记录学习进度、播放位置和完成状态，重新进入课时后可继续学习。
+- 支持课程收藏、点赞与个人互动状态回显。
+
+### 互动问答
+
+- 发布问题与回答，支持关联课程或进行全站交流。
+- 分页展示问题、回答和作者信息，问题详情聚合回答数量。
+- 支持对问题及回答赞同、取消赞同，展示真实计数与当前用户状态。
+- 问答内容持久化保存，服务重启后仍可查询。
+
+### 学习权益
+
+- 展示普通优惠券和限量秒杀券的金额、使用门槛、库存与活动状态。
+- 普通领取即时反馈，秒杀领取区分受理中、确认成功和失败状态。
+- 个人中心展示已领取优惠券、有效期、使用状态及待确认请求。
+- 对未开始、过期、售罄及重复领取场景提供明确反馈。
+
+### 课程搜索
+
+- 支持关键词检索、多标签筛选及结果分页。
+- 以文本相关性为基础，融合有上限的点赞热度加权。
+- 根据课程标题、标签和讲师提供输入联想。
+- 课程变更及点赞计数落库后异步更新搜索索引。
+- 支持管理员全量重建索引，检索服务异常时明确提示失败。
+
+### 认证与内容管理
+
+- 用户注册、登录、令牌刷新与退出撤销。
+- 基于 Spring Security 和 RS256 JWT 的访问控制，管理接口校验管理员身份。
+- 提供课程创建、编辑、发布、下架，以及章节、课时和优惠券管理接口；管理界面仍在逐步完善。
+- 接入阿里云 OSS，支持文件上传、浏览器预签名直传、上传确认、临时访问及删除，记录媒体资产归属与状态。
 
 ## 技术架构
 
 ```text
-Vue 3 + TypeScript + Vite
-             │ /api
-             ▼
-Spring Boot 3 / Spring Security / MyBatis-Plus
-       │           │           │           │
-     MySQL       Redis      RabbitMQ   Elasticsearch
-   事实数据   会话/库存/幂等   异步削峰      搜索投影
+Vue 3 · TypeScript · Element Plus
+                 │
+                 ▼
+       Spring Boot 模块化单体
+       ├─ Spring Security：认证与权限控制
+       ├─ MyBatis-Plus / MySQL：业务事实数据
+       ├─ Redis / Redisson：高频状态、原子操作与分布式互斥
+       ├─ RabbitMQ：异步事件与流量削峰
+       ├─ Elasticsearch：课程检索与联想
+       └─ 阿里云 OSS：媒体文件存储
 ```
 
-项目采用模块化单体：MySQL 是业务事实源，Redis 承载短期高性能状态，Elasticsearch 索引可从事实数据重建，RabbitMQ 消费端按至少一次投递设计幂等。
+| 层次 | 技术与职责 |
+| --- | --- |
+| 前端 | Vue 3、TypeScript、Vite、Element Plus，承载课程、学习、问答与权益交互 |
+| 后端 | Java 17、Spring Boot 3、Spring Security、MyBatis-Plus，组织业务服务与 API |
+| 数据存储 | MySQL 保存业务事实；Redis 维护会话、库存、幂等和互动状态 |
+| 异步处理 | RabbitMQ 承载秒杀确认与点赞事件，配合持久化记录实现重试和去重 |
+| 搜索 | Elasticsearch 执行原生检索和 completion 联想；Kibana 提供索引可视化管理 |
+| 文件存储 | 阿里云 OSS 保存文件，MySQL 管理媒体资产元数据 |
+| 工程支撑 | Maven 多模块、统一响应与异常处理、Swagger、Actuator、Docker Compose |
 
-## 目录结构
+## 关键设计
+
+### 秒杀领取：原子预扣与异步确认
+
+Redis Lua 原子校验活动、库存和重复领取条件，并完成库存预扣。RabbitMQ 将确认请求异步交给消费者，MySQL 条件更新、唯一约束和消费日志共同防止重复确认与超卖。发布确认、有限重试、死信队列和补偿对账处理链路中的失败情况。
+
+### 点赞计数：幂等互动与批量落库
+
+Redis Set 保证用户维度的点赞幂等，事件经 RabbitMQ 传递并写入持久化 inbox，再批量更新点赞关系和业务计数。事件去重、关系序列、批次记录及对账机制用于处理重复消息、乱序与聚合状态丢失。
+
+### 搜索索引：可重建的业务投影
+
+MySQL 是业务事实源，Elasticsearch 只保存可重建的搜索投影。检索使用原生 `bool`、`multi_match` 和 `function_score`，以 BM25 相关性结合有限的业务热度加分；标签与发布状态由 ES 过滤，联想使用 `completion suggester`。
+
+课程写入和索引任务在同一数据库事务中提交，任务通过代次校验防止并发更新丢失，并支持失败退避重试。全量重建先写入新版本索引，再原子切换别名，保留旧索引以支持恢复。搜索故障不会被内存或不完整数据库结果掩盖。
+
+## 工程结构
 
 ```text
 LearnHub/
-├─ learnhub-common/        # 通用响应、异常与基础契约
-├─ learnhub-pojo/          # 可复用的数据对象模块
-├─ learnhub-server/        # Spring Boot API、领域服务与测试
-├─ learnhub-web/           # Vue 3 用户端与最小管理端
-├─ sql/                    # MySQL 表结构和演示数据
-├─ deploy/                 # Docker Compose 与 Nginx 配置
-├─ docs/                   # MVP 架构与实现设计
-├─ .env.example            # 后端环境变量示例
-└─ pom.xml                 # Maven 聚合工程
+├─ learnhub-common/     # 通用响应、异常与基础契约
+├─ learnhub-pojo/       # 公共数据对象
+├─ learnhub-server/     # 后端 API、业务服务、中间件集成与测试
+├─ learnhub-web/        # 用户端与管理界面
+├─ sql/                 # 数据模型、版本化迁移与种子数据
+├─ deploy/              # 容器编排与部署配置
+├─ design-system/       # 界面设计规范
+└─ docs/                # 架构设计、实施记录与专题说明
 ```
 
-## 环境要求
+## 项目状态
 
-- JDK 17
-- Maven 3.9.10（本机约定路径：`D:\Android\apache-maven-3.9.10\bin\mvn.cmd`）
-- Node.js 20+ 与 npm 10+
-- Docker Desktop / Docker Compose（推荐用于启动 MySQL、Redis、RabbitMQ、Elasticsearch）
+当前版本已覆盖课程浏览与学习、问答互动、优惠券领取和课程检索等核心流程，并为秒杀、点赞与搜索同步提供单元测试及真实中间件集成验证。
 
-中间件默认端口：MySQL `3306`、Redis `6379`、RabbitMQ `5672`（管理台 `15672`）、Elasticsearch `9200`、Kibana `5601`（仅本机访问）。请确认本机端口未被占用。
-
-### Elasticsearch 可视化管理
-
-Compose 包含与 ES 匹配的 Kibana 8.15.3，通过容器网络连接 `http://elasticsearch:9200`，中文界面访问地址为 http://localhost:5601。当前本地 ES 关闭安全认证，因此无需登录或 enrollment token；此配置仅用于本地开发，不应暴露到公网。
-
-仅安装/启动 Kibana（不重启现有 ES 或后端）：
-
-```powershell
-docker compose -f deploy/docker-compose.yml up -d --no-deps kibana
-docker compose -f deploy/docker-compose.yml ps kibana
-docker compose -f deploy/docker-compose.yml logs --tail=50 kibana
-```
-
-在“开发工具 / Dev Tools”中执行 `GET _cat/indices?v` 查看索引，执行 `GET _cat/aliases?v` 查看搜索别名。查看课程内容可执行 `GET learnhub-courses-search/_search`；使用 Discover 前创建匹配课程索引的数据视图，课程列表无需指定时间字段。首次启动会迁移 Kibana 自身系统索引，等待健康检查通过再使用。
-
-## 快速启动
-
-### 1. 启动中间件
-
-```powershell
-docker compose -f deploy/docker-compose.yml up -d
-docker compose -f deploy/docker-compose.yml ps
-```
-
-首次创建 MySQL 数据卷时会自动执行 `sql/schema.sql` 和 `sql/seed.sql`。若数据卷已存在，初始化脚本不会重复执行。
-
-种子数据包含课程、优惠券以及 5 个问题和 9 条回答。问答署名使用不可登录的演示作者账号；问答演示数据使用固定的 `6001～6099`、`7001～7099` ID 范围，可安全重复初始化而不会影响用户创建的其他问答。已有数据卷需要刷新演示数据时执行：
-
-```powershell
-docker cp sql/seed.sql deploy-mysql-1:/tmp/seed.sql
-docker exec deploy-mysql-1 mysql --default-character-set=utf8mb4 -ulearnhub -plearnhub -D learnhub -e "source /tmp/seed.sql"
-```
-
-如果数据库由早期版本初始化并出现中文乱码，可执行一次：
-
-```powershell
-docker cp sql/repair_seed_encoding.sql deploy-mysql-1:/tmp/repair_seed_encoding.sql
-docker exec deploy-mysql-1 mysql --default-character-set=utf8mb4 -ulearnhub -plearnhub -D learnhub -e "source /tmp/repair_seed_encoding.sql"
-```
-
-### 2. 配置 JWT 密钥
-
-后端使用 RS256，私钥不能提交到 Git。生成本地密钥后，把路径通过环境变量传入：
-
-```powershell
-New-Item -ItemType Directory -Force .local/keys
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out .local/keys/private.pem
-openssl rsa -pubout -in .local/keys/private.pem -out .local/keys/public.pem
-$env:LEARNHUB_JWT_PRIVATE_KEY_PATH = "file:$((Resolve-Path .local/keys/private.pem).Path)"
-$env:LEARNHUB_JWT_PUBLIC_KEY_PATH = "file:$((Resolve-Path .local/keys/public.pem).Path)"
-```
-
-`.local/` 应保持在 Git 忽略范围内。也可使用安全的密钥挂载或密钥管理服务注入路径。
-
-### 3. 启动后端
-
-```powershell
-D:\Android\apache-maven-3.9.10\bin\mvn.cmd -q -DskipTests install
-D:\Android\apache-maven-3.9.10\bin\mvn.cmd -f learnhub-server\pom.xml spring-boot:run
-```
-
-- API 根地址：`http://localhost:8080/api`
-- Swagger UI：`http://localhost:8080/swagger-ui.html`
-- 健康检查：`http://localhost:8080/actuator/health`
-
-### 4. 启动前端
-
-```powershell
-cd learnhub-web
-Copy-Item .env.example .env.local
-npm install
-npm run dev
-```
-
-打开 `http://localhost:5173`。Vite 会把 `/api` 代理到 `http://localhost:8080`。
-
-## 配置说明
-
-后端配置均可通过环境变量覆盖，本地运行所需的常用配置样例见根目录 `.env.example`；未列出的可选项继续使用 `application.yml` 默认值：
-
-| 配置 | 默认值 | 说明 |
-| --- | --- | --- |
-| `LEARNHUB_DB_URL` | `jdbc:mysql://localhost:3306/learnhub...` | MySQL JDBC 地址 |
-| `LEARNHUB_DB_USERNAME` | `learnhub` | 数据库用户名 |
-| `LEARNHUB_DB_PASSWORD` | `learnhub` | 数据库密码（仅本地默认） |
-| `LEARNHUB_REDIS_HOST` | `localhost` | Redis 主机 |
-| `LEARNHUB_RABBITMQ_HOST` | `localhost` | RabbitMQ 主机 |
-| `LEARNHUB_ES_URIS` | `http://localhost:9200` | Elasticsearch 地址 |
-| `LEARNHUB_JWT_PRIVATE_KEY_PATH` | classpath 占位路径 | RSA 私钥资源位置 |
-| `LEARNHUB_JWT_PUBLIC_KEY_PATH` | classpath 占位路径 | RSA 公钥资源位置 |
-| `LEARNHUB_OSS_ENABLED` | `false` | 是否启用阿里云 OSS；未启用时文件接口返回 `STORAGE_DISABLED` |
-| `LEARNHUB_OSS_REGION` | 空 | Bucket 地域，如 `cn-hangzhou` |
-| `LEARNHUB_OSS_ENDPOINT` | 空 | 可选自定义 Endpoint；公有云可由 SDK 根据 region 解析 |
-| `LEARNHUB_OSS_BUCKET` | 空 | OSS Bucket 名称 |
-| `LEARNHUB_OSS_PUBLIC_BASE_URL` | 空 | 可选 CDN/公开域名；为空时返回短期签名访问地址 |
-| `OSS_ACCESS_KEY_ID` / `OSS_ACCESS_KEY_SECRET` | 空 | 本地写入被 Git 忽略的 `.env`，生产环境由部署平台注入 |
-
-前端变量位于 `learnhub-web/.env.local`：
-
-```dotenv
-VITE_API_BASE_URL=/api
-```
-
-任何真实密码、令牌或私钥都不得提交到仓库。
-
-本地 Docker Redis 默认不启用密码。生产环境如需密码，请通过 Spring Boot 标准环境变量
-`SPRING_DATA_REDIS_PASSWORD` 注入，避免把空密码传给 Redisson。
-
-## 主要 API
-
-接口基础路径为 `/api`，所有业务接口返回统一结构 `{ code, message, data, timestamp }`，详情以 Swagger 为准。
-
-| 模块 | 方法与路径 | 说明 |
-| --- | --- | --- |
-| 认证 | `POST /api/auth/register` | 注册 |
-| 认证 | `POST /api/auth/login` | 获取 Access/Refresh Token |
-| 认证 | `POST /api/auth/refresh` | 轮换刷新令牌 |
-| 认证 | `POST /api/auth/logout` | 撤销当前会话 |
-| 课程 | `GET /api/courses` | 分页查询课程 |
-| 课程 | `GET /api/courses/{id}` | 查询课程、章节与课时聚合详情 |
-| 进度 | `GET/PUT /api/learning/progress/{courseId}` | 查询/幂等更新课程进度 |
-| 问答 | `GET/POST /api/questions` | 分页查询/发布问题 |
-| 问答 | `GET /api/questions/{id}` | 查询问题详情 |
-| 问答 | `GET /api/questions/{id}/answers` | 分页查询回答 |
-| 问答 | `POST /api/questions/{id}/answers` | 发布回答并更新回答计数 |
-| 点赞 | `PUT/DELETE /api/likes/{type}/{targetId}` | 点赞/取消点赞 |
-| 优惠券 | `GET /api/coupons` | 查询优惠券 |
-| 优惠券 | `POST /api/coupons/{id}/claim` | 普通领取 |
-| 秒杀 | `POST /api/coupons/{id}/seckill` | 秒杀领取 |
-| 搜索 | `GET /api/search/courses` | 关键词和标签搜索 |
-| 联想 | `GET /api/search/courses/suggest` | 前缀建议 |
-| 文件 | `POST /api/media/uploads/presign` | 申请浏览器 PUT 直传地址和必需请求头 |
-| 文件 | `POST /api/media/uploads/{id}/complete` | HEAD 校验大小/类型并确认上传完成 |
-| 文件 | `POST /api/media/uploads` | 小文件 multipart 后端直传 |
-| 文件 | `GET/DELETE /api/media/{id}` | 获取临时访问地址/删除本人文件 |
-
-需要认证的请求使用：
-
-```http
-Authorization: Bearer <access-token>
-```
-
-前端 Axios 响应拦截器会在 `401` 时合并并发刷新请求，刷新成功后重放原请求；刷新失败则清理本地令牌并跳转登录页。
-
-课程详情页使用 `/courses/:id`，课时学习页使用 `/courses/:courseId/lessons/:lessonId`。登录用户播放视频时按约 10 秒节流保存进度，并在暂停、切换课时或离开页面时补充上报；重新进入课时后恢复到最后保存位置。
-
-## 高并发设计摘要
-
-### 优惠券秒杀
-
-1. Redis Lua 在单次原子操作中校验活动、库存和用户是否重复领取，并预扣库存。
-2. 请求进入 RabbitMQ，由消费者异步创建领取记录，削平数据库瞬时写流量。
-3. 数据库唯一约束和消费幂等抵御重复消息；Redisson 锁只包围必要的最终确认临界区。
-4. 失败消息可重试，Redis 状态与 MySQL 事实数据可通过补偿任务对账。
-
-### 异步点赞
-
-Redis Set 以“用户 + 目标”判重，点赞事件进入 RabbitMQ 后聚合增量，降低热点计数写压力；消费者和定时落库按幂等、可重试设计，最终以 MySQL 数据完成对账。
-
-### 搜索
-
-Elasticsearch 使用原生 bool/multi_match/function_score，以 BM25 融合有上限的点赞热度；标签作为过滤条件，联想使用 completion suggester。课程及点赞计数变化通过 MySQL 持久化任务同步，管理员可全量重建并原子切换 alias。ES 故障明确返回 503，不静默拼接不完整结果。配置、迁移和验证见 [搜索升级手册](docs/SEARCH_ELASTICSEARCH_RUNBOOK.md)。Elasticsearch 只保存可重建投影，不作为业务事实源。
-
-### 本地开发降级
-
-部分中间件适配在服务不可用时提供内存降级路径，目的是让本地单元测试和核心接口演示不依赖完整基础设施。该路径不具备跨实例一致性、持久化或生产级并发保证，**仅限本地开发与测试**；生产环境必须连接 Redis、RabbitMQ、MySQL 和 Elasticsearch，并启用对应健康检查与告警。
-
-## 验证命令
-
-后端测试与完整校验：
-
-```powershell
-D:\Android\apache-maven-3.9.10\bin\mvn.cmd test
-D:\Android\apache-maven-3.9.10\bin\mvn.cmd verify
-```
-
-前端类型检查与生产构建：
-
-```powershell
-cd learnhub-web
-npm install
-npm run build
-```
-
-基础设施状态与服务健康：
-
-```powershell
-docker compose -f deploy/docker-compose.yml ps
-Invoke-RestMethod http://localhost:8080/actuator/health
-```
-
-## 开发约定
-
-- 修改前后检查 `git status --short`，保护并行开发者的工作。
-- 每个完成并验证的逻辑修改都必须立即创建 Conventional Commits 风格的 Git commit。
-- 不提交密钥、密码、本地配置、IDE 文件和构建产物。
-- 后端 Controller 只处理协议与校验，业务规则放在 Service，Mapper 只负责持久化。
-- 并发链路必须覆盖重复请求、消息重投、消费失败、缓存丢失和服务重启场景。
-
-更完整的范围、数据模型和一致性方案见 [`docs/MVP_IMPLEMENTATION.md`](docs/MVP_IMPLEMENTATION.md)。
+项目仍在持续迭代，不应将现有功能视为完整的商业化教育平台。课程购买与支付、优惠券核销、视频转码、直播、内容审核、个性化推荐及完整的运营监控尚未形成闭环，部分个人中心统计与管理界面也有待完善。
