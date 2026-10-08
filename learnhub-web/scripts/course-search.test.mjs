@@ -23,6 +23,7 @@ async function mount(api) {
   const compiled = compileScript(parse(source).descriptor, { id: 'course-search-test' }).content
     .replace(/from ['"]vue['"]/g, `from ${JSON.stringify(vueUrl)}`)
     .replace(/import \{ courseApi \} from ['"]@\/api['"]/, 'const { courseApi } = globalThis.searchHarness')
+    .replace(/import \{ isSessionExpired \} from ['"]@\/api\/session['"]/, "const isSessionExpired = error => error?.code === 'AUTH_SESSION_EXPIRED'")
   const code = ts.transpileModule(compiled, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
   const module = await import(`data:text/javascript;base64,${Buffer.from(code + `\n// ${++serial}`).toString('base64')}`)
   module.default.render = () => null
@@ -106,5 +107,13 @@ test('加载失败显示服务端真实原因且不注入虚构课程，可重�
   await view.load()
   assert.equal(view.loadError, '')
   assert.equal(view.courses[0].title, '恢复后的课程')
+  app.unmount()
+})
+
+test('会话失效交由全局登录跳转处理，不显示课程加载失败', async () => {
+  const expired = Object.assign(new Error('expired'), { code: 'AUTH_SESSION_EXPIRED' })
+  const { app, view } = await mount({ list: () => Promise.reject(expired) })
+  assert.equal(view.loadError, '')
+  assert.equal(view.loading, false)
   app.unmount()
 })

@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { adminCourseApi } from '@/api'
+import { isSessionExpired } from '@/api/session'
 import type { Chapter, Course, Lesson } from '@/types'
 
 const courses = ref<Course[]>([])
@@ -31,14 +32,15 @@ async function loadCourses(selectId?: number) {
     courses.value = (await adminCourseApi.list()).data.data || []
     const target = selectId ? courses.value.find((item) => item.id === selectId) : selected.value
     if (target) await selectCourse(target)
-  } catch {
+  } catch (error) {
+    if (isSessionExpired(error)) return
     ElMessage.error('课程列表加载失败，请确认管理员权限和后端服务状态')
   } finally { loading.value = false }
 }
 
 async function selectCourse(course: Course) {
   try { selected.value = (await adminCourseApi.detail(course.id)).data.data }
-  catch { ElMessage.error('课程详情加载失败') }
+  catch (error) { if (!isSessionExpired(error)) ElMessage.error('课程详情加载失败') }
 }
 
 async function publishCourse() {
@@ -53,6 +55,7 @@ async function publishCourse() {
     ElMessage.success('课程已发布，搜索索引将自动同步')
     await loadCourses(course.id)
   } catch (error) {
+    if (isSessionExpired(error)) return
     ElMessage.error((error as { response?: { data?: { message?: string } } }).response?.data?.message || '课程发布失败，请稍后重试')
   } finally { publishing.value = false }
 }
@@ -70,7 +73,7 @@ async function createCourse() {
     courseDialog.value = false
     ElMessage.success('课程已创建')
     await loadCourses(id)
-  } catch { ElMessage.error('课程创建失败，请检查填写内容') }
+  } catch (error) { if (!isSessionExpired(error)) ElMessage.error('课程创建失败，请检查填写内容') }
   finally { submitting.value = false }
 }
 
@@ -88,7 +91,7 @@ async function createChapter() {
     chapterDialog.value = false
     await selectCourse(selected.value)
     ElMessage.success('章节已添加')
-  } catch { ElMessage.error('章节创建失败') }
+  } catch (error) { if (!isSessionExpired(error)) ElMessage.error('章节创建失败') }
   finally { submitting.value = false }
 }
 
@@ -106,7 +109,7 @@ async function createLesson() {
     lessonDialog.value = false
     if (selected.value) await selectCourse(selected.value)
     ElMessage.success('课时已添加')
-  } catch { ElMessage.error('课时创建失败') }
+  } catch (error) { if (!isSessionExpired(error)) ElMessage.error('课时创建失败') }
   finally { submitting.value = false }
 }
 
@@ -128,7 +131,7 @@ async function handleVideo(event: Event) {
     await adminCourseApi.uploadLessonVideo(lesson.id, file, (value) => { uploadProgress.value = value })
     if (selected.value) await selectCourse(selected.value)
     ElMessage.success(`《${lesson.title}》视频上传完成`)
-  } catch { ElMessage.error('视频上传失败，请检查文件大小和 OSS 配置') }
+  } catch (error) { if (!isSessionExpired(error)) ElMessage.error('视频上传失败，请检查文件大小和 OSS 配置') }
   finally {
     uploadingLessonId.value = undefined
     uploadProgress.value = 0

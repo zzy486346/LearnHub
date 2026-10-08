@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { likeApi } from '@/api'
+import { isSessionExpired } from '@/api/session'
 import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps<{
@@ -30,7 +31,8 @@ async function load() {
     if (current !== generation) return
     liked.value = result.liked
     count.value = result.count
-  } catch {
+  } catch (caught) {
+    if (isSessionExpired(caught)) return
     if (current === generation) error.value = '赞同状态加载失败，请重试'
   } finally {
     if (current === generation) loading.value = false
@@ -57,7 +59,8 @@ async function toggle() {
     liked.value = result.liked
     count.value = result.count
     announcement.value = `${result.liked ? '已赞同' : '已取消赞同'}${targetLabel.value}，当前 ${result.count} 个赞同`
-  } catch {
+  } catch (caught) {
+    if (isSessionExpired(caught)) return
     // 请求超时可能已变更服务端状态，重新读取后再允许下一次操作。
     if (current === generation) {
       await load()

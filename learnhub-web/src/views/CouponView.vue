@@ -3,6 +3,7 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { couponApi } from '@/api'
+import { isSessionExpired } from '@/api/session'
 import { useAuthStore } from '@/stores/auth'
 import type { Coupon, MyCoupon } from '@/types'
 const auth = useAuthStore()
@@ -52,6 +53,7 @@ async function load(background = false) {
       timer = setTimeout(() => void load(true), 2000)
     }
   } catch (error) {
+    if (isSessionExpired(error)) return
     if (current === generation) loadError.value = (error as { response?: { data?: { message?: string } } }).response?.data?.message || '优惠券加载失败，请重试'
   } finally {
     if (current === generation) loading.value = false
@@ -76,6 +78,7 @@ async function claim(item: Coupon) {
     else if (result.status === 'RESERVED') ElMessage.info('秒杀请求处理中，结果会自动更新，也可到个人中心查看')
     else ElMessage.error('领取未成功，请查看活动状态后重试')
   } catch (error) {
+    if (isSessionExpired(error)) return
     const response = (error as { response?: { status?: number; data?: { message?: string } } }).response
     ElMessage.error(response?.status === 401 ? '登录已失效，请重新登录' : response?.data?.message || '领取请求未确认，请刷新查看结果')
   } finally {

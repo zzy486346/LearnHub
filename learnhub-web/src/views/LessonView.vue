@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { courseApi, learningApi } from '@/api'
+import { isSessionExpired } from '@/api/session'
 import { useAuthStore } from '@/stores/auth'
 import type { Course, LearningProgress } from '@/types'
 
@@ -55,12 +56,14 @@ async function loadLesson() {
         resumePosition.value = saved?.positionSeconds || 0
         lastSavedPosition = resumePosition.value
         saveState.value = 'saved'
-      } catch {
+      } catch (error) {
+        if (isSessionExpired(error)) return
         ElMessage.warning('学习进度暂时无法读取，本次仍可继续观看')
       }
     }
     await nextTick()
-  } catch {
+  } catch (error) {
+    if (isSessionExpired(error)) return
     errorMessage.value = '课时加载失败，请稍后重试。'
   } finally {
     loading.value = false
@@ -96,7 +99,9 @@ function queueProgressSave(completed?: boolean, force = false) {
       if (index >= 0) progress.value[index] = saved
       else progress.value.push(saved)
     })
-    .catch(() => { saveState.value = 'error' })
+    .catch((error) => {
+      if (!isSessionExpired(error)) saveState.value = 'error'
+    })
   return saveQueue
 }
 

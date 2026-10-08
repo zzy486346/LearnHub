@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { questionApi } from '@/api'
+import { isSessionExpired } from '@/api/session'
 import type { Question } from '@/types'
 import VoteButton from '@/components/VoteButton.vue'
 
@@ -27,6 +28,7 @@ async function load() {
     questions.value = result.records
     total.value = result.total
   } catch (error) {
+    if (isSessionExpired(error)) return
     questions.value = []
     loadError.value = (error as { response?: { data?: { message?: string } } }).response?.data?.message || '问题加载失败，请稍后重试'
   } finally {
@@ -45,6 +47,7 @@ async function submit() {
     await load()
     ElMessage.success('问题已发布')
   } catch (error) {
+    if (isSessionExpired(error)) return
     const response = (error as { response?: { status?: number; data?: { message?: string } } }).response
     ElMessage.error(response?.status === 401 ? '请登录后发布问题' : response?.data?.message || '发布失败，请稍后重试')
   } finally {

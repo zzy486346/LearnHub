@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { courseApi, orderApi } from '@/api'
+import { isSessionExpired } from '@/api/session'
 import { useAuthStore } from '@/stores/auth'
 import type { Course, CourseOrder, Lesson } from '@/types'
 
@@ -38,7 +39,8 @@ async function loadCourse() {
       }
       if (favorite.status === 'fulfilled') course.value.favorited = favorite.value.data.data
     }
-  } catch {
+  } catch (error) {
+    if (isSessionExpired(error)) return
     errorMessage.value = '课程加载失败，请检查网络连接后重试。'
   } finally {
     loading.value = false
@@ -92,7 +94,8 @@ async function openPurchase() {
       return
     }
     orderDialogVisible.value = true
-  } catch {
+  } catch (error) {
+    if (isSessionExpired(error)) return
     ElMessage.error('订单创建失败，请稍后重试')
   } finally {
     creatingOrder.value = false
@@ -107,7 +110,8 @@ async function payOrder() {
     orderDialogVisible.value = false
     ElMessage.success('支付成功，全部课程已解锁')
     await loadCourse()
-  } catch {
+  } catch (error) {
+    if (isSessionExpired(error)) return
     ElMessage.error('支付失败，请稍后重试')
   } finally {
     paying.value = false
@@ -126,7 +130,7 @@ async function toggle(action: 'like' | 'favorite') {
       course.value.favorited = response.data.data
     }
     ElMessage.success(action === 'like' ? likeAnnouncement.value : '收藏状态已更新')
-  } catch { ElMessage.error('请先登录或稍后再试') }
+  } catch (error) { if (!isSessionExpired(error)) ElMessage.error('请先登录或稍后再试') }
 }
 
 watch(() => route.params.id, loadCourse, { immediate: true })

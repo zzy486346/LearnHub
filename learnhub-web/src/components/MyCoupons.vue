@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { couponApi } from '@/api'
+import { isSessionExpired } from '@/api/session'
 import type { MyCoupon } from '@/types'
 
 const coupons = ref<MyCoupon[]>([])
@@ -27,7 +28,8 @@ async function load(background = false) {
     if (result.some(item => item.status === 'RESERVED') && polls++ < 30) {
       timer = setTimeout(() => void load(true), 2000)
     }
-  } catch {
+  } catch (caught) {
+    if (isSessionExpired(caught)) return
     if (current === generation) error.value = '优惠券暂时加载失败，请重试'
   } finally {
     if (current === generation) loading.value = false

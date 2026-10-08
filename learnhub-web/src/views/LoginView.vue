@@ -3,6 +3,7 @@ import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { isSessionExpired } from '@/api/session'
 
 const form = reactive({ username: '', password: '' })
 const submitting = ref(false)
@@ -17,7 +18,9 @@ async function submit() {
     await auth.login(form.username, form.password)
     ElMessage.success('欢迎回来')
     router.push(String(route.query.redirect || '/courses'))
-  } catch { ElMessage.error('登录失败，请检查账号或服务状态') } finally { submitting.value = false }
+  } catch (error) {
+    if (!isSessionExpired(error)) ElMessage.error('登录失败，请检查账号或服务状态')
+  } finally { submitting.value = false }
 }
 </script>
 

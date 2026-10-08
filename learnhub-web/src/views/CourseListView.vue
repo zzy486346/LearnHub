@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { courseApi } from '@/api'
+import { isSessionExpired } from '@/api/session'
 import type { Course, CourseSearchResult } from '@/types'
 
 interface CourseCard {
@@ -68,6 +69,7 @@ async function load() {
   }
   catch (error) {
     if (generation !== loadGeneration) return
+    if (isSessionExpired(error)) return
     courses.value = []
     total.value = 0
     loadError.value = errorMessage(error, '课程加载失败，请检查网络连接后重试')

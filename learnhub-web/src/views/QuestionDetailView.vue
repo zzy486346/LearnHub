@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { questionApi } from '@/api'
+import { isSessionExpired } from '@/api/session'
 import type { Answer, Question } from '@/types'
 import VoteButton from '@/components/VoteButton.vue'
 
@@ -35,6 +36,7 @@ async function load() {
     answers.value = answerResult.data.data.records
     total.value = answerResult.data.data.total
   } catch (error) {
+    if (isSessionExpired(error)) return
     loadError.value = (error as { response?: { data?: { message?: string } } }).response?.data?.message || '问题加载失败，请稍后重试'
   } finally {
     loading.value = false
@@ -55,6 +57,7 @@ async function submitAnswer() {
     await load()
     ElMessage.success('回答已发布')
   } catch (error) {
+    if (isSessionExpired(error)) return
     const response = (error as { response?: { data?: { message?: string } } }).response
     ElMessage.error(response?.data?.message || '回答发布失败，请稍后重试')
   } finally {

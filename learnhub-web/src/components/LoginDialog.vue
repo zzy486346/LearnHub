@@ -3,6 +3,7 @@ import { nextTick, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { isSessionExpired } from '@/api/session'
 
 const visible = defineModel<boolean>({ required: true })
 const emit = defineEmits<{ closed: [] }>()
@@ -27,7 +28,8 @@ async function submit() {
     if (route.path === '/login') {
       await router.replace(String(route.query.redirect || '/courses'))
     }
-  } catch {
+  } catch (error) {
+    if (isSessionExpired(error)) return
     ElMessage.error('登录失败，请检查账号或服务状态')
   } finally {
     submitting.value = false

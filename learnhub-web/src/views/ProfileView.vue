@@ -5,6 +5,7 @@ import type { AxiosError } from 'axios'
 import { ElMessage } from 'element-plus'
 import { authApi, orderApi, profileApi } from '@/api'
 import { clearTokens } from '@/api/http'
+import { isSessionExpired } from '@/api/session'
 import { useAuthStore } from '@/stores/auth'
 import type { ApiResult, CourseOrder, ProfileOverview } from '@/types'
 import MyCoupons from '@/components/MyCoupons.vue'
@@ -48,7 +49,8 @@ async function loadOverview() {
   overviewError.value = false
   try {
     overview.value = (await profileApi.overview()).data.data
-  } catch {
+  } catch (error) {
+    if (isSessionExpired(error)) return
     overviewError.value = true
   } finally {
     loadingOverview.value = false
@@ -60,7 +62,8 @@ async function loadOrders() {
   ordersError.value = false
   try {
     orders.value = (await orderApi.mine()).data.data || []
-  } catch {
+  } catch (error) {
+    if (isSessionExpired(error)) return
     ordersError.value = true
   } finally {
     loadingOrders.value = false
@@ -74,7 +77,8 @@ async function payPendingOrder(order: CourseOrder) {
     const index = orders.value.findIndex((item) => item.id === paid.id)
     if (index >= 0) orders.value[index] = paid
     ElMessage.success('支付成功，课程已解锁')
-  } catch {
+  } catch (error) {
+    if (isSessionExpired(error)) return
     ElMessage.error('支付失败，请稍后重试')
   } finally {
     payingOrderId.value = undefined
@@ -118,6 +122,7 @@ async function changePassword() {
     clearTokens()
     await router.replace({ path: '/login', query: { redirect: '/profile' } })
   } catch (error) {
+    if (isSessionExpired(error)) return
     const response = (error as AxiosError<ApiResult<unknown>>).response?.data
     passwordError.value = response?.message || '密码修改失败，请稍后重试'
   } finally {
@@ -184,7 +189,8 @@ async function handleAvatarChange(event: Event) {
   try {
     await auth.updateAvatar(file)
     ElMessage.success('头像已更新')
-  } catch {
+  } catch (error) {
+    if (isSessionExpired(error)) return
     ElMessage.error('头像上传失败，请稍后重试')
   } finally {
     uploading.value = false

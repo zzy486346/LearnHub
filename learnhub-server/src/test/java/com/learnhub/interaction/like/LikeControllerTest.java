@@ -15,6 +15,7 @@ import com.learnhub.auth.security.JwtTokenService;
 import com.learnhub.auth.security.LearnHubPrincipal;
 import com.learnhub.auth.service.RoleService;
 import com.learnhub.config.SecurityConfig;
+import io.jsonwebtoken.JwtException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,9 +45,34 @@ class LikeControllerTest {
 
     @Test
     void guestCannotVoteOrCancel() throws Exception {
-        mvc.perform(put("/api/likes/QUESTION/6001")).andExpect(status().isForbidden());
-        mvc.perform(delete("/api/likes/ANSWER/7001")).andExpect(status().isForbidden());
+        mvc.perform(put("/api/likes/QUESTION/6001"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+        mvc.perform(delete("/api/likes/ANSWER/7001"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
         verifyNoInteractions(service);
+    }
+
+    @Test
+    void expiredBearerTokenReturnsUnauthorizedForProtectedOperation() throws Exception {
+        when(tokenService.require("expired-token", "access")).thenThrow(new JwtException("expired"));
+
+        mvc.perform(put("/api/likes/QUESTION/6001")
+                        .header("Authorization", "Bearer expired-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("登录状态已失效，请重新登录"));
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void authenticatedNonAdminStillReceivesForbiddenForAdminOperation() throws Exception {
+        var user = new UsernamePasswordAuthenticationToken(new LearnHubPrincipal(10L, "test"), null, List.of());
+
+        mvc.perform(put("/api/admin/security-probe").with(authentication(user)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     @Test

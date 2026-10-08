@@ -3,6 +3,7 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { isSessionExpired } from '@/api/session'
 
 const form = reactive({ username: '', nickname: '', password: '', confirm: '' })
 const submitting = ref(false)
@@ -13,7 +14,7 @@ async function submit() {
   if (form.password !== form.confirm) return ElMessage.warning('两次输入的密码不一致')
   submitting.value = true
   try { await auth.register(form.username, form.password, form.nickname); ElMessage.success('注册成功'); router.push('/courses') }
-  catch { ElMessage.error('注册失败，请稍后重试') } finally { submitting.value = false }
+  catch (error) { if (!isSessionExpired(error)) ElMessage.error('注册失败，请稍后重试') } finally { submitting.value = false }
 }
 </script>
 

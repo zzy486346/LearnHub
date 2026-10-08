@@ -16,6 +16,7 @@ const compiled = compileScript(descriptor, { id: 'vote-test', inlineTemplate: tr
   .replace(/from ['"]vue['"]/g, `from ${JSON.stringify(vueUrl)}`)
   .replace(/import \{ useRoute, useRouter \} from ['"]vue-router['"]/, 'const { useRoute, useRouter } = globalThis.voteHarness')
   .replace(/import \{ likeApi \} from ['"]@\/api['"]/, 'const { likeApi } = globalThis.voteHarness')
+  .replace(/import \{ isSessionExpired \} from ['"]@\/api\/session['"]/, "const isSessionExpired = error => error?.code === 'AUTH_SESSION_EXPIRED'")
   .replace(/import \{ useAuthStore \} from ['"]@\/stores\/auth['"]/, 'const { useAuthStore } = globalThis.voteHarness')
 const javascript = ts.transpileModule(compiled, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },

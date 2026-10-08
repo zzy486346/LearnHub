@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "test:auth": "node --test scripts/auth-session.test.mjs",
     "test:vote": "node --test scripts/vote-button.test.mjs",
     "test:coupon": "node --test scripts/coupon.test.mjs",
     "test:search": "node --test scripts/course-search.test.mjs",

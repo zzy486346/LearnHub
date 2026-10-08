@@ -33,6 +33,7 @@ async function mount(publish) {
   const compiled = compileScript(parse(source).descriptor, { id: 'admin-course-test' }).content
     .replace(/from ['"]vue['"]/g, `from ${JSON.stringify(vueUrl)}`)
     .replace(/import \{ adminCourseApi \} from ['"]@\/api['"]/, 'const { adminCourseApi } = globalThis.adminHarness')
+    .replace(/import \{ isSessionExpired \} from ['"]@\/api\/session['"]/, "const isSessionExpired = error => error?.code === 'AUTH_SESSION_EXPIRED'")
     .replace(/import \{ ElMessage \} from ['"]element-plus['"]/, 'const { ElMessage } = globalThis.adminHarness')
   const code = ts.transpileModule(compiled, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
   const module = await import(`data:text/javascript;base64,${Buffer.from(code + `\n// ${++serial}`).toString('base64')}`)
