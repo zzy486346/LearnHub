@@ -264,8 +264,8 @@ onBeforeUnmount(() => {
   <div v-if="loadError" class="content-card state-panel course-search-state" role="alert"><h3>暂时无法加载课程</h3><p>{{ loadError }}</p><el-button @click="load">重新加载</el-button></div>
   <p v-else-if="activeQuery.keyword || activeQuery.tags.length" class="search-result-summary" aria-live="polite">找到 {{ total }} 门匹配课程</p>
   <section v-if="!loadError" ref="carouselRegion" class="course-carousel" :class="{ 'is-auto-playing': !hovered && !focused }" aria-label="精选课程轮播" aria-roledescription="轮播" @mouseenter="setHovered(true)" @mouseleave="setHovered(false)" @focusin="handleFocusIn" @focusout="handleFocusOut">
-  <div v-loading="loading" class="course-carousel-window" :aria-busy="loading">
-  <Transition :name="slideDirection === 'previous' ? 'course-previous' : 'course-next'" mode="out-in">
+  <div v-loading="loading && !courses.length" class="course-carousel-window" :aria-busy="loading">
+  <Transition :name="slideDirection === 'previous' ? 'course-previous' : 'course-next'">
   <div :key="slideVersion" class="course-grid"><RouterLink v-for="(course, index) in courses" :key="course.id" class="course-card" :to="`/courses/${course.id}`">
     <div class="course-cover" :class="`cover-${index % 3}`" :style="course.coverUrl ? { backgroundImage: `linear-gradient(180deg, transparent 30%, rgba(7, 43, 33, .75)), url(${course.coverUrl})` } : {}">
       <span>{{ course.tags?.[0] || '精品课程' }}</span><b>0{{ index + 1 }}</b>

@@ -240,3 +240,25 @@ test('自动播放保留可见滑动过渡，页面不再包含暂停按钮', as
   assert.match(styles, /translateX\(100%\)/)
   assert.doesNotMatch(page, /暂停轮播|继续轮播|toggleAutoplay/)
 })
+
+test('翻页请求尚未完成时保留当前课程，切换采用同位置并行滑动而非先清空', async () => {
+  let finishNextPage
+  const { app, view } = await mount({ list: params => params.page === 1
+    ? result({ records: [{ id: 1, title: '当前课程' }], total: 6 })
+    : new Promise(resolve => { finishNextPage = () => resolve({ data: { data: { records: [{ id: 2, title: '下一组课程' }], total: 6 } } }) }),
+  })
+  try {
+    const next = view.nextPage()
+    assert.equal(view.loading, true)
+    assert.equal(view.courses[0].title, '当前课程')
+    finishNextPage()
+    await next
+    assert.equal(view.courses[0].title, '下一组课程')
+    const page = await readFile(new URL('../src/views/CourseListView.vue', import.meta.url), 'utf8')
+    const styles = await readFile(new URL('../src/styles/main.css', import.meta.url), 'utf8')
+    assert.doesNotMatch(page, /mode="out-in"/)
+    assert.match(page, /v-loading="loading && !courses.length"/)
+    assert.match(styles, /\.course-carousel-window > \.course-grid\s*\{\s*grid-area:1 \/ 1;/)
+    assert.doesNotMatch(styles, /\.course-next-enter-from[^{}]*\{[^}]*opacity:0/)
+  } finally { app.unmount() }
+})

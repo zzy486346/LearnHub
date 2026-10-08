@@ -824,12 +824,13 @@ body { color:var(--ink); background:#fff; }
   .lesson,.lesson-breadcrumb a,.progress-login,.lesson-sidebar-chapter button { transition-duration: .01ms !important; }
   .lesson:hover { transform: none; }
 }
-.course-carousel-window { overflow:hidden; padding:12px 6px 26px; margin:-12px -6px -26px; }
+.course-carousel-window { display:grid; overflow:hidden; padding:12px 6px 26px; margin:-12px -6px -26px; }
+.course-carousel-window > .course-grid { grid-area:1 / 1; min-width:0; }
 .course-carousel-controls { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:12px; margin-top:26px; color:var(--muted); font-size:14px; }
 .course-carousel-controls .el-button { min-height:44px; margin-left:0; }
 .course-carousel .course-pagination { margin-top:16px; }
-.course-next-enter-active,.course-next-leave-active,.course-previous-enter-active,.course-previous-leave-active { transition:transform .24s ease,opacity .24s ease; }
+.course-next-enter-active,.course-next-leave-active,.course-previous-enter-active,.course-previous-leave-active { transition:transform .24s ease; }
 .course-carousel.is-auto-playing .course-next-enter-active,.course-carousel.is-auto-playing .course-next-leave-active,.course-carousel.is-auto-playing .course-previous-enter-active,.course-carousel.is-auto-playing .course-previous-leave-active { transition-duration:.24s!important; }
-.course-next-enter-from,.course-previous-leave-to { opacity:0; transform:translateX(100%); }
-.course-next-leave-to,.course-previous-enter-from { opacity:0; transform:translateX(-100%); }
+.course-next-enter-from,.course-previous-leave-to { transform:translateX(100%); }
+.course-next-leave-to,.course-previous-enter-from { transform:translateX(-100%); }
 @media (prefers-reduced-motion:reduce) { .course-carousel:not(.is-auto-playing) .course-next-enter-active,.course-carousel:not(.is-auto-playing) .course-next-leave-active,.course-carousel:not(.is-auto-playing) .course-previous-enter-active,.course-carousel:not(.is-auto-playing) .course-previous-leave-active { transition:none; } }
