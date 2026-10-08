@@ -58,6 +58,7 @@ services:
       - "9200:9200"
     volumes:
       - es-data:/usr/share/elasticsearch/data
+      - es-plugins:/usr/share/elasticsearch/plugins
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
       interval: 15s
@@ -91,4 +92,5 @@ volumes:
   redis-data:
   rabbitmq-data:
   es-data:
+  es-plugins:
   kibana-data:
