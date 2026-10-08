@@ -71,6 +71,21 @@ services:
       timeout: 5s
       retries: 20
 
+  course-media:
+    image: nginx:1.28-alpine
+    profiles: ["demo"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8091:80"
+    volumes:
+      - ${LEARNHUB_COURSE_MEDIA_DIR:-D:/Download/codex/learnhub-course-media}:/usr/share/nginx/html:ro
+      - ./course-media.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/courses/java-basics/cover.svg || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
   kibana:
     image: docker.elastic.co/kibana/kibana:8.15.3
     restart: unless-stopped
