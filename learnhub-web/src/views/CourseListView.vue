@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { courseApi } from '@/api'
 import { isSessionExpired } from '@/api/session'
 import type { Course, CourseSearchResult } from '@/types'
@@ -21,7 +21,22 @@ const courses = ref<CourseCard[]>([])
 const loading = ref(false)
 const loadError = ref('')
 const total = ref(0)
-const filters = reactive({ keyword: '', tags: [] as string[], current: 1, size: 12 })
+const filters = reactive({ keyword: '', tags: [] as string[], current: 1, size: 3 })
+const activeQuery = reactive({ keyword: '', tags: [] as string[] })
+const carouselRegion = ref<HTMLElement | null>(null)
+const slideVersion = ref(0)
+const slideDirection = ref('next')
+const autoplayPaused = ref(false)
+const hovered = ref(false)
+const focused = ref(false)
+const reducedMotion = ref(false)
+const regionVisible = ref(true)
+const paginationTotal = computed(() => activeQuery.keyword || activeQuery.tags.length ? Math.min(total.value, 9999) : total.value)
+const pageCount = computed(() => Math.ceil(paginationTotal.value / filters.size))
+let rotationTimer: ReturnType<typeof setTimeout> | undefined
+let motionPreference: MediaQueryList | undefined
+let visibilityObserver: IntersectionObserver | undefined
+let mounted = false
 const quickTags = ['Java', '架构', '搜索']
 let scrollFrame: number | undefined
 let loadGeneration = 0
@@ -46,14 +61,15 @@ function errorMessage(error: unknown, fallback: string) {
 
 async function load() {
   const generation = ++loadGeneration
+  clearTimeout(rotationTimer)
   loading.value = true
   loadError.value = ''
   try {
-    const keyword = filters.keyword.trim()
-    if (keyword || filters.tags.length) {
+    const keyword = activeQuery.keyword
+    if (keyword || activeQuery.tags.length) {
       const result = (await courseApi.searchPage({
         keyword,
-        tags: filters.tags.length ? filters.tags.join(',') : undefined,
+        tags: activeQuery.tags.length ? activeQuery.tags.join(',') : undefined,
         page: filters.current,
         size: filters.size,
       })).data.data
@@ -66,6 +82,7 @@ async function load() {
       courses.value = result.records.map(toCourseCard)
       total.value = result.total
     }
+    slideVersion.value++
   }
   catch (error) {
     if (generation !== loadGeneration) return
@@ -75,12 +92,72 @@ async function load() {
     loadError.value = errorMessage(error, '课程加载失败，请检查网络连接后重试')
   }
   finally {
-    if (generation === loadGeneration) loading.value = false
+    if (generation === loadGeneration) {
+      loading.value = false
+      scheduleRotation()
+    }
   }
 }
-onMounted(load)
+
+function scheduleRotation() {
+  clearTimeout(rotationTimer)
+  if (!mounted || loading.value || loadError.value || autoplayPaused.value || hovered.value
+    || focused.value || reducedMotion.value || !regionVisible.value || document.hidden || pageCount.value <= 1) return
+  rotationTimer = setTimeout(() => { void changePage(filters.current % pageCount.value + 1) }, 6000)
+}
+
+function changePage(page: number, direction = 'next') {
+  if (loading.value || pageCount.value <= 1) return
+  slideDirection.value = direction
+  filters.current = Math.min(pageCount.value, Math.max(1, page))
+  return load()
+}
+
+function previousPage() {
+  return changePage(filters.current === 1 ? pageCount.value : filters.current - 1, 'previous')
+}
+
+function nextPage() {
+  return changePage(filters.current % pageCount.value + 1)
+}
+
+function toggleAutoplay() {
+  autoplayPaused.value = !autoplayPaused.value
+  scheduleRotation()
+}
+
+function setHovered(value: boolean) { hovered.value = value; scheduleRotation() }
+function setFocused(value: boolean) { focused.value = value; scheduleRotation() }
+function handleFocusOut(event: FocusEvent) {
+  if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) setFocused(false)
+}
+function handleMotionPreference(event: MediaQueryListEvent) { reducedMotion.value = event.matches; scheduleRotation() }
+
+watch(carouselRegion, (element, previous) => {
+  if (previous) visibilityObserver?.unobserve(previous)
+  if (element) visibilityObserver?.observe(element)
+})
+
+onMounted(() => {
+  mounted = true
+  motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)')
+  reducedMotion.value = motionPreference.matches
+  motionPreference.addEventListener('change', handleMotionPreference)
+  document.addEventListener('visibilitychange', scheduleRotation)
+  if (typeof IntersectionObserver !== 'undefined') {
+    regionVisible.value = false
+    visibilityObserver = new IntersectionObserver(([entry]) => {
+      regionVisible.value = Boolean(entry?.isIntersecting && entry.intersectionRatio >= 0.15)
+      scheduleRotation()
+    }, { threshold: 0.15 })
+    if (carouselRegion.value) visibilityObserver.observe(carouselRegion.value)
+  }
+  void load()
+})
 
 function submitSearch() {
+  activeQuery.keyword = filters.keyword.trim()
+  activeQuery.tags = [...filters.tags]
   filters.current = 1
   return load()
 }
@@ -89,8 +166,7 @@ function selectTag(tag: string) {
   const index = filters.tags.indexOf(tag)
   if (index >= 0) filters.tags.splice(index, 1)
   else filters.tags.push(tag)
-  filters.current = 1
-  return load()
+  return submitSearch()
 }
 
 async function fetchSuggestions(prefix: string, callback: (items: Suggestion[]) => void) {
@@ -138,6 +214,12 @@ function scrollToCourses() {
 }
 
 onBeforeUnmount(() => {
+  mounted = false
+  loadGeneration++
+  clearTimeout(rotationTimer)
+  motionPreference?.removeEventListener('change', handleMotionPreference)
+  document.removeEventListener('visibilitychange', scheduleRotation)
+  visibilityObserver?.disconnect()
   if (scrollFrame !== undefined) window.cancelAnimationFrame(scrollFrame)
 })
 </script>
@@ -190,16 +272,27 @@ onBeforeUnmount(() => {
     <div class="filter-chips" aria-label="课程标签筛选"><button v-for="tag in quickTags" :key="tag" type="button" :class="{ active: filters.tags.includes(tag) }" :aria-pressed="filters.tags.includes(tag)" @click="selectTag(tag)">{{ tag }}</button></div>
   </div>
   <div v-if="loadError" class="content-card state-panel course-search-state" role="alert"><h3>暂时无法加载课程</h3><p>{{ loadError }}</p><el-button @click="load">重新加载</el-button></div>
-  <p v-else-if="filters.keyword.trim() || filters.tags.length" class="search-result-summary" aria-live="polite">找到 {{ total }} 门匹配课程</p>
-  <div v-if="!loadError" v-loading="loading" class="course-grid"><RouterLink v-for="(course, index) in courses" :key="course.id" class="course-card" :to="`/courses/${course.id}`">
+  <p v-else-if="activeQuery.keyword || activeQuery.tags.length" class="search-result-summary" aria-live="polite">找到 {{ total }} 门匹配课程</p>
+  <section v-if="!loadError" ref="carouselRegion" class="course-carousel" aria-label="精选课程轮播" aria-roledescription="轮播" @mouseenter="setHovered(true)" @mouseleave="setHovered(false)" @focusin="setFocused(true)" @focusout="handleFocusOut">
+  <div v-loading="loading" class="course-carousel-window" :aria-busy="loading">
+  <Transition :name="slideDirection === 'previous' ? 'course-previous' : 'course-next'" mode="out-in">
+  <div :key="slideVersion" class="course-grid"><RouterLink v-for="(course, index) in courses" :key="course.id" class="course-card" :to="`/courses/${course.id}`">
     <div class="course-cover" :class="`cover-${index % 3}`" :style="course.coverUrl ? { backgroundImage: `linear-gradient(180deg, transparent 30%, rgba(7, 43, 33, .75)), url(${course.coverUrl})` } : {}">
       <span>{{ course.tags?.[0] || '精品课程' }}</span><b>0{{ index + 1 }}</b>
       <div class="cover-mark" aria-hidden="true"><span></span><span></span><span></span></div>
     </div>
     <div class="course-body"><div class="course-meta"><span>{{ course.tags?.slice(0, 2).join(' · ') || '职业技能' }}</span><span>{{ course.likeCount || 0 }} 人喜欢</span></div><h3>{{ course.title }}</h3><p>{{ course.subtitle || course.description }}</p><div class="course-footer"><span class="teacher-avatar">{{ (course.teacherName || course.instructor || '问').slice(0, 1) }}</span><span>{{ course.teacherName || course.instructor || '问课讲师' }}</span><span class="course-arrow" aria-hidden="true">→</span></div></div>
   </RouterLink></div>
+  </Transition></div>
+  <div v-if="pageCount > 1" class="course-carousel-controls">
+    <el-button :disabled="loading" aria-label="上一组课程" @click="previousPage">上一组</el-button>
+    <span :aria-live="autoplayPaused || focused ? 'polite' : 'off'">第 {{ filters.current }} / {{ pageCount }} 页 · 每页 3 门</span>
+    <el-button :disabled="loading" aria-label="下一组课程" @click="nextPage">下一组</el-button>
+    <el-button :disabled="reducedMotion" :aria-pressed="!autoplayPaused && !reducedMotion" @click="toggleAutoplay">{{ reducedMotion ? '已减少动态效果' : autoplayPaused ? '继续轮播' : '暂停轮播' }}</el-button>
+  </div>
+  <el-pagination v-if="paginationTotal > filters.size" :disabled="loading" :current-page="filters.current" :page-size="filters.size" :total="paginationTotal" layout="prev, pager, next" class="course-pagination" @current-change="changePage" />
+  </section>
   <el-empty v-if="!loading && !loadError && !courses.length" description="暂时没有匹配的课程" />
-  <el-pagination v-if="!loadError && total > filters.size" v-model:current-page="filters.current" :page-size="filters.size" :total="total" layout="prev, pager, next" class="course-pagination" @current-change="load" />
 
   <section class="benefits-section" aria-labelledby="benefits-title">
     <div class="benefits-heading"><p class="eyebrow">WHY LEARNHUB</p><h2 id="benefits-title">不止是看完一门课</h2><p>从知识输入到问题解决，让成长真正发生。</p></div>

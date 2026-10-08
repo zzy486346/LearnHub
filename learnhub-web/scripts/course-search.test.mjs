@@ -16,10 +16,13 @@ const renderer = createRenderer({
 const result = data => Promise.resolve({ data: { data } })
 let serial = 0
 
-async function mount(api) {
+async function mount(api, { reducedMotion = false } = {}) {
+  const motion = Object.assign(new EventTarget(), { matches: reducedMotion })
+  globalThis.window = { matchMedia: () => motion }
+  globalThis.document = Object.assign(new EventTarget(), { hidden: false })
   globalThis.searchHarness = { courseApi: api }
   const source = (await readFile(new URL('../src/views/CourseListView.vue', import.meta.url), 'utf8'))
-    .replace('</script>', 'defineExpose({ courses, filters, total, loadError, loading, load, submitSearch, selectTag, fetchSuggestions })\n</script>')
+    .replace('</script>', 'defineExpose({ courses, filters, total, loadError, loading, load, submitSearch, selectTag, fetchSuggestions, nextPage, previousPage, toggleAutoplay, setHovered, setFocused })\n</script>')
   const compiled = compileScript(parse(source).descriptor, { id: 'course-search-test' }).content
     .replace(/from ['"]vue['"]/g, `from ${JSON.stringify(vueUrl)}`)
     .replace(/import \{ courseApi \} from ['"]@\/api['"]/, 'const { courseApi } = globalThis.searchHarness')
@@ -36,8 +39,8 @@ async function mount(api) {
 test('默认课程使用普通分页，关键词和多标签使用搜索分页', async () => {
   const calls = []
   const api = {
-    list: params => { calls.push(['list', params]); return result({ records: [{ id: 1, title: '默认课程' }], total: 13, current: 1, size: 12 }) },
-    searchPage: params => { calls.push(['search', params]); return result({ records: [{ id: 2, title: '搜索课程' }], total: 21, current: 1, size: 12 }) },
+    list: params => { calls.push(['list', params]); return result({ records: [{ id: 1, title: '默认课程' }], total: 13, current: 1, size: 3 }) },
+    searchPage: params => { calls.push(['search', params]); return result({ records: [{ id: 2, title: '搜索课程' }], total: 21, current: 1, size: 3 }) },
   }
   const { app, view } = await mount(api)
   assert.equal(view.courses[0].title, '默认课程')
@@ -45,7 +48,8 @@ test('默认课程使用普通分页，关键词和多标签使用搜索分页',
   view.filters.keyword = ' Java '
   view.filters.tags.push('Java', '架构')
   await view.submitSearch()
-  assert.deepEqual(calls.at(-1), ['search', { keyword: 'Java', tags: 'Java,架构', page: 1, size: 12 }])
+  assert.deepEqual(calls[0], ['list', { page: 1, size: 3 }])
+  assert.deepEqual(calls.at(-1), ['search', { keyword: 'Java', tags: 'Java,架构', page: 1, size: 3 }])
   assert.equal(view.courses[0].title, '搜索课程')
   assert.equal(view.total, 21)
   app.unmount()
@@ -99,7 +103,7 @@ test('加载失败显示服务端真实原因且不注入虚构课程，可重�
   const { app, view } = await mount({
     list: () => fails
       ? Promise.reject({ response: { data: { message: '搜索服务暂不可用' } } })
-      : result({ records: [{ id: 3, title: '恢复后的课程' }], total: 1, current: 1, size: 12 }),
+      : result({ records: [{ id: 3, title: '恢复后的课程' }], total: 1, current: 1, size: 3 }),
   })
   assert.equal(view.courses.length, 0)
   assert.equal(view.loadError, '搜索服务暂不可用')
@@ -110,10 +114,102 @@ test('加载失败显示服务端真实原因且不注入虚构课程，可重�
   app.unmount()
 })
 
+test('每六秒自动切换下一页，末页回到首页，卸载停止循环', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const calls = []
+  const { app, view } = await mount({ list: params => {
+    calls.push(params.page)
+    return result({ records: [{ id: params.page, title: `第${params.page}组` }], total: 6 })
+  } })
+  t.mock.timers.tick(6000)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(view.filters.current, 2)
+  assert.equal(view.courses[0].title, '第2组')
+  t.mock.timers.tick(6000)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(view.filters.current, 1)
+  app.unmount()
+  t.mock.timers.tick(12000)
+  assert.deepEqual(calls, [1, 2, 1])
+})
+
+test('悬停、聚焦、暂停按钮及页面隐藏阻止自动轮播，手动切换仍可用', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const { app, view } = await mount({ list: params => result({ records: [{ id: params.page, title: '课程' }], total: 9 }) })
+  view.setHovered(true)
+  t.mock.timers.tick(12000)
+  assert.equal(view.filters.current, 1)
+  view.setHovered(false)
+  view.setFocused(true)
+  t.mock.timers.tick(12000)
+  assert.equal(view.filters.current, 1)
+  view.setFocused(false)
+  view.toggleAutoplay()
+  t.mock.timers.tick(12000)
+  assert.equal(view.filters.current, 1)
+  await view.previousPage()
+  assert.equal(view.filters.current, 3)
+  await view.nextPage()
+  assert.equal(view.filters.current, 1)
+  view.toggleAutoplay()
+  document.hidden = true
+  document.dispatchEvent(new Event('visibilitychange'))
+  t.mock.timers.tick(12000)
+  assert.equal(view.filters.current, 1)
+  document.hidden = false
+  document.dispatchEvent(new Event('visibilitychange'))
+  t.mock.timers.tick(6000)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(view.filters.current, 2)
+  app.unmount()
+})
+
+test('减少动态效果或只有一页时不自动播放，轮播继续保留筛选条件', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const still = await mount({ list: () => result({ records: [], total: 6 }) }, { reducedMotion: true })
+  t.mock.timers.tick(12000)
+  assert.equal(still.view.filters.current, 1)
+  still.app.unmount()
+  const requests = []
+  const { app, view } = await mount({
+    list: () => result({ records: [], total: 1 }),
+    searchPage: params => { requests.push(params); return result({ records: [], total: 6 }) },
+  })
+  t.mock.timers.tick(12000)
+  assert.equal(view.filters.current, 1)
+  view.filters.keyword = 'Java'
+  view.filters.tags.push('架构')
+  await view.submitSearch()
+  t.mock.timers.tick(6000)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(requests.at(-1), { keyword: 'Java', tags: '架构', page: 2, size: 3 })
+  app.unmount()
+})
+
 test('会话失效交由全局登录跳转处理，不显示课程加载失败', async () => {
   const expired = Object.assign(new Error('expired'), { code: 'AUTH_SESSION_EXPIRED' })
   const { app, view } = await mount({ list: () => Promise.reject(expired) })
   assert.equal(view.loadError, '')
   assert.equal(view.loading, false)
+  app.unmount()
+})
+
+test('自动翻页只使用已提交的筛选，不把正在输入的关键词提前提交', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const calls = []
+  const { app, view } = await mount({
+    list: params => { calls.push(['list', params]); return result({ records: [], total: 6 }) },
+    searchPage: params => { calls.push(['search', params]); return result({ records: [], total: 6 }) },
+  })
+  view.filters.keyword = '尚未提交'
+  t.mock.timers.tick(6000)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(calls.at(-1), ['list', { page: 2, size: 3 }])
+  view.filters.keyword = 'Java'
+  await view.submitSearch()
+  view.filters.keyword = '新草稿'
+  t.mock.timers.tick(6000)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(calls.at(-1)[1].keyword, 'Java')
   app.unmount()
 })
