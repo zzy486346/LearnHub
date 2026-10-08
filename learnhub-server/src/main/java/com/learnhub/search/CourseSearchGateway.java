@@ -30,8 +30,8 @@ public class CourseSearchGateway {
 
     public CourseSearchGateway(ObjectProvider<RestClient> clients, ObjectMapper mapper,
             @Value("${learnhub.search.alias:learnhub-courses-search}") String alias,
-            @Value("${learnhub.search.analyzer:standard}") String analyzer,
-            @Value("${learnhub.search.search-analyzer:standard}") String searchAnalyzer) {
+            @Value("${learnhub.search.analyzer:ik_max_word}") String analyzer,
+            @Value("${learnhub.search.search-analyzer:ik_smart}") String searchAnalyzer) {
         if (!alias.matches("[a-z][a-z0-9-]{0,100}")) throw new IllegalArgumentException("Invalid search alias");
         this.client = clients.getIfAvailable();
         this.mapper = mapper;

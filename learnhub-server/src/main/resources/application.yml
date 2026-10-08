@@ -51,8 +51,8 @@ mybatis-plus:
 learnhub:
   search:
     alias: ${LEARNHUB_SEARCH_ALIAS:learnhub-courses-search}
-    analyzer: ${LEARNHUB_SEARCH_ANALYZER:standard}
-    search-analyzer: ${LEARNHUB_SEARCH_SEARCH_ANALYZER:standard}
+    analyzer: ${LEARNHUB_SEARCH_ANALYZER:ik_max_word}
+    search-analyzer: ${LEARNHUB_SEARCH_SEARCH_ANALYZER:ik_smart}
     sync-enabled: ${LEARNHUB_SEARCH_SYNC_ENABLED:true}
     sync-delay: ${LEARNHUB_SEARCH_SYNC_DELAY:5000}
     sync-batch-size: ${LEARNHUB_SEARCH_SYNC_BATCH_SIZE:100}

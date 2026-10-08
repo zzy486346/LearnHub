@@ -30,7 +30,7 @@ class CourseSearchInfrastructureIntegrationTest {
         ObjectProvider<RestClient> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(client);
         gateway = new CourseSearchGateway(provider, new ObjectMapper().findAndRegisterModules(),
-                "learnhub-search-it-" + UUID.randomUUID().toString().replace("-", ""), "standard", "standard");
+                "learnhub-search-it-" + UUID.randomUUID().toString().replace("-", ""), "ik_max_word", "ik_smart");
         service = new CourseSearchService(gateway);
         assertFalse(gateway.ensureAlias());
         index = gateway.createVersionedIndex();
@@ -45,6 +45,24 @@ class CourseSearchInfrastructureIntegrationTest {
             gateway.deleteIndex(ownedIndex);
         } }
         finally { if (client != null) client.close(); }
+    }
+
+    @Test
+    void chineseIkMappingSupportsAnalysisSearchAndCompletion() {
+        var mapping = gateway.request("GET", "/" + index + "/_mapping", null, false);
+        var title = mapping.path(index).path("mappings").path("properties").path("title");
+        assertEquals("ik_max_word", title.path("analyzer").asText());
+        assertEquals("ik_smart", title.path("search_analyzer").asText());
+        var analyzed = gateway.request("POST", "/" + index + "/_analyze",
+                java.util.Map.of("field", "title", "text", "中华人民共和国国歌"), false);
+        var tokens = new java.util.HashSet<String>();
+        analyzed.path("tokens").forEach(token -> tokens.add(token.path("token").asText()));
+        assertTrue(tokens.contains("中华人民共和国"));
+        assertTrue(tokens.contains("国歌"));
+        gateway.upsert(document(91L, "中华人民共和国国歌", "中文分词测试", Set.of("中文"), 0, "PUBLISHED"));
+        gateway.refresh(index);
+        assertEquals(91L, service.search("国歌", Set.of("中文"), 10).get(0).id());
+        assertTrue(service.suggest("中华", 10).contains("中华人民共和国国歌"));
     }
 
     @Test

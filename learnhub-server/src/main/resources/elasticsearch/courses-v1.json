@@ -4,15 +4,15 @@
     "dynamic": "strict",
     "properties": {
       "id": { "type": "keyword" },
-      "title": { "type": "text", "analyzer": "standard", "search_analyzer": "standard", "fields": { "exact": { "type": "keyword" } } },
-      "description": { "type": "text", "analyzer": "standard", "search_analyzer": "standard" },
-      "instructorName": { "type": "text", "analyzer": "standard", "search_analyzer": "standard" },
+      "title": { "type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart", "fields": { "exact": { "type": "keyword" } } },
+      "description": { "type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart" },
+      "instructorName": { "type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart" },
       "coverUrl": { "type": "keyword", "index": false },
       "tags": { "type": "keyword" },
       "likeCount": { "type": "long" },
       "status": { "type": "keyword" },
       "publishedAt": { "type": "date" },
-      "suggest": { "type": "completion", "analyzer": "standard", "search_analyzer": "standard", "max_input_length": 100, "contexts": [{ "name": "publication", "type": "category", "path": "status" }] }
+      "suggest": { "type": "completion", "analyzer": "ik_max_word", "search_analyzer": "ik_smart", "max_input_length": 100, "contexts": [{ "name": "publication", "type": "category", "path": "status" }] }
     }
   }
 }

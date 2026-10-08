@@ -39,7 +39,7 @@ import org.springframework.test.web.servlet.MockMvc;
         "learnhub.like.flush-enabled=false", "learnhub.like.publish-retry-enabled=false",
         "learnhub.like.reconciliation-enabled=false", "learnhub.like.legacy-key-migration-enabled=false",
         "learnhub.seckill.reconciliation-enabled=false", "learnhub.storage.oss.enabled=false",
-        "learnhub.search.analyzer=standard", "learnhub.search.search-analyzer=standard"
+        "learnhub.search.analyzer=ik_max_word", "learnhub.search.search-analyzer=ik_smart"
 })
 @AutoConfigureMockMvc
 @EnabledIfSystemProperty(named = "learnhub.it.enabled", matches = "true")

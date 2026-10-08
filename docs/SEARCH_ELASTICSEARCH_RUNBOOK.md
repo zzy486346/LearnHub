@@ -17,15 +17,49 @@
 配置示例在 `.env.example`：
 
 - `LEARNHUB_SEARCH_ALIAS=learnhub-courses-search`
-- `LEARNHUB_SEARCH_ANALYZER=standard`
-- `LEARNHUB_SEARCH_SEARCH_ANALYZER=standard`
+- `LEARNHUB_SEARCH_ANALYZER=ik_max_word`
+- `LEARNHUB_SEARCH_SEARCH_ANALYZER=ik_smart`
 - `LEARNHUB_SEARCH_SYNC_ENABLED=true`
 - `LEARNHUB_SEARCH_SYNC_DELAY=5000`
 - `LEARNHUB_SEARCH_SYNC_BATCH_SIZE=100`
 
 默认新 alias 避免与旧 concrete index `learnhub-courses` 冲突，不自动删除旧索引。版本索引名为 `<alias>-v1-<随机ID>`，mapping 在 `learnhub-server/src/main/resources/elasticsearch/courses-v1.json`。
 
-当前本地 ES 8.15.3 没有安装 IK，故真实验证采用 standard。需要中文 IK 分词时，在所有 ES 节点安装匹配版本的插件，再配置 analyzer 为 ik_max_word、search analyzer 为 ik_smart，执行全量重建；不要在缺失插件时直接配置 IK。mapping 变更只影响新建版本。
+### IK 中文分词插件
+
+当前 ES 8.15.3 已安装并加载 `analysis-ik` 8.15.3。索引分词使用 `ik_max_word`，查询分词使用 `ik_smart`，标题、描述、讲师和 completion 字段统一通过版本化 mapping 配置。此前未安装插件的验证采用 standard，现在真实集成测试使用 IK，并覆盖中文分词、检索和联想。
+
+Compose 已把命名卷 `es-plugins` 挂载到 `/usr/share/elasticsearch/plugins`（默认卷名 `deploy_es-plugins`）。安装器把插件放入该卷，但把词典写到容器的 `config/analysis-ik`；必须同时把词典复制到插件卷内的 `plugins/analysis-ik/config`，让容器重建后使用 IK 支持的插件目录配置回退。当前已完成复制并验证重建后分词可用。不要执行 `docker compose down -v`，该命令还会删除业务数据卷。全新卷需要先安装插件；升级 ES 时必须安装与新 ES 版本完全匹配的插件，不能直接复用旧版本插件。自定义词典也须同步保存到持久化的插件目录。
+
+首次安装命令（已有 analysis-ik 时不要重复安装）：
+
+```powershell
+docker exec deploy-elasticsearch-1 bin/elasticsearch-plugin list
+docker exec deploy-elasticsearch-1 bin/elasticsearch-plugin install --batch https://get.infini.cloud/elasticsearch/analysis-ik/8.15.3
+docker exec deploy-elasticsearch-1 cp -a config/analysis-ik plugins/analysis-ik/config
+docker compose -f deploy/docker-compose.yml restart elasticsearch
+docker compose -f deploy/docker-compose.yml ps elasticsearch kibana
+```
+
+安装过程需要网络权限以支持词典获取；软件包来自 [IK 维护者](https://github.com/infinilabs/analysis-ik)。安装后必须重启 ES 才会加载插件；插件目录挂载本身不会自动安装或热加载插件。Kibana 无需安装 IK，ES 恢复后会重新连接。
+
+在 Kibana Dev Tools 验证已加载的插件及中文分词：
+
+```http
+GET _nodes/plugins
+
+POST _analyze
+{
+  "analyzer": "ik_max_word",
+  "text": "中华人民共和国国歌"
+}
+```
+
+### 已有课程索引切换到 IK
+
+安装插件与修改配置不会改变已有 standard 索引的 analyzer，也不能通过修改 mapping 对既有文本重新分词。日常后端由用户自行重新启动以读取新配置，然后使用管理员身份调用 `POST /api/admin/search/courses/rebuild`，从 MySQL 构建 IK 新索引并原子切换 alias；旧索引保留。不要删除现有索引或数据卷来替代重建。
+
+在 Kibana 执行 `GET learnhub-courses-search/_mapping`，核对 title 的 analyzer 为 ik_max_word、search_analyzer 为 ik_smart，以及 suggest 的 completion 类型。未重建的旧索引仍保持其原分词配置；若 alias 尚未初始化，新配置后端启动时会自动创建 IK 版本。缺失插件的环境可以显式把两个配置设回 standard，但该模式不等价于中文 IK 检索。
 
 用户自行启动日常后端。本阶段测试通过 MockMvc 与独立测试 alias 验证，没有启动额外监听端口的后端服务。服务运行后，同步任务会在 alias 缺失时自动从 MySQL 初始化；也可由管理员显式重建。
 
@@ -53,7 +87,7 @@ FROM search_index_task ORDER BY next_retry_at, id LIMIT 100;
 
 失败的重建不会删除当前 alias 指向的索引；alias 切换响应超时时也先核对目标，避免删除已经生效的新版本。旧版本需要人工按 alias 状态与保留策略清理，不能删除当前目标。人工回滚需暂停增量任务、以 ES 原子 aliases API 切回指定旧版本，再重建/补偿并恢复任务；旧版本不是 MySQL 当前状态的替代品。
 
-边界：未新增同义词、高亮、纠错或搜索历史；未安装 IK、未提供旧索引自动清理；任务无限可重试但需监控积压。直接 SQL 修改课程/标签关系不会自动入队，应调用任务服务或全量重建。不要绕开事务写接口。
+边界：未新增同义词、高亮、纠错或搜索历史；未提供旧索引自动清理；任务无限可重试但需监控积压。直接 SQL 修改课程/标签关系不会自动入队，应调用任务服务或全量重建。不要绕开事务写接口。
 
 ## 验证
 
@@ -66,6 +100,6 @@ npm run test:search
 npm run build
 ```
 
-集成测试连接本地 MySQL/ES，创建随机测试 alias 和课程，只消费本次创建课程的任务，不清空用户数据或正常任务；结束后清理测试数据和索引。
+集成测试要求本地 MySQL/ES 可用且 ES 已加载匹配的 IK 插件，创建随机测试 alias 和课程，只消费本次创建课程的任务，不清空用户数据或正常任务；结束后清理测试数据和索引。
 
 官方资料：[completion suggester](https://www.elastic.co/guide/en/elasticsearch/reference/8.15/search-suggesters.html)、[function_score](https://www.elastic.co/guide/en/elasticsearch/reference/8.15/query-dsl-function-score-query.html)。
