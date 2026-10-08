@@ -22,7 +22,7 @@ async function mount(api, { reducedMotion = false } = {}) {
   globalThis.document = Object.assign(new EventTarget(), { hidden: false })
   globalThis.searchHarness = { courseApi: api }
   const source = (await readFile(new URL('../src/views/CourseListView.vue', import.meta.url), 'utf8'))
-    .replace('</script>', 'defineExpose({ courses, filters, total, loadError, loading, load, submitSearch, selectTag, fetchSuggestions, nextPage, previousPage, toggleAutoplay, setHovered, setFocused })\n</script>')
+    .replace('</script>', 'defineExpose({ courses, filters, total, loadError, loading, load, submitSearch, selectTag, fetchSuggestions, nextPage, previousPage, setHovered, setFocused, handleFocusIn })\n</script>')
   const compiled = compileScript(parse(source).descriptor, { id: 'course-search-test' }).content
     .replace(/from ['"]vue['"]/g, `from ${JSON.stringify(vueUrl)}`)
     .replace(/import \{ courseApi \} from ['"]@\/api['"]/, 'const { courseApi } = globalThis.searchHarness')
@@ -114,18 +114,18 @@ test('加载失败显示服务端真实原因且不注入虚构课程，可重�
   app.unmount()
 })
 
-test('每六秒自动切换下一页，末页回到首页，卸载停止循环', async (t) => {
+test('每两秒自动切换下一页，末页回到首页，卸载停止循环', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const calls = []
   const { app, view } = await mount({ list: params => {
     calls.push(params.page)
     return result({ records: [{ id: params.page, title: `第${params.page}组` }], total: 6 })
   } })
-  t.mock.timers.tick(6000)
+  t.mock.timers.tick(2000)
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(view.filters.current, 2)
   assert.equal(view.courses[0].title, '第2组')
-  t.mock.timers.tick(6000)
+  t.mock.timers.tick(2000)
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(view.filters.current, 1)
   app.unmount()
@@ -133,42 +133,48 @@ test('每六秒自动切换下一页，末页回到首页，卸载停止循环',
   assert.deepEqual(calls, [1, 2, 1])
 })
 
-test('悬停、聚焦、暂停按钮及页面隐藏阻止自动轮播，手动切换仍可用', async (t) => {
+test('悬停暂停、移出恢复轮播，聚焦和页面隐藏暂停且手动切换可用', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const { app, view } = await mount({ list: params => result({ records: [{ id: params.page, title: '课程' }], total: 9 }) })
   view.setHovered(true)
-  t.mock.timers.tick(12000)
+  t.mock.timers.tick(6000)
   assert.equal(view.filters.current, 1)
   view.setHovered(false)
+  t.mock.timers.tick(2000)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(view.filters.current, 2)
   view.setFocused(true)
   t.mock.timers.tick(12000)
-  assert.equal(view.filters.current, 1)
+  assert.equal(view.filters.current, 2)
   view.setFocused(false)
-  view.toggleAutoplay()
+  view.setHovered(true)
   t.mock.timers.tick(12000)
+  assert.equal(view.filters.current, 2)
+  await view.previousPage()
   assert.equal(view.filters.current, 1)
   await view.previousPage()
   assert.equal(view.filters.current, 3)
   await view.nextPage()
   assert.equal(view.filters.current, 1)
-  view.toggleAutoplay()
+  view.setHovered(false)
   document.hidden = true
   document.dispatchEvent(new Event('visibilitychange'))
   t.mock.timers.tick(12000)
   assert.equal(view.filters.current, 1)
   document.hidden = false
   document.dispatchEvent(new Event('visibilitychange'))
-  t.mock.timers.tick(6000)
+  t.mock.timers.tick(2000)
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(view.filters.current, 2)
   app.unmount()
 })
 
-test('减少动态效果或只有一页时不自动播放，轮播继续保留筛选条件', async (t) => {
+test('显式开启的两秒轮播不被系统动态偏好禁用，只有一页时不轮播且保留筛选条件', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const still = await mount({ list: () => result({ records: [], total: 6 }) }, { reducedMotion: true })
-  t.mock.timers.tick(12000)
-  assert.equal(still.view.filters.current, 1)
+  t.mock.timers.tick(2000)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(still.view.filters.current, 2)
   still.app.unmount()
   const requests = []
   const { app, view } = await mount({
@@ -180,7 +186,7 @@ test('减少动态效果或只有一页时不自动播放，轮播继续保留�
   view.filters.keyword = 'Java'
   view.filters.tags.push('架构')
   await view.submitSearch()
-  t.mock.timers.tick(6000)
+  t.mock.timers.tick(2000)
   await new Promise(resolve => setImmediate(resolve))
   assert.deepEqual(requests.at(-1), { keyword: 'Java', tags: '架构', page: 2, size: 3 })
   app.unmount()
@@ -202,14 +208,35 @@ test('自动翻页只使用已提交的筛选，不把正在输入的关键词�
     searchPage: params => { calls.push(['search', params]); return result({ records: [], total: 6 }) },
   })
   view.filters.keyword = '尚未提交'
-  t.mock.timers.tick(6000)
+  t.mock.timers.tick(2000)
   await new Promise(resolve => setImmediate(resolve))
   assert.deepEqual(calls.at(-1), ['list', { page: 2, size: 3 }])
   view.filters.keyword = 'Java'
   await view.submitSearch()
   view.filters.keyword = '新草稿'
-  t.mock.timers.tick(6000)
+  t.mock.timers.tick(2000)
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(calls.at(-1)[1].keyword, 'Java')
   app.unmount()
+})
+
+test('鼠标点击后留下的按钮焦点不阻止移出恢复，键盘焦点仍受保护', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const { app, view } = await mount({ list: () => result({ records: [], total: 6 }) })
+  view.handleFocusIn({ target: { matches: () => true } })
+  t.mock.timers.tick(4000)
+  assert.equal(view.filters.current, 1)
+  view.handleFocusIn({ target: { matches: () => false } })
+  t.mock.timers.tick(2000)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(view.filters.current, 2)
+  app.unmount()
+})
+
+test('自动播放保留可见滑动过渡，页面不再包含暂停按钮', async () => {
+  const styles = await readFile(new URL('../src/styles/main.css', import.meta.url), 'utf8')
+  const page = await readFile(new URL('../src/views/CourseListView.vue', import.meta.url), 'utf8')
+  assert.match(styles, /\.course-carousel\.is-auto-playing[^{}]+\{\s*transition-duration:\.24s!important;/)
+  assert.match(styles, /translateX\(100%\)/)
+  assert.doesNotMatch(page, /暂停轮播|继续轮播|toggleAutoplay/)
 })

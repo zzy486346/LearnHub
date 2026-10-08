@@ -26,15 +26,12 @@ const activeQuery = reactive({ keyword: '', tags: [] as string[] })
 const carouselRegion = ref<HTMLElement | null>(null)
 const slideVersion = ref(0)
 const slideDirection = ref('next')
-const autoplayPaused = ref(false)
 const hovered = ref(false)
 const focused = ref(false)
-const reducedMotion = ref(false)
 const regionVisible = ref(true)
 const paginationTotal = computed(() => activeQuery.keyword || activeQuery.tags.length ? Math.min(total.value, 9999) : total.value)
 const pageCount = computed(() => Math.ceil(paginationTotal.value / filters.size))
 let rotationTimer: ReturnType<typeof setTimeout> | undefined
-let motionPreference: MediaQueryList | undefined
 let visibilityObserver: IntersectionObserver | undefined
 let mounted = false
 const quickTags = ['Java', '架构', '搜索']
@@ -101,9 +98,9 @@ async function load() {
 
 function scheduleRotation() {
   clearTimeout(rotationTimer)
-  if (!mounted || loading.value || loadError.value || autoplayPaused.value || hovered.value
-    || focused.value || reducedMotion.value || !regionVisible.value || document.hidden || pageCount.value <= 1) return
-  rotationTimer = setTimeout(() => { void changePage(filters.current % pageCount.value + 1) }, 6000)
+  if (!mounted || loading.value || loadError.value || hovered.value
+    || focused.value || !regionVisible.value || document.hidden || pageCount.value <= 1) return
+  rotationTimer = setTimeout(() => { void changePage(filters.current % pageCount.value + 1) }, 2000)
 }
 
 function changePage(page: number, direction = 'next') {
@@ -121,17 +118,14 @@ function nextPage() {
   return changePage(filters.current % pageCount.value + 1)
 }
 
-function toggleAutoplay() {
-  autoplayPaused.value = !autoplayPaused.value
-  scheduleRotation()
-}
-
 function setHovered(value: boolean) { hovered.value = value; scheduleRotation() }
 function setFocused(value: boolean) { focused.value = value; scheduleRotation() }
+function handleFocusIn(event: FocusEvent) {
+  setFocused((event.target as HTMLElement).matches(':focus-visible'))
+}
 function handleFocusOut(event: FocusEvent) {
   if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) setFocused(false)
 }
-function handleMotionPreference(event: MediaQueryListEvent) { reducedMotion.value = event.matches; scheduleRotation() }
 
 watch(carouselRegion, (element, previous) => {
   if (previous) visibilityObserver?.unobserve(previous)
@@ -140,9 +134,6 @@ watch(carouselRegion, (element, previous) => {
 
 onMounted(() => {
   mounted = true
-  motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)')
-  reducedMotion.value = motionPreference.matches
-  motionPreference.addEventListener('change', handleMotionPreference)
   document.addEventListener('visibilitychange', scheduleRotation)
   if (typeof IntersectionObserver !== 'undefined') {
     regionVisible.value = false
@@ -217,7 +208,6 @@ onBeforeUnmount(() => {
   mounted = false
   loadGeneration++
   clearTimeout(rotationTimer)
-  motionPreference?.removeEventListener('change', handleMotionPreference)
   document.removeEventListener('visibilitychange', scheduleRotation)
   visibilityObserver?.disconnect()
   if (scrollFrame !== undefined) window.cancelAnimationFrame(scrollFrame)
@@ -273,7 +263,7 @@ onBeforeUnmount(() => {
   </div>
   <div v-if="loadError" class="content-card state-panel course-search-state" role="alert"><h3>暂时无法加载课程</h3><p>{{ loadError }}</p><el-button @click="load">重新加载</el-button></div>
   <p v-else-if="activeQuery.keyword || activeQuery.tags.length" class="search-result-summary" aria-live="polite">找到 {{ total }} 门匹配课程</p>
-  <section v-if="!loadError" ref="carouselRegion" class="course-carousel" aria-label="精选课程轮播" aria-roledescription="轮播" @mouseenter="setHovered(true)" @mouseleave="setHovered(false)" @focusin="setFocused(true)" @focusout="handleFocusOut">
+  <section v-if="!loadError" ref="carouselRegion" class="course-carousel" :class="{ 'is-auto-playing': !hovered && !focused }" aria-label="精选课程轮播" aria-roledescription="轮播" @mouseenter="setHovered(true)" @mouseleave="setHovered(false)" @focusin="handleFocusIn" @focusout="handleFocusOut">
   <div v-loading="loading" class="course-carousel-window" :aria-busy="loading">
   <Transition :name="slideDirection === 'previous' ? 'course-previous' : 'course-next'" mode="out-in">
   <div :key="slideVersion" class="course-grid"><RouterLink v-for="(course, index) in courses" :key="course.id" class="course-card" :to="`/courses/${course.id}`">
@@ -286,9 +276,8 @@ onBeforeUnmount(() => {
   </Transition></div>
   <div v-if="pageCount > 1" class="course-carousel-controls">
     <el-button :disabled="loading" aria-label="上一组课程" @click="previousPage">上一组</el-button>
-    <span :aria-live="autoplayPaused || focused ? 'polite' : 'off'">第 {{ filters.current }} / {{ pageCount }} 页 · 每页 3 门</span>
+    <span :aria-live="hovered || focused ? 'polite' : 'off'">第 {{ filters.current }} / {{ pageCount }} 页 · 每页 3 门</span>
     <el-button :disabled="loading" aria-label="下一组课程" @click="nextPage">下一组</el-button>
-    <el-button :disabled="reducedMotion" :aria-pressed="!autoplayPaused && !reducedMotion" @click="toggleAutoplay">{{ reducedMotion ? '已减少动态效果' : autoplayPaused ? '继续轮播' : '暂停轮播' }}</el-button>
   </div>
   <el-pagination v-if="paginationTotal > filters.size" :disabled="loading" :current-page="filters.current" :page-size="filters.size" :total="paginationTotal" layout="prev, pager, next" class="course-pagination" @current-change="changePage" />
   </section>
