@@ -1,6 +1,7 @@
 services:
   mysql:
     image: mysql:8.4
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: learnhub
@@ -21,6 +22,7 @@ services:
 
   redis:
     image: redis:7.4-alpine
+    restart: unless-stopped
     command: redis-server --appendonly yes
     ports:
       - "6379:6379"
@@ -34,7 +36,9 @@ services:
 
   rabbitmq:
     image: rabbitmq:4-management-alpine
+    restart: unless-stopped
     environment:
+      TZ: Asia/Shanghai
       RABBITMQ_DEFAULT_USER: learnhub
       RABBITMQ_DEFAULT_PASS: learnhub
     ports:
@@ -50,7 +54,9 @@ services:
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    restart: unless-stopped
     environment:
+      TZ: CST-8
       discovery.type: single-node
       xpack.security.enabled: "false"
       ES_JAVA_OPTS: -Xms512m -Xmx512m
@@ -69,6 +75,7 @@ services:
     image: docker.elastic.co/kibana/kibana:8.15.3
     restart: unless-stopped
     environment:
+      TZ: Asia/Shanghai
       SERVER_NAME: learnhub-kibana
       ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
       XPACK_SECURITY_ENABLED: "false"
