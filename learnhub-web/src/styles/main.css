@@ -668,6 +668,8 @@ body { color:var(--ink); background:#fff; }
 .admin-course-item small { margin-top:6px; color:var(--muted); }
 .admin-editor { min-height:560px; }
 .admin-detail-heading { padding:4px 4px 22px; border-bottom:1px solid #edf0f3; }
+.admin-course-actions { display:flex; align-items:center; justify-content:flex-end; gap:12px; flex-shrink:0; flex-wrap:wrap; }
+.admin-course-actions .el-button+.el-button { margin-left:0; }
 .admin-detail-heading .eyebrow { margin:0 0 5px; font-size:11px; }
 .admin-chapter-list { display:grid; gap:16px; padding-top:20px; }
 .admin-chapter-card { overflow:hidden; border:1px solid #e5e9ef; border-radius:16px; background:#fbfcff; }
@@ -686,6 +688,8 @@ body { color:var(--ink); background:#fff; }
   .admin-course-list { position:static; }
 }
 @media (max-width:600px) {
+  .admin-detail-heading { flex-direction:column; }
+  .admin-course-actions { width:100%; justify-content:flex-start; }
   .admin-title { align-items:flex-start; }.admin-title .el-button { width:100%; }
   .admin-form-grid { grid-template-columns:1fr; gap:0; }
   .admin-lesson-row { grid-template-columns:34px minmax(0,1fr) auto; }

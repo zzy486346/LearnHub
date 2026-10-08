@@ -53,6 +53,8 @@ export const adminCourseApi = {
   detail: (courseId: string | number) => http.get<ApiResult<Course>>(`/admin/courses/${courseId}`),
   createCourse: (body: { categoryId: number; title: string; description?: string; instructor: string; price: number; status: 'DRAFT' | 'PUBLISHED' }) =>
     http.post<ApiResult<number>>('/admin/courses', body),
+  publishCourse: (courseId: string | number) =>
+    http.post<ApiResult<void>>(`/admin/courses/${courseId}/publish`),
   createChapter: (courseId: string | number, body: { title: string; sortOrder: number }) =>
     http.post<ApiResult<number>>(`/admin/courses/${courseId}/chapters`, body),
   createLesson: (chapterId: string | number, body: { title: string; durationSeconds: number; freePreview: boolean; sortOrder: number }) =>

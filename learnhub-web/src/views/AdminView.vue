@@ -11,6 +11,7 @@ const courseDialog = ref(false)
 const chapterDialog = ref(false)
 const lessonDialog = ref(false)
 const submitting = ref(false)
+const publishing = ref(false)
 const selectedChapterId = ref<number>()
 const uploadLesson = ref<Lesson>()
 const uploadingLessonId = ref<number>()
@@ -38,6 +39,22 @@ async function loadCourses(selectId?: number) {
 async function selectCourse(course: Course) {
   try { selected.value = (await adminCourseApi.detail(course.id)).data.data }
   catch { ElMessage.error('课程详情加载失败') }
+}
+
+async function publishCourse() {
+  const course = selected.value
+  if (!course || course.status === 'PUBLISHED' || publishing.value) return
+  publishing.value = true
+  try {
+    await adminCourseApi.publishCourse(course.id)
+    course.status = 'PUBLISHED'
+    const listed = courses.value.find(item => item.id === course.id)
+    if (listed) listed.status = 'PUBLISHED'
+    ElMessage.success('课程已发布，搜索索引将自动同步')
+    await loadCourses(course.id)
+  } catch (error) {
+    ElMessage.error((error as { response?: { data?: { message?: string } } }).response?.data?.message || '课程发布失败，请稍后重试')
+  } finally { publishing.value = false }
 }
 
 function openCourseDialog() {
@@ -130,7 +147,7 @@ async function handleVideo(event: Event) {
     <div class="admin-workspace" v-loading="loading">
       <aside class="content-card admin-course-list" aria-label="课程列表">
         <div class="admin-panel-heading"><div><span>全部课程</span><small>{{ courses.length }} 门</small></div></div>
-        <button v-for="course in courses" :key="course.id" type="button" :class="['admin-course-item', { active: selected?.id === course.id }]" @click="selectCourse(course)">
+        <button v-for="course in courses" :key="course.id" type="button" :disabled="publishing" :class="['admin-course-item', { active: selected?.id === course.id }]" @click="selectCourse(course)">
           <span><strong>{{ course.title }}</strong><small>{{ course.instructor }} · ¥{{ course.price ?? 0 }}</small></span>
           <el-tag :type="course.status === 'PUBLISHED' ? 'success' : 'info'" size="small">{{ course.status === 'PUBLISHED' ? '已发布' : '草稿' }}</el-tag>
         </button>
@@ -141,7 +158,11 @@ async function handleVideo(event: Event) {
         <template v-if="selected">
           <div class="admin-panel-heading admin-detail-heading">
             <div><p class="eyebrow">COURSE STRUCTURE</p><h2>{{ selected.title }}</h2><small>{{ selected.description || '暂未填写课程介绍' }}</small></div>
-            <el-button @click="openChapterDialog">添加章节</el-button>
+            <div class="admin-course-actions">
+              <el-button v-if="selected.status !== 'PUBLISHED'" type="primary" :loading="publishing" :disabled="loading || uploadingLessonId !== undefined" @click="publishCourse">发布课程</el-button>
+              <el-tag v-else type="success">已发布</el-tag>
+              <el-button @click="openChapterDialog">添加章节</el-button>
+            </div>
           </div>
           <div v-if="chapters.length" class="admin-chapter-list">
             <article v-for="chapter in chapters" :key="chapter.id" class="admin-chapter-card">
