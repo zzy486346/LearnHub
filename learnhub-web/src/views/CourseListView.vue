@@ -100,7 +100,7 @@ function scheduleRotation() {
   clearTimeout(rotationTimer)
   if (!mounted || loading.value || loadError.value || hovered.value
     || focused.value || !regionVisible.value || document.hidden || pageCount.value <= 1) return
-  rotationTimer = setTimeout(() => { void changePage(filters.current % pageCount.value + 1) }, 5000)
+  rotationTimer = setTimeout(() => { void changePage(filters.current % pageCount.value + 1) }, 3000)
 }
 
 function changePage(page: number, direction = 'next') {

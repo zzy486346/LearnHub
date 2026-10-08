@@ -114,21 +114,21 @@ test('加载失败显示服务端真实原因且不注入虚构课程，可重�
   app.unmount()
 })
 
-test('每五秒自动切换下一页，末页回到首页，卸载停止循环', async (t) => {
+test('每三秒自动切换下一页，末页回到首页，卸载停止循环', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const calls = []
   const { app, view } = await mount({ list: params => {
     calls.push(params.page)
     return result({ records: [{ id: params.page, title: `第${params.page}组` }], total: 6 })
   } })
-  t.mock.timers.tick(4999)
+  t.mock.timers.tick(2999)
   assert.equal(view.filters.current, 1)
   assert.deepEqual(calls, [1])
   t.mock.timers.tick(1)
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(view.filters.current, 2)
   assert.equal(view.courses[0].title, '第2组')
-  t.mock.timers.tick(5000)
+  t.mock.timers.tick(3000)
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(view.filters.current, 1)
   app.unmount()
@@ -143,7 +143,7 @@ test('悬停暂停、移出恢复轮播，聚焦和页面隐藏暂停且手动�
   t.mock.timers.tick(6000)
   assert.equal(view.filters.current, 1)
   view.setHovered(false)
-  t.mock.timers.tick(5000)
+  t.mock.timers.tick(3000)
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(view.filters.current, 2)
   view.setFocused(true)
@@ -166,16 +166,16 @@ test('悬停暂停、移出恢复轮播，聚焦和页面隐藏暂停且手动�
   assert.equal(view.filters.current, 1)
   document.hidden = false
   document.dispatchEvent(new Event('visibilitychange'))
-  t.mock.timers.tick(5000)
+  t.mock.timers.tick(3000)
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(view.filters.current, 2)
   app.unmount()
 })
 
-test('显式开启的五秒轮播不被系统动态偏好禁用，只有一页时不轮播且保留筛选条件', async (t) => {
+test('显式开启的三秒轮播不被系统动态偏好禁用，只有一页时不轮播且保留筛选条件', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const still = await mount({ list: () => result({ records: [], total: 6 }) }, { reducedMotion: true })
-  t.mock.timers.tick(5000)
+  t.mock.timers.tick(3000)
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(still.view.filters.current, 2)
   still.app.unmount()
@@ -189,7 +189,7 @@ test('显式开启的五秒轮播不被系统动态偏好禁用，只有一页�
   view.filters.keyword = 'Java'
   view.filters.tags.push('架构')
   await view.submitSearch()
-  t.mock.timers.tick(5000)
+  t.mock.timers.tick(3000)
   await new Promise(resolve => setImmediate(resolve))
   assert.deepEqual(requests.at(-1), { keyword: 'Java', tags: '架构', page: 2, size: 3 })
   app.unmount()
@@ -211,13 +211,13 @@ test('自动翻页只使用已提交的筛选，不把正在输入的关键词�
     searchPage: params => { calls.push(['search', params]); return result({ records: [], total: 6 }) },
   })
   view.filters.keyword = '尚未提交'
-  t.mock.timers.tick(5000)
+  t.mock.timers.tick(3000)
   await new Promise(resolve => setImmediate(resolve))
   assert.deepEqual(calls.at(-1), ['list', { page: 2, size: 3 }])
   view.filters.keyword = 'Java'
   await view.submitSearch()
   view.filters.keyword = '新草稿'
-  t.mock.timers.tick(5000)
+  t.mock.timers.tick(3000)
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(calls.at(-1)[1].keyword, 'Java')
   app.unmount()
@@ -230,7 +230,7 @@ test('鼠标点击后留下的按钮焦点不阻止移出恢复，键盘焦点�
   t.mock.timers.tick(10000)
   assert.equal(view.filters.current, 1)
   view.handleFocusIn({ target: { matches: () => false } })
-  t.mock.timers.tick(5000)
+  t.mock.timers.tick(3000)
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(view.filters.current, 2)
   app.unmount()
