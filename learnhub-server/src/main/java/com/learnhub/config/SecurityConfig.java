@@ -45,7 +45,7 @@ public class SecurityConfig {
                         }))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/refresh",
+                        .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout",
                                 "/api/courses/**", "/api/search/courses/**", "/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/questions/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/coupons").permitAll()
