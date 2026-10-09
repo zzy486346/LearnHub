@@ -74,3 +74,11 @@ npm run build
 本轮前端认证专项共 17 项通过，全部前端脚本共 43 项通过，构建通过并保留既有大体积 chunk 警告。覆盖项包括：等待已开始的刷新后再退出、退出失败或 401 时不自动刷新且仍清理会话、跨标签清理，以及阻止迟到的旧刷新响应恢复已退出会话或覆盖重新登录的新会话。
 
 当前开发环境未配置 `LEARNHUB_JWT_PRIVATE_KEY_PATH` 与 `LEARNHUB_JWT_PUBLIC_KEY_PATH`，本轮没有写入真实 `.env` 值，也没有启动、停止或重启后端服务。因此这里只完成了代码级启动拒绝、有状态 Redis API 模型和临时 PEM 跨实例验证；尚未执行真实 Redis 生命周期集成、生产 Secret 注入、负载均衡多实例或部署滚动重启。目标环境必须按第 3 节验收，不能将本地测试结果视为生产验收完成。
+
+## 5. 本次交付验证记录（2026-10-09）
+
+- 根目录 Maven `test`、`verify` 均为 `BUILD SUCCESS`：88 项中 76 项执行通过，12 项需显式开启的基础设施集成测试跳过，无失败或错误。
+- 最终 RSA 专项 8 项通过；生产防绕过测试直接激活 `StandardEnvironment` 的 `prod`、`production` profile，通过实际公共构造器验证固定密钥检查。
+- 全部前端脚本 43 项通过（认证 17 项）；`npm run build` 包含 Vue TypeScript 检查，构建通过，既有大体积 chunk 警告保留。
+- `git diff --check` 通过；修改在 `feature/auth-token-revocation` 分支按中文 Conventional Commits 提交，不自动合并或推送。
+- 本机沙箱限制 JVM/Mockito 附加，受限测试已中断并确认进程退出，改用允许 JVM 附加的执行环境完成 Maven 校验。测试未启动监听端口或日常后端服务。
