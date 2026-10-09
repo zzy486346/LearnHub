@@ -12,6 +12,8 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.Signature;
+import java.security.interfaces.RSAKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.nio.charset.StandardCharsets;
@@ -32,6 +34,7 @@ public class JwtTokenService {
     private static final Logger log = LoggerFactory.getLogger(JwtTokenService.class);
     private static final String REFRESH_PREFIX = "auth:refresh:";
     private static final String DENY_PREFIX = "auth:deny:";
+    private static final int MINIMUM_RSA_BITS = 2048;
     private final JwtProperties properties;
     private final StringRedisTemplate redisTemplate;
     private final Clock clock;
@@ -52,19 +55,24 @@ public class JwtTokenService {
     @PostConstruct
     void initializeKeys() {
         try {
-            boolean privateConfigured = properties.getPrivateKeyLocation() != null
-                    && properties.getPrivateKeyLocation().exists();
-            boolean publicConfigured = properties.getPublicKeyLocation() != null
-                    && properties.getPublicKeyLocation().exists();
+            boolean privateConfigured = properties.getPrivateKeyLocation() != null;
+            boolean publicConfigured = properties.getPublicKeyLocation() != null;
             if (privateConfigured != publicConfigured) {
                 throw new IllegalStateException("JWT private and public keys must be configured together");
             }
+            if (properties.isRequireConfiguredKeys() && !privateConfigured) {
+                throw new IllegalStateException("Configured JWT RSA keys are required in this environment");
+            }
             if (privateConfigured) {
+                if (!properties.getPrivateKeyLocation().exists() || !properties.getPublicKeyLocation().exists()) {
+                    throw new IllegalStateException("Configured JWT RSA key file does not exist");
+                }
                 KeyFactory factory = KeyFactory.getInstance("RSA");
                 privateKey = factory.generatePrivate(new PKCS8EncodedKeySpec(
                         decodePem(properties.getPrivateKeyLocation().getContentAsString(StandardCharsets.UTF_8))));
                 publicKey = factory.generatePublic(new X509EncodedKeySpec(
                         decodePem(properties.getPublicKeyLocation().getContentAsString(StandardCharsets.UTF_8))));
+                validateKeyPair(privateKey, publicKey);
             } else {
                 KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
                 generator.initialize(2048);
@@ -142,6 +150,28 @@ public class JwtTokenService {
         String normalized = value.replaceAll("-----BEGIN [A-Z ]+-----", "")
                 .replaceAll("-----END [A-Z ]+-----", "").replaceAll("\\s", "");
         return Base64.getDecoder().decode(normalized);
+    }
+
+    private void validateKeyPair(PrivateKey configuredPrivateKey, PublicKey configuredPublicKey) throws Exception {
+        if (!(configuredPrivateKey instanceof RSAKey privateRsa)
+                || !(configuredPublicKey instanceof RSAKey publicRsa)) {
+            throw new IllegalStateException("JWT keys must be RSA keys");
+        }
+        if (privateRsa.getModulus().bitLength() < MINIMUM_RSA_BITS
+                || publicRsa.getModulus().bitLength() < MINIMUM_RSA_BITS) {
+            throw new IllegalStateException("JWT RSA keys must be at least " + MINIMUM_RSA_BITS + " bits");
+        }
+        byte[] probe = "learnhub-jwt-key-pair-check".getBytes(StandardCharsets.UTF_8);
+        Signature signer = Signature.getInstance("SHA256withRSA");
+        signer.initSign(configuredPrivateKey);
+        signer.update(probe);
+        byte[] signature = signer.sign();
+        Signature verifier = Signature.getInstance("SHA256withRSA");
+        verifier.initVerify(configuredPublicKey);
+        verifier.update(probe);
+        if (!verifier.verify(signature)) {
+            throw new IllegalStateException("JWT RSA private and public keys do not match");
+        }
     }
 
     private record Token(String value, String jti) {}

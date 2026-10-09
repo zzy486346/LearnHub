@@ -10,6 +10,7 @@ public class JwtProperties {
     private Duration refreshTokenTtl = Duration.ofDays(7);
     private Resource privateKeyLocation;
     private Resource publicKeyLocation;
+    private boolean requireConfiguredKeys;
 
     public Duration getAccessTokenTtl() { return accessTokenTtl; }
     public void setAccessTokenTtl(Duration accessTokenTtl) { this.accessTokenTtl = accessTokenTtl; }
@@ -19,4 +20,8 @@ public class JwtProperties {
     public void setPrivateKeyLocation(Resource privateKeyLocation) { this.privateKeyLocation = privateKeyLocation; }
     public Resource getPublicKeyLocation() { return publicKeyLocation; }
     public void setPublicKeyLocation(Resource publicKeyLocation) { this.publicKeyLocation = publicKeyLocation; }
+    public boolean isRequireConfiguredKeys() { return requireConfiguredKeys; }
+    public void setRequireConfiguredKeys(boolean requireConfiguredKeys) {
+        this.requireConfiguredKeys = requireConfiguredKeys;
+    }
 }

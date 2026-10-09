@@ -1,0 +1,3 @@
+learnhub:
+  jwt:
+    require-configured-keys: true
