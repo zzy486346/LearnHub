@@ -13,14 +13,18 @@ export const http = axios.create({
 
 let refreshing: Promise<string> | null = null
 let redirectingToLogin = false
+let loggingOut = false
+let sessionGeneration = 0
 
 export function saveTokens(tokens: TokenPair) {
   redirectingToLogin = false
+  loggingOut = false
   localStorage.setItem(ACCESS_KEY, tokens.accessToken)
   localStorage.setItem(REFRESH_KEY, tokens.refreshToken)
 }
 
 export function clearTokens() {
+  sessionGeneration++
   localStorage.removeItem(ACCESS_KEY)
   localStorage.removeItem(REFRESH_KEY)
   window.dispatchEvent(new Event(AUTH_SESSION_CLEARED_EVENT))
@@ -34,6 +38,7 @@ http.interceptors.request.use((config) => {
 })
 
 async function refreshAccessToken() {
+  const generation = sessionGeneration
   const refreshToken = localStorage.getItem(REFRESH_KEY)
   if (!refreshToken) throw new SessionExpiredError()
   const { data } = await axios.post<ApiResult<TokenPair>>(
@@ -41,8 +46,20 @@ async function refreshAccessToken() {
     { refreshToken },
     { timeout: 10_000 },
   )
+  if (generation !== sessionGeneration) throw new SessionExpiredError()
+  const logoutPending = loggingOut
   saveTokens(data.data)
+  loggingOut = logoutPending
   return data.data.accessToken
+}
+
+export async function logoutSession() {
+  loggingOut = true
+  // 已开始的刷新可能轮换令牌；等它结束后撤销最新的一对凭据。
+  try { await refreshing } catch { /* 刷新失败仍尝试撤销现有凭据。 */ }
+  loggingOut = true
+  const refreshToken = localStorage.getItem(REFRESH_KEY)
+  return http.post<ApiResult<void>>('/auth/logout', refreshToken ? { refreshToken } : {})
 }
 
 function isAuthEndpoint(url?: string) {
@@ -68,6 +85,8 @@ http.interceptors.response.use(
     if (error.response?.status !== 401 || !original || isAuthEndpoint(original.url)) {
       return Promise.reject(error)
     }
+    // 退出失败交给调用方提示，退出期间的旧请求不能再创建新会话。
+    if (original.url === '/auth/logout' || loggingOut) return Promise.reject(error)
     if (redirectingToLogin || original._retry) return Promise.reject(expireSession())
     original._retry = true
     try {

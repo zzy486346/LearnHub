@@ -1,4 +1,4 @@
-import { http } from './http'
+import { http, logoutSession } from './http'
 import type { Answer, ApiResult, Coupon, CouponClaim, MyCoupon, Course, CourseOrder, CourseSearchResult, LearningProgress, LikeState, PageResult, ProfileOverview, Question, TokenPair, User } from '@/types'
 
 export const authApi = {
@@ -12,7 +12,7 @@ export const authApi = {
   },
   changePassword: (body: { currentPassword: string; newPassword: string }) =>
     http.put<ApiResult<void>>('/auth/me/password', body),
-  logout: () => http.post<ApiResult<void>>('/auth/logout'),
+  logout: logoutSession,
 }
 
 export const profileApi = {

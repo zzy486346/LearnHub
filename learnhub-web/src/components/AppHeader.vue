@@ -2,19 +2,30 @@
 import { nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { ElMessage } from 'element-plus'
 import LoginDialog from '@/components/LoginDialog.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
 const mobileOpen = ref(false)
 const loginDialogOpen = ref(false)
+const loggingOut = ref(false)
 let lastLoginTrigger: HTMLElement | null = null
 onMounted(() => auth.fetchMe().catch(() => undefined))
 
 async function logout() {
-  await auth.logout()
-  mobileOpen.value = false
-  router.push('/courses')
+  if (loggingOut.value) return
+  loggingOut.value = true
+  try {
+    await auth.logout()
+    ElMessage.success('已退出登录')
+  } catch {
+    ElMessage.warning('已清除本机登录状态，但未能确认服务端令牌撤销，请勿将退出失败视为凭据已失效')
+  } finally {
+    loggingOut.value = false
+    mobileOpen.value = false
+    await router.push('/courses')
+  }
 }
 
 function closeMenu() {
@@ -58,7 +69,7 @@ function handleAvatarError(event: Event) {
             </span>
             <span>{{ auth.user?.nickname || auth.user?.username || '学习者' }}</span>
           </RouterLink>
-          <el-button text @click="logout">退出</el-button>
+          <el-button text :loading="loggingOut" @click="logout">退出</el-button>
       </template>
       <template v-else>
           <button type="button" class="login-link" aria-haspopup="dialog" :aria-expanded="loginDialogOpen" @click="openLogin($event)">
