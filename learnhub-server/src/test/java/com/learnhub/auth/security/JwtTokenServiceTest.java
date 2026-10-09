@@ -126,9 +126,15 @@ class JwtTokenServiceTest {
     void productionProfileCannotDisableFixedKeyRequirement() {
         JwtProperties properties = new JwtProperties();
         properties.setRequireConfiguredKeys(false);
+        for (String profile : new String[] {"prod", "production"}) {
+            StandardEnvironment environment = new StandardEnvironment();
+            environment.setActiveProfiles(profile);
+            JwtTokenService productionService = new JwtTokenService(properties,
+                    mock(StringRedisTemplate.class), environment);
 
-        assertThatThrownBy(() -> newService(properties, true).initializeKeys())
-                .hasRootCauseMessage("Configured JWT RSA keys are required in this environment");
+            assertThatThrownBy(productionService::initializeKeys)
+                    .hasRootCauseMessage("Configured JWT RSA keys are required in this environment");
+        }
     }
 
     @Test
