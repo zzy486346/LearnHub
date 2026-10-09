@@ -17,7 +17,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function handleStorageChange(event: StorageEvent) {
-    if (event.key === 'learnhub_access_token' && !event.newValue) resetSession()
+    if (event.key === 'learnhub_access_token' && !event.newValue) clearTokens()
   }
 
   window.addEventListener(AUTH_SESSION_CLEARED_EVENT, resetSession)

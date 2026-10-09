@@ -338,3 +338,24 @@ test('退出界面区分撤销成功与失败，失败仍离开个人页面且�
     if (failed) assert.match(messages[0][1], /未能确认服务端令牌撤销/)
   }
 })
+
+test('其他标签页退出后，当前标签页进行中的刷新不能恢复已清除会话', async () => {
+  const app = await setup()
+  const store = await authStore(app)
+  store.user = { id: 1, username: 'test' }
+  let releaseRefresh
+  axios.defaults.adapter = config => new Promise(resolve => {
+    releaseRefresh = () => resolve(response(config, { data: { accessToken: 'late-access', refreshToken: 'late-refresh' } }))
+  })
+  app.http.defaults.adapter = async config => { throw failure(config, 401) }
+  const pending = app.http.get('/profile/overview')
+  await new Promise(resolve => setImmediate(resolve))
+  app.storage.delete(accessKey)
+  window.dispatchEvent(Object.assign(new Event('storage'), { key: accessKey, newValue: null }))
+  assert.equal(store.user, null)
+  releaseRefresh()
+  await assert.rejects(pending, session.isSessionExpired)
+  assert.equal(app.storage.size, 0)
+  assert.equal(store.authenticated, false)
+  store.$dispose()
+})
