@@ -123,6 +123,15 @@ class JwtTokenServiceTest {
     }
 
     @Test
+    void productionProfileCannotDisableFixedKeyRequirement() {
+        JwtProperties properties = new JwtProperties();
+        properties.setRequireConfiguredKeys(false);
+
+        assertThatThrownBy(() -> newService(properties, true).initializeKeys())
+                .hasRootCauseMessage("Configured JWT RSA keys are required in this environment");
+    }
+
+    @Test
     void fixedKeyPairKeepsTokensValidAcrossServiceRestart() {
         JwtProperties properties = configuredKeys(privateKeyPath, publicKeyPath);
         JwtTokenService firstInstance = newService(properties);
@@ -140,10 +149,15 @@ class JwtTokenServiceTest {
 
     @SuppressWarnings("unchecked")
     private JwtTokenService newService(JwtProperties properties) {
+        return newService(properties, false);
+    }
+
+    @SuppressWarnings("unchecked")
+    private JwtTokenService newService(JwtProperties properties, boolean productionProfile) {
         StringRedisTemplate redis = mock(StringRedisTemplate.class);
         ValueOperations<String, String> values = mock(ValueOperations.class);
         when(redis.opsForValue()).thenReturn(values);
-        return new JwtTokenService(properties, redis, Clock.systemUTC());
+        return new JwtTokenService(properties, redis, Clock.systemUTC(), productionProfile);
     }
 
     private static JwtProperties configuredKeys(Path privatePath, Path publicPath) {

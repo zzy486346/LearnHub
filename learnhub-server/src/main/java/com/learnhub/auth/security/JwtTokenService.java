@@ -27,6 +27,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -38,18 +40,26 @@ public class JwtTokenService {
     private final JwtProperties properties;
     private final StringRedisTemplate redisTemplate;
     private final Clock clock;
+    private final boolean productionProfile;
     private PrivateKey privateKey;
     private PublicKey publicKey;
 
     @Autowired
-    public JwtTokenService(JwtProperties properties, StringRedisTemplate redisTemplate) {
-        this(properties, redisTemplate, Clock.systemUTC());
+    public JwtTokenService(JwtProperties properties, StringRedisTemplate redisTemplate, Environment environment) {
+        this(properties, redisTemplate, Clock.systemUTC(),
+                environment.acceptsProfiles(Profiles.of("prod", "production")));
     }
 
     JwtTokenService(JwtProperties properties, StringRedisTemplate redisTemplate, Clock clock) {
+        this(properties, redisTemplate, clock, false);
+    }
+
+    JwtTokenService(JwtProperties properties, StringRedisTemplate redisTemplate, Clock clock,
+                    boolean productionProfile) {
         this.properties = properties;
         this.redisTemplate = redisTemplate;
         this.clock = clock;
+        this.productionProfile = productionProfile;
     }
 
     @PostConstruct
@@ -60,7 +70,7 @@ public class JwtTokenService {
             if (privateConfigured != publicConfigured) {
                 throw new IllegalStateException("JWT private and public keys must be configured together");
             }
-            if (properties.isRequireConfiguredKeys() && !privateConfigured) {
+            if ((productionProfile || properties.isRequireConfiguredKeys()) && !privateConfigured) {
                 throw new IllegalStateException("Configured JWT RSA keys are required in this environment");
             }
             if (privateConfigured) {
