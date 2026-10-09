@@ -97,7 +97,7 @@ test('发布 API 使用对应课程的 POST 接口，按钮有状态与加载绑
   const calls = []
   globalThis.adminHttp = { post: (...args) => { calls.push(args); return result(null) } }
   const source = (await readFile(new URL('../src/api/index.ts', import.meta.url), 'utf8'))
-    .replace(/import \{ http \} from ['"]\.\/http['"]/, 'const http = globalThis.adminHttp')
+    .replace(/import \{ http, logoutSession \} from ['"]\.\/http['"]/, 'const http = globalThis.adminHttp; const logoutSession = () => http.post("/auth/logout")')
   const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
   const api = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
   await api.adminCourseApi.publishCourse(7)
