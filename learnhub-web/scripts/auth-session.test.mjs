@@ -398,3 +398,34 @@ test('退出后重新登录，旧401不重放到新账户，旧刷新响应不�
     assert.deepEqual(second.redirects, [])
   }
 })
+
+test('正在刷新的请求超时或500失败，退出仍撤销现有双令牌并清理本地', async () => {
+  for (const status of [undefined, 500]) {
+    const app = await setup()
+    const store = await authStore(app)
+    let rejectRefresh
+    let logoutCalls = 0
+    axios.defaults.adapter = config => new Promise((resolve, reject) => {
+      rejectRefresh = () => reject(status ? failure(config, status) : new axios.AxiosError('timeout', 'ECONNABORTED', config))
+    })
+    app.http.defaults.adapter = async config => {
+      if (config.url === '/auth/logout') {
+        logoutCalls++
+        assert.equal(config.headers.Authorization, 'Bearer expired-access')
+        assert.deepEqual(JSON.parse(config.data), { refreshToken: 'refresh-token' })
+        return response(config)
+      }
+      throw failure(config, 401)
+    }
+    const pending = app.http.get('/profile/overview')
+    const rejected = assert.rejects(pending)
+    await new Promise(resolve => setImmediate(resolve))
+    const logout = store.logout()
+    rejectRefresh()
+    await Promise.all([rejected, logout])
+    assert.equal(logoutCalls, 1)
+    assert.equal(app.storage.size, 0)
+    assert.deepEqual(app.redirects, [])
+    store.$dispose()
+  }
+})
