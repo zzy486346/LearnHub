@@ -359,3 +359,42 @@ test('其他标签页退出后，当前标签页进行中的刷新不能恢复�
   assert.equal(store.authenticated, false)
   store.$dispose()
 })
+
+test('退出后重新登录，旧401不重放到新账户，旧刷新响应不清除新会话', async () => {
+  const app = await setup()
+  let releaseOld
+  let calls = 0
+  app.http.defaults.adapter = config => {
+    calls++
+    return new Promise((resolve, reject) => { releaseOld = () => reject(failure(config, 401)) })
+  }
+  const old = app.http.get('/profile/overview')
+  await new Promise(resolve => setImmediate(resolve))
+  app.clearTokens()
+  app.saveTokens({ accessToken: 'other-user-access', refreshToken: 'other-user-refresh' })
+  releaseOld()
+  await assert.rejects(old, session.isSessionExpired)
+  assert.equal(calls, 1)
+  assert.equal(app.storage.get(accessKey), 'other-user-access')
+  assert.deepEqual(app.redirects, [])
+
+  for (const rejected of [false, true]) {
+    const second = await setup()
+    let releaseRefresh
+    axios.defaults.adapter = config => new Promise((resolve, reject) => {
+      releaseRefresh = () => rejected ? reject(failure(config, 409)) : resolve(response(config, {
+        data: { accessToken: 'late-access', refreshToken: 'late-refresh' },
+      }))
+    })
+    second.http.defaults.adapter = async config => { throw failure(config, 401) }
+    const pending = second.http.get('/profile/overview')
+    await new Promise(resolve => setImmediate(resolve))
+    second.clearTokens()
+    second.saveTokens({ accessToken: 'other-user-access', refreshToken: 'other-user-refresh' })
+    releaseRefresh()
+    await assert.rejects(pending, session.isSessionExpired)
+    assert.equal(second.storage.get(accessKey), 'other-user-access')
+    assert.equal(second.storage.get(refreshKey), 'other-user-refresh')
+    assert.deepEqual(second.redirects, [])
+  }
+})

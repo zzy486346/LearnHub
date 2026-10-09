@@ -15,6 +15,7 @@ let refreshing: Promise<string> | null = null
 let redirectingToLogin = false
 let loggingOut = false
 let sessionGeneration = 0
+type SessionRequestConfig = InternalAxiosRequestConfig & { _retry?: boolean; _sessionGeneration?: number }
 
 export function saveTokens(tokens: TokenPair) {
   redirectingToLogin = false
@@ -31,6 +32,8 @@ export function clearTokens() {
 }
 
 http.interceptors.request.use((config) => {
+  const request = config as SessionRequestConfig
+  request._sessionGeneration ??= sessionGeneration
   if (redirectingToLogin && !isAuthEndpoint(config.url)) throw new SessionExpiredError()
   const token = localStorage.getItem(ACCESS_KEY)
   if (token) config.headers.Authorization = `Bearer ${token}`
@@ -81,14 +84,18 @@ function expireSession() {
 http.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const original = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined
+    const original = error.config as SessionRequestConfig | undefined
     if (error.response?.status !== 401 || !original || isAuthEndpoint(original.url)) {
       return Promise.reject(error)
+    }
+    if (original._sessionGeneration !== undefined && original._sessionGeneration !== sessionGeneration) {
+      return Promise.reject(new SessionExpiredError())
     }
     // 退出失败交给调用方提示，退出期间的旧请求不能再创建新会话。
     if (original.url === '/auth/logout' || loggingOut) return Promise.reject(error)
     if (redirectingToLogin || original._retry) return Promise.reject(expireSession())
     original._retry = true
+    const generation = sessionGeneration
     try {
       const currentToken = localStorage.getItem(ACCESS_KEY)
       // 较晚返回的旧令牌请求复用刚刷新的令牌，避免再次消费旋转后的刷新令牌。
@@ -100,6 +107,7 @@ http.interceptors.response.use(
       original.headers.Authorization = `Bearer ${token}`
       return http(original)
     } catch (refreshError) {
+      if (generation !== sessionGeneration) return Promise.reject(new SessionExpiredError())
       const status = (refreshError as AxiosError).response?.status
       if (refreshError instanceof SessionExpiredError || status === 401 || status === 403 || status === 409) {
         return Promise.reject(expireSession())
