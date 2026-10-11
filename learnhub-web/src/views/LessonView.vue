@@ -23,6 +23,7 @@ let saveQueue: Promise<void> = Promise.resolve()
 let progressSaveRevision = 0
 type PendingProgress = { revision: number; courseId: number; lessonId: number; positionSeconds: number; completed: boolean }
 const pendingProgress = ref<PendingProgress | null>(null)
+let lessonLoadGeneration = 0
 
 const courseId = computed(() => Number(route.params.courseId))
 const lessonId = computed(() => Number(route.params.lessonId))
@@ -39,6 +40,9 @@ const nextEntry = computed(() => currentIndex.value >= 0 && currentIndex.value <
 const completedLessonIds = computed(() => new Set(progress.value.filter((item) => item.completed).map((item) => item.lessonId)))
 
 async function loadLesson() {
+  const generation = ++lessonLoadGeneration
+  const requestedCourseId = courseId.value
+  const requestedLessonId = lessonId.value
   loading.value = true
   errorMessage.value = ''
   course.value = null
@@ -46,16 +50,21 @@ async function loadLesson() {
   resumePosition.value = 0
   lastSavedPosition = -1
   saveState.value = 'idle'
+  pendingProgress.value = null
   try {
-    course.value = (await courseApi.detail(courseId.value)).data.data
+    const loadedCourse = (await courseApi.detail(requestedCourseId)).data.data
+    if (!isActiveLesson(generation, requestedCourseId, requestedLessonId)) return
+    course.value = loadedCourse
     if (!currentEntry.value) {
       errorMessage.value = '该课时不存在，或已经从课程中移除。'
       return
     }
     if (auth.authenticated && currentAccessible.value) {
       try {
-        progress.value = (await learningApi.progress(courseId.value)).data.data || []
-        const saved = progress.value.find((item) => item.lessonId === lessonId.value)
+        const loadedProgress = (await learningApi.progress(requestedCourseId)).data.data || []
+        if (!isActiveLesson(generation, requestedCourseId, requestedLessonId)) return
+        progress.value = loadedProgress
+        const saved = progress.value.find((item) => item.lessonId === requestedLessonId)
         resumePosition.value = saved?.positionSeconds || 0
         lastSavedPosition = resumePosition.value
         saveState.value = 'saved'
@@ -66,11 +75,18 @@ async function loadLesson() {
     }
     await nextTick()
   } catch (error) {
+    if (!isActiveLesson(generation, requestedCourseId, requestedLessonId)) return
     if (isSessionExpired(error)) return
     errorMessage.value = '课时加载失败，请稍后重试。'
   } finally {
-    loading.value = false
+    if (generation === lessonLoadGeneration) loading.value = false
   }
+}
+
+function isActiveLesson(generation: number, requestedCourseId: number, requestedLessonId: number) {
+  return generation === lessonLoadGeneration
+    && courseId.value === requestedCourseId
+    && lessonId.value === requestedLessonId
 }
 
 function restorePlaybackPosition() {
@@ -91,6 +107,7 @@ function queueProgressSave(completed?: boolean, force = false, positionOverride?
   saveState.value = 'saving'
   const savedLessonId = currentEntry.value.lesson.id
   const savedCourseId = courseId.value
+  const savedGeneration = lessonLoadGeneration
   const payload: PendingProgress = {
     revision: ++progressSaveRevision,
     courseId: savedCourseId,
@@ -103,6 +120,7 @@ function queueProgressSave(completed?: boolean, force = false, positionOverride?
     .catch(() => undefined)
     .then(() => learningApi.saveProgress(savedCourseId, { lessonId: savedLessonId, positionSeconds, completed: finalCompleted }))
     .then((response) => {
+      if (!isActiveLesson(savedGeneration, savedCourseId, savedLessonId)) return true
       lastSavedPosition = positionSeconds
       saveState.value = 'saved'
       if (pendingProgress.value?.revision === payload.revision) pendingProgress.value = null
@@ -113,7 +131,7 @@ function queueProgressSave(completed?: boolean, force = false, positionOverride?
       return true
     })
     .catch((error) => {
-      if (!isSessionExpired(error)) saveState.value = 'error'
+      if (isActiveLesson(savedGeneration, savedCourseId, savedLessonId) && !isSessionExpired(error)) saveState.value = 'error'
       return false
     })
   saveQueue = operation.then(() => undefined)

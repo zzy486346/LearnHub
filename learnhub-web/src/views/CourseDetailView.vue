@@ -18,21 +18,27 @@ const creatingOrder = ref(false)
 const paying = ref(false)
 const orderDialogVisible = ref(false)
 const activeOrder = ref<CourseOrder | null>(null)
+let loadGeneration = 0
 const lessons = computed(() => course.value?.chapters?.flatMap((chapter) => chapter.lessons || []) ?? [])
 const firstAccessibleLesson = computed(() => lessons.value.find((lesson) => lesson.accessible) ?? null)
 const hasFullAccess = computed(() => course.value?.accessLevel === 'FULL')
 
 async function loadCourse() {
+  const generation = ++loadGeneration
+  const requestedCourseId = String(route.params.id)
   loading.value = true
   errorMessage.value = ''
   course.value = null
   try {
-    course.value = (await courseApi.detail(String(route.params.id))).data.data
+    const loadedCourse = (await courseApi.detail(requestedCourseId)).data.data
+    if (generation !== loadGeneration || String(route.params.id) !== requestedCourseId) return
+    course.value = loadedCourse
     if (auth.authenticated && course.value) {
       const [like, favorite] = await Promise.allSettled([
         courseApi.likeStatus(course.value.id),
         courseApi.favoriteStatus(course.value.id),
       ])
+      if (generation !== loadGeneration || course.value?.id !== loadedCourse.id) return
       if (like.status === 'fulfilled') {
         course.value.liked = like.value.data.data.liked
         course.value.likeCount = like.value.data.data.count
@@ -40,10 +46,11 @@ async function loadCourse() {
       if (favorite.status === 'fulfilled') course.value.favorited = favorite.value.data.data
     }
   } catch (error) {
+    if (generation !== loadGeneration || String(route.params.id) !== requestedCourseId) return
     if (isSessionExpired(error)) return
     errorMessage.value = '课程加载失败，请检查网络连接后重试。'
   } finally {
-    loading.value = false
+    if (generation === loadGeneration) loading.value = false
   }
 }
 
@@ -77,6 +84,7 @@ function goToLogin() {
 
 async function openPurchase() {
   if (!course.value) return
+  const requestedCourseId = course.value.id
   if (!auth.authenticated) {
     goToLogin()
     return
@@ -87,7 +95,9 @@ async function openPurchase() {
   }
   creatingOrder.value = true
   try {
-    activeOrder.value = (await orderApi.createCourseOrder(course.value.id)).data.data
+    const order = (await orderApi.createCourseOrder(requestedCourseId)).data.data
+    if (course.value?.id !== requestedCourseId) return
+    activeOrder.value = order
     if (activeOrder.value.status === 'PAID') {
       await loadCourse()
       ElMessage.success('课程已解锁')
@@ -104,9 +114,13 @@ async function openPurchase() {
 
 async function payOrder() {
   if (!activeOrder.value) return
+  const requestedOrderId = activeOrder.value.id
+  const requestedCourseId = course.value?.id
   paying.value = true
   try {
-    activeOrder.value = (await orderApi.pay(activeOrder.value.id)).data.data
+    const paidOrder = (await orderApi.pay(requestedOrderId)).data.data
+    if (activeOrder.value?.id !== requestedOrderId || course.value?.id !== requestedCourseId) return
+    activeOrder.value = paidOrder
     orderDialogVisible.value = false
     ElMessage.success('支付成功，全部课程已解锁')
     await loadCourse()
@@ -119,14 +133,17 @@ async function payOrder() {
 }
 async function toggle(action: 'like' | 'favorite') {
   if (!course.value) return
+  const requestedCourseId = course.value.id
   try {
     if (action === 'like') {
-      const response = await (course.value.liked ? courseApi.unlike(course.value.id) : courseApi.like(course.value.id))
+      const response = await (course.value.liked ? courseApi.unlike(requestedCourseId) : courseApi.like(requestedCourseId))
+      if (course.value?.id !== requestedCourseId) return
       course.value.liked = response.data.data.liked
       course.value.likeCount = response.data.data.count
       likeAnnouncement.value = `${course.value.liked ? '已喜欢' : '已取消喜欢'}，当前 ${course.value.likeCount} 人喜欢`
     } else {
-      const response = await (course.value.favorited ? courseApi.unfavorite(course.value.id) : courseApi.favorite(course.value.id))
+      const response = await (course.value.favorited ? courseApi.unfavorite(requestedCourseId) : courseApi.favorite(requestedCourseId))
+      if (course.value?.id !== requestedCourseId) return
       course.value.favorited = response.data.data
     }
     ElMessage.success(action === 'like' ? likeAnnouncement.value : '收藏状态已更新')
