@@ -46,7 +46,10 @@ async function loadCourses(selectId?: number, page = coursePage.value) {
     courseTotal.value = data.total
     coursePage.value = data.current
     const target = courses.value.find(item => item.id === (selectId ?? selected.value?.id))
-    if (target) await selectCourse(target)
+    if (target) {
+      if (selected.value?.id !== target.id) selected.value = undefined
+      await selectCourse(target)
+    }
     else { ++detailRequestId; selected.value = undefined; detailLoading.value = false }
   } catch (error) {
     if (requestId !== listRequestId || isSessionExpired(error)) return

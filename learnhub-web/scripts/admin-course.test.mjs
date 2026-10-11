@@ -176,6 +176,27 @@ test('第二页创建课程后回到第一页并选中新课程', async () => {
   } finally { app.unmount() }
 })
 
+test('第二页创建后新课程详情失败，不保留上一页旧课程编辑器', async () => {
+  const items = Array.from({ length: 21 }, (_, i) => ({ id: i + 1 }))
+  const api = catalogApi(items, [])
+  const { app, view, messages } = await mount(undefined, {
+    ...api,
+    detail: id => id === 99 ? Promise.reject(new Error('offline')) : api.detail(id),
+    createCourse: () => { items.unshift({ id: 99 }); return result(99) },
+  })
+  try {
+    await view.changeCoursePage(2)
+    await view.selectCourse(view.courses[0])
+    assert.equal(view.selected.id, 11)
+    Object.assign(view.courseForm, { title: '新课', instructor: '讲师' })
+    await view.createCourse()
+    assert.equal(view.coursePage, 1)
+    assert.equal(view.courses[0].id, 99)
+    assert.equal(view.selected, undefined)
+    assert.deepEqual(messages.at(-1), ['error', '课程详情加载失败'])
+  } finally { app.unmount() }
+})
+
 function lessonApi(calls) {
   let lessons = [{ id: 71, title: '原课时', sortOrder: 4, durationSeconds: 60 }]
   return {
