@@ -73,7 +73,7 @@ npm run build
 
 本轮前端认证专项共 17 项通过，全部前端脚本共 43 项通过，构建通过并保留既有大体积 chunk 警告。覆盖项包括：等待已开始的刷新后再退出、退出失败或 401 时不自动刷新且仍清理会话、跨标签清理，以及阻止迟到的旧刷新响应恢复已退出会话或覆盖重新登录的新会话。
 
-当前开发环境未配置 `LEARNHUB_JWT_PRIVATE_KEY_PATH` 与 `LEARNHUB_JWT_PUBLIC_KEY_PATH`，本轮没有写入真实 `.env` 值，也没有启动、停止或重启后端服务。因此这里只完成了代码级启动拒绝、有状态 Redis API 模型和临时 PEM 跨实例验证；尚未执行真实 Redis 生命周期集成、生产 Secret 注入、负载均衡多实例或部署滚动重启。目标环境必须按第 3 节验收，不能将本地测试结果视为生产验收完成。
+2026-10-09 验收时，开发环境未配置 `LEARNHUB_JWT_PRIVATE_KEY_PATH` 与 `LEARNHUB_JWT_PUBLIC_KEY_PATH`，该轮没有写入真实 `.env` 值，也没有启动、停止或重启后端服务。当时仅完成代码级启动拒绝、有状态 Redis API 模型和临时 PEM 跨实例验证；随后完成的真实基础设施本机验收见第 6 节。目标生产环境仍须按第 3 节验收，不能将本机测试结果视为生产验收完成。
 
 ## 5. 本次交付验证记录（2026-10-09）
 
@@ -82,3 +82,40 @@ npm run build
 - 全部前端脚本 43 项通过（认证 17 项）；`npm run build` 包含 Vue TypeScript 检查，构建通过，既有大体积 chunk 警告保留。
 - `git diff --check` 通过；修改在 `feature/auth-token-revocation` 分支按中文 Conventional Commits 提交，不自动合并或推送。
 - 本机沙箱限制 JVM/Mockito 附加，受限测试已中断并确认进程退出，改用允许 JVM 附加的执行环境完成 Maven 校验。测试未启动监听端口或日常后端服务。
+
+## 6. 真实基础设施本机验收（2026-10-11）
+
+用户确认暂时没有目标生产部署环境，本轮完成本机隔离验收。新增 `AuthInfrastructureIntegrationTest` 使用真实 HTTP、MySQL、Redis、JWT 签发/验签、安全过滤链和数据库事务；只有与本次验收无关的媒体存储服务使用测试替身。两套认证应用以 `prod` profile 运行，绑定随机的 loopback HTTP 端口，共享同一组临时 PEM 文件和隔离数据库。
+
+### 一键复现
+
+前提：Docker 运行时已启动，本地存在 `mysql:8.4`、`redis:7.4-alpine` 镜像，JDK 17 和 Maven 3.9.10 可用。脚本使用 `--pull never`，不会自动下载镜像，也不会启动或重启用户日常后端。
+
+```powershell
+Set-Location D:\Project\myproject\LearnHub
+& .\scripts\auth\verify-infrastructure.ps1
+```
+
+脚本创建带随机名称和归属标签的两个测试容器，将端口动态映射到 `127.0.0.1`。MySQL 数据目录使用 tmpfs；脚本把现有 schema 复制到 Git 忽略的 `.local` 临时目录，仅将两个数据库声明改为 `learnhub_auth_it`，不修改原始 schema，不加载业务种子数据，不连接已有业务库。容器里的演示凭据仅用于本次独立测试。
+
+脚本显式设置 `learnhub.auth.it.enabled=true` 并传入随机 MySQL/Redis 端口，校验本次 Surefire 报告实际执行至少 5 项且无跳过、失败或错误；Maven 成功但测试被跳过不能算验收成功。直接运行该测试类时可以通过 `learnhub.auth.it.mysql-port`、`learnhub.auth.it.redis-port` 指定独立基础设施端口（默认分别为 13306、16379），默认不启用该集成测试。
+
+### 已验证结果
+
+最终版 5 项全部执行通过，`0 failures / 0 errors / 0 skipped`：
+
+1. 通过真实 HTTP 退出后，旧 Access Token 请求返回 401，旧 Refresh Token 刷新返回 409；Redis denylist 和刷新白名单状态正确。
+2. 同一 Refresh Token 向两个实例并发刷新，仅一个请求成功；旧令牌不能重放。
+3. 修改密码真实更新 MySQL 的 `token_version`，另一实例拒绝修改前的 Access/Refresh Token，新密码登录并跨实例访问可用。
+4. 两实例读取同一固定 PEM 后能验证彼此签发的令牌，并共享 Redis 撤销状态。
+5. 关闭并重新创建第二个认证应用实例后，原有 Access Token 仍可验证，Redis 中原有 Refresh Token 可轮换且不能重复使用。
+
+这里的实例重启是同一测试 JVM 内的 Spring 应用上下文与嵌入式 HTTP 服务重建，并非跨 JVM 进程重启、生产 Secret 挂载或负载均衡滚动发布。PEM 由 JUnit 临时目录管理，未写入实际 `.env`，也没有提交密钥。真实部署的进程重启、Secret 持久化和发布验证仍保留为第 3 节的后续验收。
+
+### 清理与完整校验
+
+- 测试只删除本次创建的用户、角色关联和 JWT `jti` 键；不使用 `FLUSHDB` 或全表删除。清理失败的条目保留至最终清理重试，并报告错误。
+- 无论成功或失败，测试尝试关闭两个应用实例及执行线程，验证随机 HTTP 端口释放。脚本在 `finally` 中精确查询容器名称、验证归属标签后删除本次容器和临时 schema；Docker 查询或删除失败必须报错，不能伪报清理成功。
+- 最终验收 JVM（PID 46312）已退出，随机 HTTP/基础设施端口已释放，本次隔离容器与临时 schema 目录均无残留；未停止用户服务或删除既有数据卷。
+- 根目录 Maven `test`、`verify` 均为 `BUILD SUCCESS`：默认 93 项中 76 项执行通过、17 项 opt-in 测试跳过。新增 5 项认证集成测试已通过上述隔离脚本单独显式执行；其余 12 项基础设施测试本轮未执行。
+- 代码与脚本审查通过，PowerShell 语法和 `git diff --check` 通过。改动在 `feature/auth-infrastructure-verification` 分支提交，不自动合并或推送。
