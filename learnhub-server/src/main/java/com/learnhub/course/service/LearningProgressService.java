@@ -1,6 +1,7 @@
 package com.learnhub.course.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.learnhub.course.dto.ProgressUpdateRequest;
 import com.learnhub.course.mapper.LearningProgressMapper;
 import com.learnhub.course.model.LearningProgress;
@@ -31,17 +32,17 @@ public class LearningProgressService {
             throw new com.learnhub.common.exception.BusinessException("课时不属于该课程");
         }
         courseService.requireLessonAccess(userId, courseId, request.lessonId());
-        LearningProgress progress = progressMapper.selectOne(query(userId, request.lessonId()));
-        if (progress == null) {
-            progress = new LearningProgress();
-            progress.setUserId(userId);
-        }
+        Integer duration = progressMapper.lessonDuration(request.lessonId());
+        if (duration == null) throw new com.learnhub.common.exception.BusinessException("课时不存在");
+        LearningProgress progress = new LearningProgress();
+        progress.setId(IdWorker.getId());
+        progress.setUserId(userId);
         progress.setLessonId(request.lessonId());
-        progress.setPositionSeconds(request.positionSeconds());
+        progress.setPositionSeconds(Math.min(Math.max(0, request.positionSeconds()), Math.max(0, duration)));
         progress.setCompleted(request.completed());
         progress.setLastLearnedAt(LocalDateTime.now());
-        if (progress.getId() == null) progressMapper.insert(progress); else progressMapper.updateById(progress);
-        return progress;
+        progressMapper.upsert(progress);
+        return progressMapper.selectOne(query(userId, request.lessonId()));
     }
 
     private LambdaQueryWrapper<LearningProgress> query(Long userId, Long lessonId) {

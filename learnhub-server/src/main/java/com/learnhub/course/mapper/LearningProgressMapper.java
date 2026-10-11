@@ -7,9 +7,23 @@ import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Insert;
 
 @Mapper
 public interface LearningProgressMapper extends BaseMapper<LearningProgress> {
+    @Insert("""
+            INSERT INTO learning_progress (id, user_id, lesson_id, position_seconds, completed, last_learned_at)
+            VALUES (#{id}, #{userId}, #{lessonId}, #{positionSeconds}, #{completed}, #{lastLearnedAt})
+            ON DUPLICATE KEY UPDATE
+                position_seconds = VALUES(position_seconds),
+                completed = GREATEST(completed, VALUES(completed)),
+                last_learned_at = GREATEST(last_learned_at, VALUES(last_learned_at))
+            """)
+    int upsert(LearningProgress progress);
+
+    @Select("SELECT duration_seconds FROM course_lesson WHERE id = #{lessonId} AND deleted = 0")
+    Integer lessonDuration(@Param("lessonId") Long lessonId);
+
     @Select("""
             SELECT lp.* FROM learning_progress lp
             JOIN course_lesson cl ON cl.id = lp.lesson_id

@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.learnhub.common.exception.BusinessException;
 import com.learnhub.config.InfrastructureConfig;
 import com.learnhub.course.dto.AdminCourseRequests;
+import com.learnhub.course.dto.ProgressUpdateRequest;
 import com.learnhub.course.mapper.CourseChapterMapper;
 import com.learnhub.course.mapper.CourseLessonMapper;
 import com.learnhub.course.mapper.CourseMapper;
@@ -15,6 +16,11 @@ import com.learnhub.course.mapper.LearningProgressMapper;
 import com.learnhub.course.model.Course;
 import com.learnhub.interaction.like.LikeService;
 import com.learnhub.order.CourseOrderService;
+import com.learnhub.order.CourseOrderMapper;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import com.learnhub.search.CourseIndexTaskService;
 import com.learnhub.storage.MediaAssetService;
 import java.math.BigDecimal;
@@ -44,6 +50,7 @@ class AdminCourseInfrastructureIntegrationTest {
     private final List<Long> progressIds = new ArrayList<>();
     private final List<Long> chapterIds = new ArrayList<>();
     private final List<Long> courseIds = new ArrayList<>();
+    private final List<Long> orderIds = new ArrayList<>();
     private ConfigurableApplicationContext context;
 
     @BeforeAll
@@ -84,6 +91,7 @@ class AdminCourseInfrastructureIntegrationTest {
         JdbcTemplate jdbc = jdbc();
         RuntimeException cleanupFailure = null;
         cleanupFailure = deleteOwnedRows(jdbc, "learning_progress", progressIds, cleanupFailure);
+        cleanupFailure = deleteOwnedRows(jdbc, "course_order", orderIds, cleanupFailure);
         cleanupFailure = deleteOwnedRows(jdbc, "course_lesson", lessonIds, cleanupFailure);
         cleanupFailure = deleteOwnedRows(jdbc, "course_chapter", chapterIds, cleanupFailure);
         cleanupFailure = deleteOwnedRows(jdbc, "course", courseIds, cleanupFailure);
@@ -195,6 +203,74 @@ class AdminCourseInfrastructureIntegrationTest {
                 """, id, title, BigDecimal.ZERO, status);
     }
 
+    @Test
+    void concurrentFirstSavesAreAtomicAndCompletedNeverRegresses() throws Exception {
+        long courseId = uniqueBase();
+        long chapterId = courseId + 1;
+        long userId = uniqueBase();
+        insertCourse(courseId, "并发进度课程", "PUBLISHED");
+        insertChapter(chapterId, courseId);
+        long lessonId = adminService().createLesson(chapterId,
+                new AdminCourseRequests.CreateLesson("并发课时", 60, true, 1));
+        lessonIds.add(lessonId);
+        var progress = context.getBean(LearningProgressService.class);
+        var executor = Executors.newFixedThreadPool(8);
+        var gate = new CountDownLatch(1);
+        try {
+            var tasks = java.util.stream.IntStream.range(0, 8).mapToObj(i ->
+                    CompletableFuture.runAsync(() -> {
+                        try { gate.await(); } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt(); throw new RuntimeException(e);
+                        }
+                        progress.save(userId, courseId, new ProgressUpdateRequest(lessonId, i * 20, i == 3));
+                    }, executor)).toList();
+            gate.countDown();
+            CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).get(30, TimeUnit.SECONDS);
+            progress.save(userId, courseId, new ProgressUpdateRequest(lessonId, 999, false));
+            var saved = progress.getByCourse(userId, courseId);
+            assertThat(saved).hasSize(1);
+            assertThat(saved.get(0).getCompleted()).isTrue();
+            assertThat(saved.get(0).getPositionSeconds()).isEqualTo(60);
+        } finally {
+            executor.shutdownNow();
+            if (!executor.awaitTermination(30, TimeUnit.SECONDS)) throw new IllegalStateException("进度测试线程未退出");
+            progressIds.addAll(jdbc().queryForList(
+                    "SELECT id FROM learning_progress WHERE user_id = ? AND lesson_id = ?", Long.class, userId, lessonId));
+        }
+    }
+
+    @Test
+    void offlineCoursePreservesPaidAccessAndRejectsPendingPaymentUntilRepublished() {
+        long courseId = uniqueBase();
+        long chapterId = courseId + 1;
+        long paidUser = uniqueBase();
+        long pendingUser = uniqueBase();
+        insertCourse(courseId, "下架权益课程", "PUBLISHED");
+        insertChapter(chapterId, courseId);
+        long lessonId = adminService().createLesson(chapterId,
+                new AdminCourseRequests.CreateLesson("已购课时", 60, false, 1));
+        lessonIds.add(lessonId);
+        var orders = context.getBean(CourseOrderService.class);
+        long paidOrderId = Long.parseLong(orders.create(paidUser, courseId).id());
+        orderIds.add(paidOrderId);
+        orders.pay(paidUser, paidOrderId);
+        long pendingId = Long.parseLong(orders.create(pendingUser, courseId).id());
+        orderIds.add(pendingId);
+        adminService().offlineCourse(courseId);
+        assertThat(courseService().detail(courseId, paidUser).accessLevel()).isEqualTo("FULL");
+        var progress = context.getBean(LearningProgressService.class);
+        var saved = progress.save(paidUser, courseId, new ProgressUpdateRequest(lessonId, 60, true));
+        progressIds.add(saved.getId());
+        assertThat(progress.getByCourse(paidUser, courseId)).hasSize(1);
+        assertThatThrownBy(() -> courseService().detail(courseId, pendingUser)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> orders.pay(pendingUser, pendingId)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> orders.create(uniqueBase(), courseId)).isInstanceOf(BusinessException.class);
+        assertThat(jdbc().queryForObject("SELECT status FROM course_order WHERE id = ?", String.class, pendingId))
+                .isEqualTo("PENDING");
+        adminService().publishCourse(courseId);
+        assertThat(orders.pay(pendingUser, pendingId).status()).isEqualTo("PAID");
+    }
+
     private void insertChapter(long id, long courseId) {
         chapterIds.add(id);
         jdbc().update("INSERT INTO course_chapter (id, course_id, title, sort_order) VALUES (?, ?, ?, 1)",
@@ -234,13 +310,14 @@ class AdminCourseInfrastructureIntegrationTest {
     @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration
     @MapperScan(basePackageClasses = {
-            CourseMapper.class, CourseChapterMapper.class, CourseLessonMapper.class, LearningProgressMapper.class
+            CourseMapper.class, CourseChapterMapper.class, CourseLessonMapper.class, LearningProgressMapper.class,
+            CourseOrderMapper.class
     })
-    @Import({InfrastructureConfig.class, AdminCourseService.class, CourseService.class})
+    @Import({InfrastructureConfig.class, AdminCourseService.class, CourseService.class,
+            CourseOrderService.class, LearningProgressService.class})
     static class AdminCourseTestApplication {
         @Bean MediaAssetService mediaAssetService() { return mock(MediaAssetService.class); }
         @Bean LikeService likeService() { return mock(LikeService.class); }
-        @Bean CourseOrderService courseOrderService() { return mock(CourseOrderService.class); }
         @Bean CourseIndexTaskService courseIndexTaskService() { return mock(CourseIndexTaskService.class); }
     }
 }
