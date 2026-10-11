@@ -59,7 +59,7 @@ public class CourseService {
     }
 
     public CourseDetailResponse detail(Long id, Long userId) {
-        return buildDetail(requirePublished(id), userId, false);
+        return buildDetail(requireAvailable(id, userId), userId, false);
     }
 
     public CourseDetailResponse detailForAdmin(Long id) {
@@ -106,7 +106,7 @@ public class CourseService {
     }
 
     public void requireLessonAccess(Long userId, Long courseId, Long lessonId) {
-        requirePublished(courseId);
+        requireAvailable(courseId, userId);
         CourseLesson lesson = lessonMapper.selectById(lessonId);
         CourseChapter chapter = lesson == null ? null : chapterMapper.selectById(lesson.getChapterId());
         if (lesson == null || chapter == null || !courseId.equals(chapter.getCourseId())) {
@@ -116,6 +116,15 @@ public class CourseService {
         if (!preview && !orderService.hasPurchased(userId, courseId)) {
             throw new BusinessException("COURSE_PURCHASE_REQUIRED", "购买课程后才能学习该课时");
         }
+    }
+
+    public Course requireAvailable(Long courseId, Long userId) {
+        Course course = courseMapper.selectById(courseId);
+        if (course != null && ("PUBLISHED".equals(course.getStatus())
+                || ("OFFLINE".equals(course.getStatus()) && orderService.hasPurchased(userId, courseId)))) {
+            return course;
+        }
+        throw new BusinessException("COURSE_NOT_FOUND", "课程不存在或未上架");
     }
 
     private ChapterDetailResponse toChapterResponse(CourseChapter chapter,

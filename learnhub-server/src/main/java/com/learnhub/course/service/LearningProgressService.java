@@ -20,13 +20,13 @@ public class LearningProgressService {
     }
 
     public List<LearningProgress> getByCourse(Long userId, Long courseId) {
-        courseService.requirePublished(courseId);
+        courseService.requireAvailable(courseId, userId);
         return progressMapper.selectByUserAndCourse(userId, courseId);
     }
 
     @Transactional
     public LearningProgress save(Long userId, Long courseId, ProgressUpdateRequest request) {
-        courseService.requirePublished(courseId);
+        courseService.requireAvailable(courseId, userId);
         if (progressMapper.countLessonInCourse(request.lessonId(), courseId) == 0) {
             throw new com.learnhub.common.exception.BusinessException("课时不属于该课程");
         }

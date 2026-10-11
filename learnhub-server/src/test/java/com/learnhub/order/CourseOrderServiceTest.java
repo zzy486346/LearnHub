@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -37,7 +39,7 @@ class CourseOrderServiceTest {
         course.setId(1001L);
         course.setTitle("大模型应用开发入门");
         course.setPrice(new BigDecimal("199.00"));
-        when(courseMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(course);
+        when(courseMapper.selectPublishedForPurchase(1001L)).thenReturn(course);
         when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
         doAnswer(invocation -> {
             CourseOrder order = invocation.getArgument(0);
@@ -64,6 +66,7 @@ class CourseOrderServiceTest {
         order.setOriginalAmount(new BigDecimal("199.00"));
         order.setStatus(CourseOrderService.PENDING);
         when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
+        when(courseMapper.selectPublishedForPurchase(1001L)).thenReturn(new Course());
         when(orderMapper.update(any(), any(LambdaUpdateWrapper.class))).thenReturn(1);
 
         CourseOrderResponse result = service.pay(7L, 9001L);
@@ -80,6 +83,31 @@ class CourseOrderServiceTest {
         assertThatThrownBy(() -> service.pay(8L, 9001L))
                 .isInstanceOfSatisfying(BusinessException.class,
                         exception -> assertThat(exception.getCode()).isEqualTo("ORDER_NOT_FOUND"));
+    }
+
+    @Test
+    void rejectsPendingPaymentAfterCourseOfflineWithoutChangingOrder() {
+        CourseOrder order = order(9001L, 7L, 1001L, "下架课程", CourseOrderService.PENDING);
+        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
+        assertThatThrownBy(() -> service.pay(7L, 9001L))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getCode()).isEqualTo("COURSE_NOT_FOUND"));
+        verify(orderMapper, never()).update(any(), any(LambdaUpdateWrapper.class));
+        assertThat(order.getStatus()).isEqualTo(CourseOrderService.PENDING);
+    }
+
+    @Test
+    void alreadyPaidOfflineOrderStillReturnsPaidIdempotently() {
+        CourseOrder order = order(9001L, 7L, 1001L, "下架课程", CourseOrderService.PAID);
+        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
+        assertThat(service.pay(7L, 9001L).status()).isEqualTo(CourseOrderService.PAID);
+        verify(courseMapper, never()).selectPublishedForPurchase(any());
+    }
+
+    @Test
+    void rejectsNewOrderWhenCourseIsNotPublished() {
+        assertThatThrownBy(() -> service.create(7L, 1001L)).isInstanceOf(BusinessException.class);
+        verify(orderMapper, never()).insert(any(CourseOrder.class));
     }
 
     @Test

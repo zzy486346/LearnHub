@@ -46,9 +46,7 @@ public class CourseOrderService {
 
     @Transactional
     public CourseOrderResponse create(Long userId, Long courseId) {
-        Course course = courseMapper.selectOne(new LambdaQueryWrapper<Course>()
-                .eq(Course::getId, courseId)
-                .eq(Course::getStatus, "PUBLISHED"));
+        Course course = courseMapper.selectPublishedForPurchase(courseId);
         if (course == null) throw new BusinessException("COURSE_NOT_FOUND", "课程不存在或未上架");
         CourseOrder existing = findByUserAndCourse(userId, courseId);
         if (existing != null) return toResponse(existing);
@@ -79,6 +77,9 @@ public class CourseOrderService {
                 .eq(CourseOrder::getUserId, userId));
         if (order == null) throw new BusinessException("ORDER_NOT_FOUND", "订单不存在");
         if (PAID.equals(order.getStatus())) return toResponse(order);
+        if (courseMapper.selectPublishedForPurchase(order.getCourseId()) == null) {
+            throw new BusinessException("COURSE_NOT_FOUND", "课程已下架，无法继续支付");
+        }
         LocalDateTime paidAt = LocalDateTime.now();
         int updated = orderMapper.update(null, new LambdaUpdateWrapper<CourseOrder>()
                 .eq(CourseOrder::getId, orderId)

@@ -33,10 +33,10 @@ class CourseServiceTest {
 
     @Test
     void purchasedUserCanAccessEveryLesson() {
-        Course course = new Course();
+        Course course = publishedCourse();
         course.setId(1L);
         course.setTitle("Java 入门");
-        when(mapper.selectOne(any())).thenReturn(course);
+        when(mapper.selectById(any())).thenReturn(course);
         when(likeService.count(LikeTargetType.COURSE, 1L)).thenReturn(7L);
         CourseChapter firstChapter = chapter(11L, 1L, "基础", 1);
         CourseChapter secondChapter = chapter(12L, 1L, "进阶", 2);
@@ -68,7 +68,7 @@ class CourseServiceTest {
     @Test
     void unauthenticatedUserCannotAccessPreviewLesson() {
         Course course = publishedCourse();
-        when(mapper.selectOne(any())).thenReturn(course);
+        when(mapper.selectById(any())).thenReturn(course);
         CourseChapter chapter = chapter(11L, 1L, "基础", 1);
         CourseLesson preview = lesson(21L, 11L, "试看", 1);
         preview.setFreePreview(true);
@@ -86,7 +86,7 @@ class CourseServiceTest {
     @Test
     void loggedInUserCanOnlyAccessPreviewBeforePurchase() {
         Course course = publishedCourse();
-        when(mapper.selectOne(any())).thenReturn(course);
+        when(mapper.selectById(any())).thenReturn(course);
         CourseChapter chapter = chapter(11L, 1L, "基础", 1);
         CourseLesson preview = lesson(21L, 11L, "试看", 1);
         preview.setFreePreview(true);
@@ -107,7 +107,7 @@ class CourseServiceTest {
 
     @Test
     void rejectsLockedLessonProgressBeforePurchase() {
-        when(mapper.selectOne(any())).thenReturn(publishedCourse());
+        when(mapper.selectById(any())).thenReturn(publishedCourse());
         CourseChapter chapter = chapter(11L, 1L, "基础", 1);
         CourseLesson locked = lesson(22L, 11L, "正课", 2);
         when(lessonMapper.selectById(22L)).thenReturn(locked);
@@ -120,9 +120,9 @@ class CourseServiceTest {
 
     @Test
     void returnsEmptyChapterListWhenCourseHasNoCurriculum() {
-        Course course = new Course();
+        Course course = publishedCourse();
         course.setId(1L);
-        when(mapper.selectOne(any())).thenReturn(course);
+        when(mapper.selectById(any())).thenReturn(course);
         when(chapterMapper.selectList(any())).thenReturn(List.of());
 
         CourseDetailResponse detail = service.detail(1L);
@@ -132,8 +132,44 @@ class CourseServiceTest {
 
     @Test
     void rejectsMissingOrUnpublishedCourse() {
-        when(mapper.selectOne(any())).thenReturn(null);
+        when(mapper.selectById(any())).thenReturn(null);
         assertThatThrownBy(() -> service.detail(99L)).isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void offlineCourseRemainsAvailableOnlyToPurchasedUser() {
+        Course course = publishedCourse();
+        course.setStatus("OFFLINE");
+        when(mapper.selectById(1L)).thenReturn(course);
+        when(orderService.hasPurchased(7L, 1L)).thenReturn(true);
+        when(chapterMapper.selectList(any())).thenReturn(List.of());
+        assertThat(service.detail(1L, 7L).accessLevel()).isEqualTo("FULL");
+        assertThatThrownBy(() -> service.detail(1L, 8L)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.detail(1L)).isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void draftCourseRemainsUnavailableEvenWithPurchase() {
+        Course course = publishedCourse();
+        course.setStatus("DRAFT");
+        when(mapper.selectById(1L)).thenReturn(course);
+        when(orderService.hasPurchased(7L, 1L)).thenReturn(true);
+        assertThatThrownBy(() -> service.detail(1L, 7L)).isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void purchasedUserCanContinueOfflineLessonButOthersCannotPreview() {
+        Course course = publishedCourse();
+        course.setStatus("OFFLINE");
+        when(mapper.selectById(1L)).thenReturn(course);
+        when(orderService.hasPurchased(7L, 1L)).thenReturn(true);
+        CourseLesson preview = lesson(21L, 11L, "试看", 1);
+        preview.setFreePreview(true);
+        when(lessonMapper.selectById(21L)).thenReturn(preview);
+        when(chapterMapper.selectById(11L)).thenReturn(chapter(11L, 1L, "基础", 1));
+        service.requireLessonAccess(7L, 1L, 21L);
+        assertThatThrownBy(() -> service.requireLessonAccess(8L, 1L, 21L))
+                .isInstanceOf(BusinessException.class);
     }
 
     private CourseChapter chapter(Long id, Long courseId, String title, int sortOrder) {
