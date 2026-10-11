@@ -9,6 +9,7 @@
     "test:coupon": "node --test scripts/coupon.test.mjs",
     "test:search": "node --test scripts/course-search.test.mjs",
     "test:admin": "node --test scripts/admin-course.test.mjs",
+    "test:learning": "node --test scripts/learning-flow.test.mjs",
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview"

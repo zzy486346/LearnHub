@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { courseApi, learningApi } from '@/api'
 import { isSessionExpired } from '@/api/session'
 import { useAuthStore } from '@/stores/auth'
@@ -19,7 +19,10 @@ const saveState = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
 const resumePosition = ref(0)
 let lastReportAt = 0
 let lastSavedPosition = -1
-let saveQueue: Promise<unknown> = Promise.resolve()
+let saveQueue: Promise<void> = Promise.resolve()
+let progressSaveRevision = 0
+type PendingProgress = { revision: number; courseId: number; lessonId: number; positionSeconds: number; completed: boolean }
+const pendingProgress = ref<PendingProgress | null>(null)
 
 const courseId = computed(() => Number(route.params.courseId))
 const lessonId = computed(() => Number(route.params.lessonId))
@@ -80,29 +83,48 @@ function currentPosition() {
   return Math.max(0, Math.floor(videoRef.value?.currentTime || resumePosition.value || 0))
 }
 
-function queueProgressSave(completed?: boolean, force = false) {
-  if (!auth.authenticated || !currentEntry.value || !currentAccessible.value) return Promise.resolve()
-  const positionSeconds = currentPosition()
+function queueProgressSave(completed?: boolean, force = false, positionOverride?: number): Promise<boolean> {
+  if (!auth.authenticated || !currentEntry.value || !currentAccessible.value) return Promise.resolve(true)
+  const positionSeconds = positionOverride ?? currentPosition()
   const finalCompleted = completed ?? completedLessonIds.value.has(currentEntry.value.lesson.id)
-  if (!force && !finalCompleted && Math.abs(positionSeconds - lastSavedPosition) < 5) return Promise.resolve()
+  if (!force && !finalCompleted && Math.abs(positionSeconds - lastSavedPosition) < 5) return Promise.resolve(true)
   saveState.value = 'saving'
   const savedLessonId = currentEntry.value.lesson.id
   const savedCourseId = courseId.value
-  saveQueue = saveQueue
+  const payload: PendingProgress = {
+    revision: ++progressSaveRevision,
+    courseId: savedCourseId,
+    lessonId: savedLessonId,
+    positionSeconds,
+    completed: finalCompleted,
+  }
+  pendingProgress.value = payload
+  const operation = saveQueue
     .catch(() => undefined)
     .then(() => learningApi.saveProgress(savedCourseId, { lessonId: savedLessonId, positionSeconds, completed: finalCompleted }))
     .then((response) => {
       lastSavedPosition = positionSeconds
       saveState.value = 'saved'
+      if (pendingProgress.value?.revision === payload.revision) pendingProgress.value = null
       const saved = response.data.data
       const index = progress.value.findIndex((item) => item.lessonId === saved.lessonId)
       if (index >= 0) progress.value[index] = saved
       else progress.value.push(saved)
+      return true
     })
     .catch((error) => {
       if (!isSessionExpired(error)) saveState.value = 'error'
+      return false
     })
-  return saveQueue
+  saveQueue = operation.then(() => undefined)
+  return operation
+}
+
+async function retryProgressSave() {
+  const pending = pendingProgress.value
+  if (!pending) return
+  const saved = await queueProgressSave(pending.completed, true, pending.positionSeconds)
+  if (saved) ElMessage.success('学习进度已重新同步')
 }
 
 function handleTimeUpdate() {
@@ -112,10 +134,10 @@ function handleTimeUpdate() {
   void queueProgressSave()
 }
 
-function handleEnded() {
-  void queueProgressSave(true, true).then(() => {
-    if (nextEntry.value) ElMessage.success('本课时已完成，可以继续下一课')
-  })
+async function handleEnded() {
+  const saved = await queueProgressSave(true, true)
+  if (saved && nextEntry.value) ElMessage.success('本课时已完成，可以继续下一课')
+  else if (!saved) ElMessage.error('课时完成状态保存失败，请重试')
 }
 
 async function goToLesson(targetLessonId: number) {
@@ -130,7 +152,11 @@ async function goToLesson(targetLessonId: number) {
     await router.push(`/courses/${courseId.value}`)
     return
   }
-  await queueProgressSave(undefined, true)
+  const saved = await queueProgressSave(undefined, true)
+  if (!saved) {
+    ElMessage.error('学习进度保存失败，请重试后再切换课时')
+    return
+  }
   await router.push(`/courses/${courseId.value}/lessons/${targetLessonId}`)
 }
 
@@ -142,21 +168,46 @@ function goToPurchase() {
   void router.push(`/courses/${courseId.value}`)
 }
 
-function saveWithKeepalive() {
+function saveWithKeepalive(event?: BeforeUnloadEvent) {
   if (!auth.authenticated || !currentEntry.value || !currentAccessible.value) return
   const token = localStorage.getItem('learnhub_access_token')
   const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
+  const pending = pendingProgress.value
   void fetch(`${baseUrl}/learning/progress/${courseId.value}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    body: JSON.stringify({ lessonId: currentEntry.value.lesson.id, positionSeconds: currentPosition(), completed: completedLessonIds.value.has(currentEntry.value.lesson.id) }),
+    body: JSON.stringify({
+      lessonId: currentEntry.value.lesson.id,
+      positionSeconds: Math.max(currentPosition(), pending?.positionSeconds || 0),
+      completed: pending?.completed || completedLessonIds.value.has(currentEntry.value.lesson.id),
+    }),
     keepalive: true,
   })
+  if (pending && event) {
+    event.preventDefault()
+    event.returnValue = ''
+  }
+}
+
+async function confirmLeaveWithUnsavedProgress() {
+  const saved = await queueProgressSave(undefined, true)
+  if (saved) return true
+  try {
+    await ElMessageBox.confirm('学习进度仍未保存，离开后可能需要重新观看部分内容。', '确认离开？', {
+      confirmButtonText: '仍要离开',
+      cancelButtonText: '留在本页重试',
+      type: 'warning',
+    })
+    return true
+  } catch {
+    return false
+  }
 }
 
 window.addEventListener('beforeunload', saveWithKeepalive)
 watch([() => route.params.courseId, () => route.params.lessonId], loadLesson, { immediate: true })
-onBeforeRouteLeave(async () => { await queueProgressSave(undefined, true); return true })
+onBeforeRouteUpdate(confirmLeaveWithUnsavedProgress)
+onBeforeRouteLeave(confirmLeaveWithUnsavedProgress)
 onBeforeUnmount(() => window.removeEventListener('beforeunload', saveWithKeepalive))
 </script>
 
@@ -197,7 +248,10 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', saveWithKeepali
 
           <div class="lesson-heading">
             <div><p class="eyebrow">{{ currentEntry.chapterTitle }}</p><h1>{{ currentEntry.lesson.title }}</h1></div>
-            <span v-if="auth.authenticated && currentAccessible" class="save-state" :class="`is-${saveState}`" aria-live="polite">{{ saveState === 'saving' ? '正在保存' : saveState === 'error' ? '保存失败' : '进度已同步' }}</span>
+            <span v-if="auth.authenticated && currentAccessible" class="save-state" :class="`is-${saveState}`" aria-live="polite">
+              {{ saveState === 'saving' ? '正在保存' : saveState === 'error' ? '保存失败' : '进度已同步' }}
+              <el-button v-if="saveState === 'error'" link type="danger" size="small" @click="retryProgressSave">重试</el-button>
+            </span>
           </div>
 
           <div class="lesson-navigation">
