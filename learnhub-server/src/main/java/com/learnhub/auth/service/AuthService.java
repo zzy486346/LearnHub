@@ -46,13 +46,14 @@ public class AuthService {
         user.setNickname(request.nickname() == null || request.nickname().isBlank() ? request.username() : request.nickname());
         user.setStatus("ACTIVE");
         user.setTokenVersion(0);
+        user.setDeleted(0);
         userMapper.insert(user);
         return user.getId();
     }
 
     public TokenResponse login(LoginRequest request) {
         User user = findByUsername(request.username());
-        if (user == null || !"ACTIVE".equals(user.getStatus()) || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+        if (!isActive(user) || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new BusinessException("用户名或密码错误");
         }
         return tokenService.issue(user.getId(), user.getUsername(), tokenVersion(user));
@@ -64,7 +65,7 @@ public class AuthService {
             if (!tokenService.consumeRefresh(refresh)) throw new BusinessException("刷新令牌已失效");
             Long userId = Long.valueOf(refresh.getPayload().getSubject());
             User user = userMapper.selectById(userId);
-            if (user == null || !"ACTIVE".equals(user.getStatus())) throw new BusinessException("用户不可用");
+            if (!isActive(user)) throw new BusinessException("用户不可用");
             if (tokenService.tokenVersion(refresh) != tokenVersion(user)) {
                 throw new BusinessException("登录状态已失效，请重新登录");
             }
@@ -76,7 +77,7 @@ public class AuthService {
 
     public CurrentUserResponse currentUser(Long userId) {
         User user = userMapper.selectById(userId);
-        if (user == null || !"ACTIVE".equals(user.getStatus())) {
+        if (!isActive(user)) {
             throw new BusinessException("用户不存在或已停用");
         }
         String avatarUrl = mediaAssetService.readyAccessUrl(user.getAvatarMediaId());
@@ -88,7 +89,7 @@ public class AuthService {
     @Transactional
     public CurrentUserResponse updateAvatar(Long userId, MultipartFile file) {
         User user = userMapper.selectById(userId);
-        if (user == null || !"ACTIVE".equals(user.getStatus())) {
+        if (!isActive(user)) {
             throw new BusinessException("用户不存在或已停用");
         }
         var asset = mediaAssetService.uploadAvatar(userId, file);
@@ -102,7 +103,7 @@ public class AuthService {
     @Transactional
     public void changePassword(Long userId, ChangePasswordRequest request) {
         User user = userMapper.selectById(userId);
-        if (user == null || !"ACTIVE".equals(user.getStatus())) {
+        if (!isActive(user)) {
             throw new BusinessException("用户不存在或已停用");
         }
         if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
@@ -132,5 +133,10 @@ public class AuthService {
 
     private int tokenVersion(User user) {
         return user.getTokenVersion() == null ? 0 : user.getTokenVersion();
+    }
+
+    private boolean isActive(User user) {
+        return user != null && "ACTIVE".equals(user.getStatus())
+                && !Integer.valueOf(1).equals(user.getDeleted());
     }
 }

@@ -102,6 +102,17 @@ class AuthTokenLifecycleTest {
         assertThat(authenticate(oldTokens.accessToken())).isNull();
     }
 
+    @Test
+    void logicallyDeletedUserCannotRefreshOrUseExistingAccessToken() throws Exception {
+        TokenResponse tokens = tokenService.issue(user.getId(), user.getUsername(), user.getTokenVersion());
+        user.setDeleted(1);
+
+        assertThatThrownBy(() -> authService.refresh(new RefreshTokenRequest(tokens.refreshToken())))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getMessage()).isEqualTo("用户不可用"));
+        assertThat(authenticate(tokens.accessToken())).isNull();
+    }
+
     private Authentication authenticate(String accessToken) throws Exception {
         SecurityContextHolder.clearContext();
         RoleService roleService = mock(RoleService.class);
@@ -139,6 +150,7 @@ class AuthTokenLifecycleTest {
         user.setUsername("learner");
         user.setStatus("ACTIVE");
         user.setTokenVersion(0);
+        user.setDeleted(0);
         return user;
     }
 }

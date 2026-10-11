@@ -42,6 +42,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 User user = userMapper.selectById(Long.valueOf(claims.getSubject()));
                 int currentVersion = user == null || user.getTokenVersion() == null ? 0 : user.getTokenVersion();
                 if (user != null && "ACTIVE".equals(user.getStatus())
+                        && !Integer.valueOf(1).equals(user.getDeleted())
                         && tokenService.tokenVersion(token) == currentVersion
                         && !tokenService.isAccessDenied(claims.getId())) {
                     LearnHubPrincipal principal = new LearnHubPrincipal(

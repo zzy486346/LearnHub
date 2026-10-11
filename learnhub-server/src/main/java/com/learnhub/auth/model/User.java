@@ -1,6 +1,7 @@
 package com.learnhub.auth.model;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -15,6 +16,8 @@ public class User {
     private Long avatarMediaId;
     private String status;
     private Integer tokenVersion;
+    @TableLogic
+    private Integer deleted;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -32,4 +35,6 @@ public class User {
     public void setStatus(String status) { this.status = status; }
     public Integer getTokenVersion() { return tokenVersion; }
     public void setTokenVersion(Integer tokenVersion) { this.tokenVersion = tokenVersion; }
+    public Integer getDeleted() { return deleted; }
+    public void setDeleted(Integer deleted) { this.deleted = deleted; }
 }

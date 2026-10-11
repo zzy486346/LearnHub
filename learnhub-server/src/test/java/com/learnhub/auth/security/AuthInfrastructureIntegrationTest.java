@@ -223,6 +223,28 @@ class AuthInfrastructureIntegrationTest {
     }
 
     @Test
+    void logicallyDeletedActiveUserCannotLoginRefreshOrUseExistingAccessToken() throws Exception {
+        TestUser user = createUser(INITIAL_PASSWORD);
+        Tokens tokens = login(firstInstance, user.username(), INITIAL_PASSWORD);
+        String originalRefreshKey = REFRESH_PREFIX + refreshJti(tokens.refreshToken());
+
+        assertEquals(1, jdbc().update("UPDATE user SET deleted = 1 WHERE id = ? AND status = 'ACTIVE'", user.id()));
+
+        HttpResult loginAfterDelete = request(secondInstance, "POST", "/api/auth/login", null,
+                Map.of("username", user.username(), "password", INITIAL_PASSWORD));
+        assertEquals(409, loginAfterDelete.status());
+        assertEquals(401, request(firstInstance, "GET", "/api/auth/me", tokens.accessToken(), null).status());
+
+        HttpResult refreshAfterDelete = refresh(secondInstance, tokens.refreshToken());
+        assertEquals(409, refreshAfterDelete.status());
+        assertTrue(refreshAfterDelete.body().path("data").isNull()
+                        || refreshAfterDelete.body().path("data").isMissingNode(),
+                "Rejected refresh must not return newly issued tokens");
+        assertTrue(Boolean.FALSE.equals(redis().hasKey(originalRefreshKey)),
+                "Rejected refresh must consume the old refresh token without issuing another one");
+    }
+
+    @Test
     void productionInstancesSharePemVerificationAndRedisDenylist() throws Exception {
         TestUser user = createUser(INITIAL_PASSWORD);
         Tokens tokens = login(firstInstance, user.username(), INITIAL_PASSWORD);

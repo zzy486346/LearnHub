@@ -4,9 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.learnhub.auth.dto.ChangePasswordRequest;
+import com.learnhub.auth.dto.LoginRequest;
 import com.learnhub.auth.mapper.UserMapper;
 import com.learnhub.auth.model.User;
 import com.learnhub.auth.security.JwtTokenService;
@@ -79,12 +82,34 @@ class AuthServiceTest {
                         exception -> assertThat(exception.getCode()).isEqualTo("CURRENT_PASSWORD_INCORRECT"));
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void rejectsLoginForLogicallyDeletedUser() {
+        UserMapper userMapper = mock(UserMapper.class);
+        PasswordEncoder encoder = mock(PasswordEncoder.class);
+        JwtTokenService tokenService = mock(JwtTokenService.class);
+        User user = activeUser();
+        user.setPasswordHash("valid-hash");
+        user.setDeleted(1);
+        when(userMapper.selectOne(org.mockito.ArgumentMatchers.any(Wrapper.class))).thenReturn(user);
+        AuthService service = new AuthService(userMapper, encoder, tokenService,
+                mock(MediaAssetService.class), mock(RoleService.class));
+
+        assertThatThrownBy(() -> service.login(new LoginRequest("learner", "ValidPass123")))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getMessage()).isEqualTo("用户名或密码错误"));
+        verify(encoder, never()).matches(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        verify(tokenService, never()).issue(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
     private User activeUser() {
         User user = new User();
         user.setId(42L);
         user.setUsername("learner");
         user.setStatus("ACTIVE");
         user.setTokenVersion(0);
+        user.setDeleted(0);
         return user;
     }
 
