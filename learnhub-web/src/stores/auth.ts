@@ -1,7 +1,13 @@
 import { computed, onScopeDispose, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { authApi } from '@/api'
-import { AUTH_SESSION_CLEARED_EVENT, clearTokens, saveTokens } from '@/api/http'
+import {
+  AUTH_SESSION_CLEARED_EVENT,
+  AUTH_SESSION_REPLACED_EVENT,
+  clearTokens,
+  replaceSessionFromStorage,
+  saveTokens,
+} from '@/api/http'
 import type { User } from '@/types'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -17,13 +23,23 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function handleStorageChange(event: StorageEvent) {
-    if (event.key === 'learnhub_access_token' && !event.newValue) clearTokens()
+    if (event.key !== 'learnhub_access_token') return
+    if (!event.newValue) {
+      clearTokens()
+      return
+    }
+    replaceSessionFromStorage()
+    accessToken.value = event.newValue
+    user.value = null
+    void fetchMe().catch(() => undefined)
   }
 
   window.addEventListener(AUTH_SESSION_CLEARED_EVENT, resetSession)
+  window.addEventListener(AUTH_SESSION_REPLACED_EVENT, resetSession)
   window.addEventListener('storage', handleStorageChange)
   onScopeDispose(() => {
     window.removeEventListener(AUTH_SESSION_CLEARED_EVENT, resetSession)
+    window.removeEventListener(AUTH_SESSION_REPLACED_EVENT, resetSession)
     window.removeEventListener('storage', handleStorageChange)
   })
 

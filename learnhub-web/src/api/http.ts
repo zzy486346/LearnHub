@@ -5,6 +5,7 @@ import { SessionExpiredError } from './session'
 const ACCESS_KEY = 'learnhub_access_token'
 const REFRESH_KEY = 'learnhub_refresh_token'
 export const AUTH_SESSION_CLEARED_EVENT = 'learnhub:auth-session-cleared'
+export const AUTH_SESSION_REPLACED_EVENT = 'learnhub:auth-session-replaced'
 
 export const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
@@ -18,10 +19,26 @@ let sessionGeneration = 0
 type SessionRequestConfig = InternalAxiosRequestConfig & { _retry?: boolean; _sessionGeneration?: number }
 
 export function saveTokens(tokens: TokenPair) {
+  sessionGeneration++
   redirectingToLogin = false
   loggingOut = false
+  writeTokens(tokens)
+  window.dispatchEvent(new Event(AUTH_SESSION_REPLACED_EVENT))
+}
+
+function saveRefreshedTokens(tokens: TokenPair) {
+  writeTokens(tokens)
+}
+
+function writeTokens(tokens: TokenPair) {
   localStorage.setItem(ACCESS_KEY, tokens.accessToken)
   localStorage.setItem(REFRESH_KEY, tokens.refreshToken)
+}
+
+export function replaceSessionFromStorage() {
+  sessionGeneration++
+  redirectingToLogin = false
+  loggingOut = false
 }
 
 export function clearTokens() {
@@ -51,7 +68,7 @@ async function refreshAccessToken() {
   )
   if (generation !== sessionGeneration) throw new SessionExpiredError()
   const logoutPending = loggingOut
-  saveTokens(data.data)
+  saveRefreshedTokens(data.data)
   loggingOut = logoutPending
   return data.data.accessToken
 }
@@ -82,7 +99,15 @@ function expireSession() {
 }
 
 http.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const request = response.config as SessionRequestConfig
+    if (!isAuthEndpoint(request.url)
+      && request._sessionGeneration !== undefined
+      && request._sessionGeneration !== sessionGeneration) {
+      return Promise.reject(new SessionExpiredError())
+    }
+    return response
+  },
   async (error: AxiosError) => {
     const original = error.config as SessionRequestConfig | undefined
     if (error.response?.status !== 401 || !original || isAuthEndpoint(original.url)) {

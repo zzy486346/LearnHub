@@ -182,8 +182,8 @@ async function authStore(app) {
     .replace("from 'vue'", `from '${moduleUrl('vue')}'`)
     .replace("from 'pinia'", `from '${moduleUrl('pinia')}'`)
     .replace("import { authApi } from '@/api'", 'const { authApi } = globalThis.storeHarness')
-    .replace("import { AUTH_SESSION_CLEARED_EVENT, clearTokens, saveTokens } from '@/api/http'",
-      'const { AUTH_SESSION_CLEARED_EVENT, clearTokens, saveTokens } = globalThis.storeHarness')
+    .replace(/import \{\s*AUTH_SESSION_CLEARED_EVENT,[\s\S]*?\} from '@\/api\/http'/,
+      'const { AUTH_SESSION_CLEARED_EVENT, AUTH_SESSION_REPLACED_EVENT, clearTokens, replaceSessionFromStorage, saveTokens } = globalThis.storeHarness')
   const module = await import(url(compile(source) + `\n// ${++serial}`))
   const pinia = createPinia()
   return module.useAuthStore(pinia)
@@ -397,6 +397,71 @@ test('退出后重新登录，旧401不重放到新账户，旧刷新响应不�
     assert.equal(second.storage.get(refreshKey), 'other-user-refresh')
     assert.deepEqual(second.redirects, [])
   }
+})
+
+test('直接切换账号后丢弃旧账号的成功响应和迟到401', async () => {
+  const app = await setup()
+  const pending = new Map()
+  let calls = 0
+  app.http.defaults.adapter = config => {
+    calls++
+    return new Promise((resolve, reject) => pending.set(config.url, { config, resolve, reject }))
+  }
+  const oldSuccess = app.http.get('/old-success')
+  const oldUnauthorized = app.http.get('/old-unauthorized')
+  await new Promise(resolve => setImmediate(resolve))
+
+  app.saveTokens({ accessToken: 'other-user-access', refreshToken: 'other-user-refresh' })
+  pending.get('/old-success').resolve(response(pending.get('/old-success').config, { owner: 'old-user' }))
+  pending.get('/old-unauthorized').reject(failure(pending.get('/old-unauthorized').config, 401))
+
+  await assert.rejects(oldSuccess, session.isSessionExpired)
+  await assert.rejects(oldUnauthorized, session.isSessionExpired)
+  assert.equal(calls, 2)
+  assert.equal(app.storage.get(accessKey), 'other-user-access')
+  assert.deepEqual(app.redirects, [])
+})
+
+test('刷新轮换令牌不改变当前账号代次，请求仍可正常完成', async () => {
+  const app = await setup()
+  let releaseSlow
+  axios.defaults.adapter = async config => response(config, {
+    data: { accessToken: 'new-access', refreshToken: 'new-refresh' },
+  })
+  app.http.defaults.adapter = config => {
+    if (config.url === '/slow') return new Promise(resolve => { releaseSlow = () => resolve(response(config)) })
+    if (config.headers.Authorization === 'Bearer expired-access') throw failure(config, 401)
+    return Promise.resolve(response(config))
+  }
+  const slow = app.http.get('/slow')
+  await new Promise(resolve => setImmediate(resolve))
+  await app.http.get('/refresh-trigger')
+  releaseSlow()
+  await slow
+  assert.equal(app.storage.get(accessKey), 'new-access')
+})
+
+test('其他标签页替换账号后清空旧用户并加载新账号资料', async () => {
+  const app = await setup()
+  const store = await authStore(app)
+  store.user = { id: 1, username: 'old-user' }
+  let meCalls = 0
+  globalThis.storeHarness.authApi.me = async () => {
+    meCalls++
+    return { data: { data: { id: 2, username: 'new-user', roles: [] } } }
+  }
+  app.storage.set(accessKey, 'other-user-access')
+  app.storage.set(refreshKey, 'other-user-refresh')
+  window.dispatchEvent(Object.assign(new Event('storage'), {
+    key: accessKey,
+    oldValue: 'expired-access',
+    newValue: 'other-user-access',
+  }))
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(meCalls, 1)
+  assert.equal(store.user.username, 'new-user')
+  assert.equal(store.authenticated, true)
+  store.$dispose()
 })
 
 test('正在刷新的请求超时或500失败，退出仍撤销现有双令牌并清理本地', async () => {
