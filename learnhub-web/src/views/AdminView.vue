@@ -1,18 +1,26 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminCourseApi } from '@/api'
 import { isSessionExpired } from '@/api/session'
 import type { Chapter, Course, Lesson } from '@/types'
 
 const courses = ref<Course[]>([])
+const coursePage = ref(1)
+const courseTotal = ref(0)
+const pageSize = 10
 const selected = ref<Course>()
 const loading = ref(false)
+const detailLoading = ref(false)
 const courseDialog = ref(false)
 const chapterDialog = ref(false)
 const lessonDialog = ref(false)
 const submitting = ref(false)
 const publishing = ref(false)
+const deletingLessonId = ref<number>()
+const contentBusy = computed(() => submitting.value || publishing.value || deletingLessonId.value !== undefined || uploadingLessonId.value !== undefined)
+let listRequestId = 0
+let detailRequestId = 0
 const selectedChapterId = ref<number>()
 const uploadLesson = ref<Lesson>()
 const uploadingLessonId = ref<number>()
@@ -26,21 +34,39 @@ const chapters = computed(() => selected.value?.chapters || [])
 
 onMounted(loadCourses)
 
-async function loadCourses(selectId?: number) {
+async function loadCourses(selectId?: number, page = coursePage.value) {
+  const requestId = ++listRequestId
   loading.value = true
   try {
-    courses.value = (await adminCourseApi.list()).data.data || []
-    const target = selectId ? courses.value.find((item) => item.id === selectId) : selected.value
+    let data = (await adminCourseApi.list(page)).data.data
+    const lastPage = Math.max(1, Math.ceil(data.total / pageSize))
+    if (page > lastPage) data = (await adminCourseApi.list(lastPage)).data.data
+    if (requestId !== listRequestId) return
+    courses.value = data.records
+    courseTotal.value = data.total
+    coursePage.value = data.current
+    const target = courses.value.find(item => item.id === (selectId ?? selected.value?.id))
     if (target) await selectCourse(target)
+    else { ++detailRequestId; selected.value = undefined; detailLoading.value = false }
   } catch (error) {
-    if (isSessionExpired(error)) return
+    if (requestId !== listRequestId || isSessionExpired(error)) return
     ElMessage.error('课程列表加载失败，请确认管理员权限和后端服务状态')
-  } finally { loading.value = false }
+  } finally { if (requestId === listRequestId) loading.value = false }
+}
+
+async function changeCoursePage(page: number) {
+  if (loading.value || contentBusy.value || page === coursePage.value) return
+  await loadCourses(undefined, page)
 }
 
 async function selectCourse(course: Course) {
-  try { selected.value = (await adminCourseApi.detail(course.id)).data.data }
-  catch (error) { if (!isSessionExpired(error)) ElMessage.error('课程详情加载失败') }
+  const requestId = ++detailRequestId
+  detailLoading.value = true
+  try {
+    const data = (await adminCourseApi.detail(course.id)).data.data
+    if (requestId === detailRequestId) selected.value = data
+  } catch (error) { if (requestId === detailRequestId && !isSessionExpired(error)) ElMessage.error('课程详情加载失败') }
+  finally { if (requestId === detailRequestId) detailLoading.value = false }
 }
 
 async function publishCourse() {
@@ -66,13 +92,14 @@ function openCourseDialog() {
 }
 
 async function createCourse() {
+  if (submitting.value) return
   if (!courseForm.title.trim() || !courseForm.instructor.trim()) return ElMessage.warning('请填写课程名称和讲师')
   submitting.value = true
   try {
     const id = (await adminCourseApi.createCourse({ ...courseForm, title: courseForm.title.trim(), instructor: courseForm.instructor.trim() })).data.data
     courseDialog.value = false
     ElMessage.success('课程已创建')
-    await loadCourses(id)
+    await loadCourses(id, 1)
   } catch (error) { if (!isSessionExpired(error)) ElMessage.error('课程创建失败，请检查填写内容') }
   finally { submitting.value = false }
 }
@@ -84,6 +111,7 @@ function openChapterDialog() {
 }
 
 async function createChapter() {
+  if (submitting.value) return
   if (!selected.value || !chapterForm.title.trim()) return ElMessage.warning('请填写章节名称')
   submitting.value = true
   try {
@@ -97,11 +125,12 @@ async function createChapter() {
 
 function openLessonDialog(chapter: Chapter) {
   selectedChapterId.value = chapter.id
-  Object.assign(lessonForm, { title: '', durationSeconds: 60, freePreview: false, sortOrder: chapter.lessons.length + 1 })
+  Object.assign(lessonForm, { title: '', durationSeconds: 60, freePreview: false, sortOrder: Math.max(0, ...chapter.lessons.map(lesson => lesson.sortOrder ?? 0)) + 1 })
   lessonDialog.value = true
 }
 
 async function createLesson() {
+  if (submitting.value) return
   if (!selectedChapterId.value || !lessonForm.title.trim()) return ElMessage.warning('请填写课时名称')
   submitting.value = true
   try {
@@ -111,6 +140,24 @@ async function createLesson() {
     ElMessage.success('课时已添加')
   } catch (error) { if (!isSessionExpired(error)) ElMessage.error('课时创建失败') }
   finally { submitting.value = false }
+}
+
+async function deleteLesson(lesson: Lesson) {
+  const course = selected.value
+  if (!course || contentBusy.value || detailLoading.value) return
+  deletingLessonId.value = lesson.id
+  try {
+    await ElMessageBox.confirm(`确认删除课时《${lesson.title}》？该课时将从课程目录中移除。`, '删除课时', {
+      type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消', distinguishCancelAndClose: true,
+    })
+    await adminCourseApi.deleteLesson(lesson.id)
+    course.chapters?.forEach(chapter => { chapter.lessons = chapter.lessons.filter(item => item.id !== lesson.id) })
+    await selectCourse(course)
+    ElMessage.success('课时已删除')
+  } catch (error) {
+    if (error === 'cancel' || error === 'close' || isSessionExpired(error)) return
+    ElMessage.error((error as { response?: { data?: { message?: string } } }).response?.data?.message || '课时删除失败，请稍后重试')
+  } finally { deletingLessonId.value = undefined }
 }
 
 function chooseVideo(lesson: Lesson) {
@@ -144,38 +191,44 @@ async function handleVideo(event: Event) {
   <section class="admin-page">
     <div class="page-title admin-title">
       <div><p class="eyebrow">ADMIN CONSOLE</p><h1>课程内容管理</h1><p>创建课程结构，并将课时视频直接上传到阿里云 OSS。</p></div>
-      <el-button type="primary" size="large" @click="openCourseDialog">新建课程</el-button>
+      <el-button type="primary" size="large" :disabled="contentBusy || loading || detailLoading" @click="openCourseDialog">新建课程</el-button>
     </div>
 
     <div class="admin-workspace" v-loading="loading">
       <aside class="content-card admin-course-list" aria-label="课程列表">
-        <div class="admin-panel-heading"><div><span>全部课程</span><small>{{ courses.length }} 门</small></div></div>
-        <button v-for="course in courses" :key="course.id" type="button" :disabled="publishing" :class="['admin-course-item', { active: selected?.id === course.id }]" @click="selectCourse(course)">
+        <div class="admin-panel-heading"><div><span>全部课程</span><small>共 {{ courseTotal }} 门 · 每页 {{ pageSize }} 条</small></div></div>
+        <button v-for="course in courses" :key="course.id" type="button" :disabled="contentBusy || loading" :class="['admin-course-item', { active: selected?.id === course.id }]" @click="selectCourse(course)">
           <span><strong>{{ course.title }}</strong><small>{{ course.instructor }} · ¥{{ course.price ?? 0 }}</small></span>
           <el-tag :type="course.status === 'PUBLISHED' ? 'success' : 'info'" size="small">{{ course.status === 'PUBLISHED' ? '已发布' : '草稿' }}</el-tag>
         </button>
         <el-empty v-if="!courses.length && !loading" description="暂无课程，先创建第一门课程" :image-size="76" />
+        <nav v-if="courseTotal > pageSize" class="admin-pagination" aria-label="课程分页">
+          <el-pagination small background layout="prev, pager, next" :pager-count="5" :total="courseTotal" :page-size="pageSize" :current-page="coursePage" :disabled="loading || contentBusy" @current-change="changeCoursePage" />
+        </nav>
       </aside>
 
-      <main class="content-card admin-editor">
+      <main class="content-card admin-editor" v-loading="detailLoading">
         <template v-if="selected">
           <div class="admin-panel-heading admin-detail-heading">
             <div><p class="eyebrow">COURSE STRUCTURE</p><h2>{{ selected.title }}</h2><small>{{ selected.description || '暂未填写课程介绍' }}</small></div>
             <div class="admin-course-actions">
-              <el-button v-if="selected.status !== 'PUBLISHED'" type="primary" :loading="publishing" :disabled="loading || uploadingLessonId !== undefined" @click="publishCourse">发布课程</el-button>
+              <el-button v-if="selected.status !== 'PUBLISHED'" type="primary" :loading="publishing" :disabled="loading || detailLoading || contentBusy" @click="publishCourse">发布课程</el-button>
               <el-tag v-else type="success">已发布</el-tag>
-              <el-button @click="openChapterDialog">添加章节</el-button>
+              <el-button :disabled="contentBusy || detailLoading" @click="openChapterDialog">添加章节</el-button>
             </div>
           </div>
           <div v-if="chapters.length" class="admin-chapter-list">
             <article v-for="chapter in chapters" :key="chapter.id" class="admin-chapter-card">
-              <header><div><small>第 {{ chapter.sortOrder }} 章</small><h3>{{ chapter.title }}</h3></div><el-button text type="primary" @click="openLessonDialog(chapter)">添加课时</el-button></header>
+              <header><div><small>第 {{ chapter.sortOrder }} 章</small><h3>{{ chapter.title }}</h3></div><el-button text type="primary" :disabled="contentBusy || detailLoading" @click="openLessonDialog(chapter)">添加课时</el-button></header>
               <div v-if="chapter.lessons.length" class="admin-lesson-list">
                 <div v-for="lesson in chapter.lessons" :key="lesson.id" class="admin-lesson-row">
                   <span class="admin-lesson-index">{{ lesson.sortOrder }}</span>
                   <span class="admin-lesson-copy"><strong>{{ lesson.title }}</strong><small>{{ lesson.durationSeconds }} 秒 <template v-if="lesson.freePreview">· 免费试看</template></small></span>
                   <span v-if="uploadingLessonId === lesson.id" class="admin-upload-state" role="status">上传 {{ uploadProgress }}%</span>
-                  <el-button :loading="uploadingLessonId === lesson.id" :disabled="uploadingLessonId !== undefined" @click="chooseVideo(lesson)">{{ lesson.mediaUrl ? '替换视频' : '上传视频' }}</el-button>
+                  <div class="admin-lesson-actions">
+                    <el-button :loading="uploadingLessonId === lesson.id" :disabled="contentBusy || detailLoading" @click="chooseVideo(lesson)">{{ lesson.mediaUrl ? '替换视频' : '上传视频' }}</el-button>
+                    <el-button type="danger" plain :loading="deletingLessonId === lesson.id" :disabled="contentBusy || detailLoading" :aria-label="`删除课时 ${lesson.title}`" @click="deleteLesson(lesson)">删除</el-button>
+                  </div>
                 </div>
               </div>
               <el-empty v-else description="本章节还没有课时" :image-size="58" />

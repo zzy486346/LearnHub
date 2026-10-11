@@ -49,7 +49,7 @@ export const orderApi = {
 }
 
 export const adminCourseApi = {
-  list: () => http.get<ApiResult<Course[]>>('/admin/courses'),
+  list: (page = 1) => http.get<ApiResult<PageResult<Course>>>('/admin/courses', { params: { page } }),
   detail: (courseId: string | number) => http.get<ApiResult<Course>>(`/admin/courses/${courseId}`),
   createCourse: (body: { categoryId: number; title: string; description?: string; instructor: string; price: number; status: 'DRAFT' | 'PUBLISHED' }) =>
     http.post<ApiResult<number>>('/admin/courses', body),
@@ -59,6 +59,7 @@ export const adminCourseApi = {
     http.post<ApiResult<number>>(`/admin/courses/${courseId}/chapters`, body),
   createLesson: (chapterId: string | number, body: { title: string; durationSeconds: number; freePreview: boolean; sortOrder: number }) =>
     http.post<ApiResult<number>>(`/admin/chapters/${chapterId}/lessons`, body),
+  deleteLesson: (lessonId: string | number) => http.delete<ApiResult<void>>(`/admin/lessons/${lessonId}`),
   uploadLessonVideo: (lessonId: string | number, file: File, onProgress?: (percentage: number) => void) => {
     const form = new FormData()
     form.append('file', file)
