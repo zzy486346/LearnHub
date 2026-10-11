@@ -1,0 +1,246 @@
+package com.learnhub.course.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.learnhub.common.exception.BusinessException;
+import com.learnhub.config.InfrastructureConfig;
+import com.learnhub.course.dto.AdminCourseRequests;
+import com.learnhub.course.mapper.CourseChapterMapper;
+import com.learnhub.course.mapper.CourseLessonMapper;
+import com.learnhub.course.mapper.CourseMapper;
+import com.learnhub.course.mapper.LearningProgressMapper;
+import com.learnhub.course.model.Course;
+import com.learnhub.interaction.like.LikeService;
+import com.learnhub.order.CourseOrderService;
+import com.learnhub.search.CourseIndexTaskService;
+import com.learnhub.storage.MediaAssetService;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.mybatis.spring.annotation.MapperScan;
+import org.springframework.boot.WebApplicationType;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
+
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@EnabledIfSystemProperty(named = "learnhub.admin.course.it.enabled", matches = "true")
+class AdminCourseInfrastructureIntegrationTest {
+    private final List<Long> lessonIds = new ArrayList<>();
+    private final List<Long> progressIds = new ArrayList<>();
+    private final List<Long> chapterIds = new ArrayList<>();
+    private final List<Long> courseIds = new ArrayList<>();
+    private ConfigurableApplicationContext context;
+
+    @BeforeAll
+    void startIsolatedContext() {
+        String exclusions = String.join(",",
+                "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
+                "org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration",
+                "org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration",
+                "org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration",
+                "org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchRepositoriesAutoConfiguration",
+                "org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration",
+                "org.redisson.spring.starter.RedissonAutoConfigurationV2");
+        context = new SpringApplicationBuilder(AdminCourseTestApplication.class)
+                .web(WebApplicationType.NONE)
+                .run(
+                        "--spring.main.banner-mode=off",
+                        "--spring.autoconfigure.exclude=" + exclusions,
+                        "--spring.datasource.url=" + mysqlUrl(),
+                        "--spring.datasource.username=" + property("learnhub.admin.course.it.mysql-username", "learnhub"),
+                        "--spring.datasource.password=" + property("learnhub.admin.course.it.mysql-password", "learnhub"),
+                        "--spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver",
+                        "--spring.datasource.hikari.maximum-pool-size=2",
+                        "--learnhub.rabbit.enabled=false",
+                        "--learnhub.storage.oss.enabled=false");
+        var deletedColumn = jdbc().queryForMap("""
+                SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, COLUMN_COMMENT
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'course_lesson' AND COLUMN_NAME = 'deleted'
+                """);
+        assertThat(deletedColumn.get("COLUMN_TYPE").toString()).isEqualTo("tinyint");
+        assertThat(deletedColumn.get("IS_NULLABLE")).isEqualTo("NO");
+        assertThat(deletedColumn.get("COLUMN_DEFAULT").toString()).isEqualTo("0");
+        assertThat(deletedColumn.get("COLUMN_COMMENT")).isEqualTo("逻辑删除标记：0正常，1已删除");
+    }
+
+    @AfterEach
+    void cleanOwnedRows() {
+        JdbcTemplate jdbc = jdbc();
+        RuntimeException cleanupFailure = null;
+        cleanupFailure = deleteOwnedRows(jdbc, "learning_progress", progressIds, cleanupFailure);
+        cleanupFailure = deleteOwnedRows(jdbc, "course_lesson", lessonIds, cleanupFailure);
+        cleanupFailure = deleteOwnedRows(jdbc, "course_chapter", chapterIds, cleanupFailure);
+        cleanupFailure = deleteOwnedRows(jdbc, "course", courseIds, cleanupFailure);
+        if (cleanupFailure != null) throw cleanupFailure;
+    }
+
+    private RuntimeException deleteOwnedRows(JdbcTemplate jdbc, String tableName, List<Long> ids,
+            RuntimeException cleanupFailure) {
+        for (Long id : List.copyOf(ids)) {
+            try {
+                jdbc.update("DELETE FROM " + tableName + " WHERE id = ?", id);
+                ids.remove(id);
+            } catch (RuntimeException exception) {
+                if (cleanupFailure == null) cleanupFailure = new IllegalStateException("隔离测试数据清理失败");
+                cleanupFailure.addSuppressed(exception);
+            }
+        }
+        return cleanupFailure;
+    }
+
+    @AfterAll
+    void stopIsolatedContext() {
+        try {
+            if (context != null) cleanOwnedRows();
+        } finally {
+            if (context != null) context.close();
+        }
+    }
+
+    @Test
+    void databasePaginationUsesFixedTenRowsAndDescendingIds() {
+        long firstId = uniqueBase();
+        for (int i = 0; i < 12; i++) insertCourse(firstId + i, "分页课程" + i, "DRAFT");
+
+        Page<Course> firstPage = adminService().list(1);
+        Page<Course> secondPage = adminService().list(2);
+
+        assertThat(firstPage.getSize()).isEqualTo(10);
+        assertThat(firstPage.getTotal()).isEqualTo(12);
+        assertThat(firstPage.getRecords()).hasSize(10);
+        assertThat(firstPage.getRecords()).extracting(Course::getId)
+                .containsExactlyElementsOf(java.util.stream.LongStream.rangeClosed(firstId + 2, firstId + 11)
+                        .boxed().sorted(java.util.Comparator.reverseOrder()).toList());
+        assertThat(secondPage.getRecords()).extracting(Course::getId)
+                .containsExactly(firstId + 1, firstId);
+    }
+
+    @Test
+    void logicalDeleteRemovesLessonFromDetailsAndAccessButPreservesRow() {
+        long courseId = uniqueBase();
+        long chapterId = courseId + 1;
+        insertCourse(courseId, "逻辑删除课程", "PUBLISHED");
+        insertChapter(chapterId, courseId);
+        Long lessonId = adminService().createLesson(chapterId,
+                new AdminCourseRequests.CreateLesson("  第一课  ", 60, true, 1));
+        lessonIds.add(lessonId);
+        long userId = uniqueBase();
+        long progressId = uniqueBase();
+        progressIds.add(progressId);
+        jdbc().update("""
+                INSERT INTO learning_progress (id, user_id, lesson_id, position_seconds, completed, last_learned_at)
+                VALUES (?, ?, ?, 60, 1, CURRENT_TIMESTAMP(3))
+                """, progressId, userId, lessonId);
+
+        assertThat(courseService().detail(courseId, 7L).chapters().get(0).lessons())
+                .extracting(lesson -> lesson.title()).containsExactly("第一课");
+        assertThat(adminService().detail(courseId).chapters().get(0).lessons()).hasSize(1);
+        assertThat(context.getBean(LearningProgressMapper.class).countCompletedLessons(userId)).isEqualTo(1);
+
+        adminService().deleteLesson(lessonId);
+
+        assertThat(jdbc().queryForObject(
+                "SELECT deleted FROM course_lesson WHERE id = ?", Integer.class, lessonId)).isEqualTo(1);
+        assertThat(courseService().detail(courseId, 7L).chapters().get(0).lessons()).isEmpty();
+        assertThat(adminService().detail(courseId).chapters().get(0).lessons()).isEmpty();
+        assertThat(context.getBean(LearningProgressMapper.class).countLessonInCourse(lessonId, courseId)).isZero();
+        assertThat(context.getBean(LearningProgressMapper.class).countCompletedLessons(userId)).isZero();
+        assertThat(jdbc().queryForObject(
+                "SELECT COUNT(*) FROM learning_progress WHERE id = ?", Long.class, progressId)).isEqualTo(1);
+        assertThatThrownBy(() -> courseService().requireLessonAccess(7L, courseId, lessonId))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getCode()).isEqualTo("LESSON_NOT_FOUND"));
+        assertThatThrownBy(() -> adminService().deleteLesson(lessonId))
+                .isInstanceOf(BusinessException.class).hasMessage("课时不存在");
+    }
+
+    @Test
+    void lessonCreationRejectsMissingCourseAndTrimmedBlankTitle() {
+        long missingCourseChapterId = uniqueBase();
+        insertChapter(missingCourseChapterId, missingCourseChapterId + 1);
+        assertThatThrownBy(() -> adminService().createLesson(missingCourseChapterId,
+                new AdminCourseRequests.CreateLesson("第一课", 60, false, 1)))
+                .isInstanceOf(BusinessException.class).hasMessage("课程不存在");
+
+        long courseId = uniqueBase();
+        long chapterId = courseId + 1;
+        insertCourse(courseId, "创建校验课程", "DRAFT");
+        insertChapter(chapterId, courseId);
+        assertThatThrownBy(() -> adminService().createLesson(chapterId,
+                new AdminCourseRequests.CreateLesson("   ", 60, false, 1)))
+                .isInstanceOf(BusinessException.class).hasMessage("课时标题不能为空");
+    }
+
+    private void insertCourse(long id, String title, String status) {
+        courseIds.add(id);
+        jdbc().update("""
+                INSERT INTO course (id, category_id, title, instructor, price, status, like_count)
+                VALUES (?, 1, ?, 'integration-test', ?, ?, 0)
+                """, id, title, BigDecimal.ZERO, status);
+    }
+
+    private void insertChapter(long id, long courseId) {
+        chapterIds.add(id);
+        jdbc().update("INSERT INTO course_chapter (id, course_id, title, sort_order) VALUES (?, ?, ?, 1)",
+                id, courseId, "集成测试章节");
+    }
+
+    private long uniqueBase() {
+        return 8_000_000_000_000_000L + (UUID.randomUUID().getMostSignificantBits() & 0x0000FFFFFFFFFFFFL);
+    }
+
+    private String mysqlUrl() {
+        String explicit = System.getProperty("learnhub.admin.course.it.mysql-url");
+        if (explicit != null && !explicit.isBlank()) return explicit;
+        String host = property("learnhub.admin.course.it.mysql-host", "localhost");
+        String port = property("learnhub.admin.course.it.mysql-port", "13306");
+        String database = property("learnhub.admin.course.it.mysql-database", "learnhub_admin_course_it");
+        return "jdbc:mysql://" + host + ":" + port + "/" + database
+                + "?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai";
+    }
+
+    private String property(String name, String defaultValue) {
+        return System.getProperty(name, defaultValue);
+    }
+
+    private JdbcTemplate jdbc() {
+        return context.getBean(JdbcTemplate.class);
+    }
+
+    private AdminCourseService adminService() {
+        return context.getBean(AdminCourseService.class);
+    }
+
+    private CourseService courseService() {
+        return context.getBean(CourseService.class);
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @EnableAutoConfiguration
+    @MapperScan(basePackageClasses = {
+            CourseMapper.class, CourseChapterMapper.class, CourseLessonMapper.class, LearningProgressMapper.class
+    })
+    @Import({InfrastructureConfig.class, AdminCourseService.class, CourseService.class})
+    static class AdminCourseTestApplication {
+        @Bean MediaAssetService mediaAssetService() { return mock(MediaAssetService.class); }
+        @Bean LikeService likeService() { return mock(LikeService.class); }
+        @Bean CourseOrderService courseOrderService() { return mock(CourseOrderService.class); }
+        @Bean CourseIndexTaskService courseIndexTaskService() { return mock(CourseIndexTaskService.class); }
+    }
+}

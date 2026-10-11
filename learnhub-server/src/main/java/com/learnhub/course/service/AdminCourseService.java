@@ -2,6 +2,7 @@ package com.learnhub.course.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.learnhub.common.exception.BusinessException;
 import com.learnhub.course.dto.AdminCourseRequests;
 import com.learnhub.course.dto.CourseDetailResponse;
@@ -14,7 +15,6 @@ import com.learnhub.course.model.CourseLesson;
 import com.learnhub.search.CourseIndexTaskService;
 import com.learnhub.storage.MediaAssetService;
 import com.learnhub.storage.MediaResponses;
-import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -40,8 +40,10 @@ public class AdminCourseService {
         this.indexTaskService = indexTaskService;
     }
 
-    public List<Course> list() {
-        return courseMapper.selectList(new LambdaQueryWrapper<Course>().orderByDesc(Course::getId));
+    public Page<Course> list(long page) {
+        long safePage = Math.max(1, page);
+        return courseMapper.selectPage(Page.of(safePage, 10),
+                new LambdaQueryWrapper<Course>().orderByDesc(Course::getId));
     }
 
     public CourseDetailResponse detail(Long courseId) {
@@ -109,7 +111,7 @@ public class AdminCourseService {
         requireCourse(courseId);
         CourseChapter chapter = new CourseChapter();
         chapter.setCourseId(courseId);
-        chapter.setTitle(request.title().trim());
+        chapter.setTitle(requiredTrim(request.title(), "章节标题不能为空"));
         chapter.setSortOrder(request.sortOrder());
         chapterMapper.insert(chapter);
         return chapter.getId();
@@ -117,15 +119,23 @@ public class AdminCourseService {
 
     @Transactional
     public Long createLesson(Long chapterId, AdminCourseRequests.CreateLesson request) {
-        if (chapterMapper.selectById(chapterId) == null) throw new BusinessException("章节不存在");
+        CourseChapter chapter = chapterMapper.selectById(chapterId);
+        if (chapter == null) throw new BusinessException("章节不存在");
+        requireCourse(chapter.getCourseId());
         CourseLesson lesson = new CourseLesson();
         lesson.setChapterId(chapterId);
-        lesson.setTitle(request.title().trim());
+        lesson.setTitle(requiredTrim(request.title(), "课时标题不能为空"));
         lesson.setDurationSeconds(request.durationSeconds());
         lesson.setFreePreview(request.freePreview());
         lesson.setSortOrder(request.sortOrder());
         lessonMapper.insert(lesson);
         return lesson.getId();
+    }
+
+    @Transactional
+    public void deleteLesson(Long lessonId) {
+        if (lessonMapper.selectById(lessonId) == null) throw new BusinessException("课时不存在");
+        lessonMapper.deleteById(lessonId);
     }
 
     @Transactional

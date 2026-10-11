@@ -2,7 +2,6 @@ package com.learnhub.profile;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.learnhub.course.mapper.LearningProgressMapper;
-import com.learnhub.course.model.LearningProgress;
 import com.learnhub.interaction.favorite.FavoriteRecord;
 import com.learnhub.interaction.favorite.FavoriteRecordMapper;
 import com.learnhub.interaction.qa.AnswerEntity;
@@ -32,9 +31,7 @@ public class ProfileOverviewService {
 
     public ProfileOverviewResponse overview(Long userId) {
         long learningCourses = progressMapper.countLearningCourses(userId);
-        long completedLessons = progressMapper.selectCount(new LambdaQueryWrapper<LearningProgress>()
-                .eq(LearningProgress::getUserId, userId)
-                .eq(LearningProgress::getCompleted, true));
+        long completedLessons = progressMapper.countCompletedLessons(userId);
         long favoriteCourses = favoriteMapper.selectCount(new LambdaQueryWrapper<FavoriteRecord>()
                 .eq(FavoriteRecord::getUserId, userId)
                 .eq(FavoriteRecord::getTargetType, "COURSE"));

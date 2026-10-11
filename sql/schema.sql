@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS course_lesson (
     sort_order INT NOT NULL DEFAULT 0 COMMENT '展示排序序号，数值越小越靠前',
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间，精确到毫秒',
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间，记录修改时自动更新，精确到毫秒',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标记：0正常，1已删除',
     KEY idx_lesson_chapter (chapter_id, sort_order),
     KEY idx_lesson_media_asset (media_asset_id)
 ) COMMENT='课程课时表';

@@ -3,6 +3,7 @@ package com.learnhub.profile;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.learnhub.course.mapper.LearningProgressMapper;
@@ -21,7 +22,7 @@ class ProfileOverviewServiceTest {
         QuestionMapper questionMapper = mock(QuestionMapper.class);
         AnswerMapper answerMapper = mock(AnswerMapper.class);
         when(progressMapper.countLearningCourses(7L)).thenReturn(2L);
-        when(progressMapper.selectCount(any())).thenReturn(4L);
+        when(progressMapper.countCompletedLessons(7L)).thenReturn(4L);
         when(favoriteMapper.selectCount(any())).thenReturn(3L);
         when(questionMapper.selectCount(any())).thenReturn(5L);
         when(answerMapper.selectCount(any())).thenReturn(6L);
@@ -45,6 +46,7 @@ class ProfileOverviewServiceTest {
         assertThat(response.qaContributionCount()).isEqualTo(11);
         assertThat(response.recentLearning().percentage()).isEqualTo(50);
         assertThat(response.recentLearning().lessonTitle()).isEqualTo("设计 REST API");
+        verify(progressMapper).countCompletedLessons(7L);
     }
 
     @Test

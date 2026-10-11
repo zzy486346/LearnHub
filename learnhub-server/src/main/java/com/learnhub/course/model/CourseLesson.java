@@ -1,6 +1,7 @@
 package com.learnhub.course.model;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -15,6 +16,8 @@ public class CourseLesson {
     private Integer durationSeconds;
     private Boolean freePreview;
     private Integer sortOrder;
+    @TableLogic
+    private Integer deleted;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -32,4 +35,6 @@ public class CourseLesson {
     public void setFreePreview(Boolean freePreview) { this.freePreview = freePreview; }
     public Integer getSortOrder() { return sortOrder; }
     public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
+    public Integer getDeleted() { return deleted; }
+    public void setDeleted(Integer deleted) { this.deleted = deleted; }
 }

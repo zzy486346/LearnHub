@@ -1,5 +1,6 @@
 package com.learnhub.course.controller;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.learnhub.auth.security.LearnHubPrincipal;
 import com.learnhub.common.api.ApiResponse;
 import com.learnhub.course.dto.AdminCourseRequests;
@@ -8,15 +9,16 @@ import com.learnhub.course.model.Course;
 import com.learnhub.course.service.AdminCourseService;
 import com.learnhub.storage.MediaResponses;
 import jakarta.validation.Valid;
-import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -31,8 +33,8 @@ public class AdminCourseController {
     }
 
     @GetMapping("/courses")
-    public ApiResponse<List<Course>> courses() {
-        return ApiResponse.success(service.list());
+    public ApiResponse<Page<Course>> courses(@RequestParam(defaultValue = "1") long page) {
+        return ApiResponse.success(service.list(page));
     }
 
     @GetMapping("/courses/{courseId}")
@@ -74,6 +76,12 @@ public class AdminCourseController {
     public ApiResponse<Long> createLesson(@PathVariable Long chapterId,
                                           @Valid @RequestBody AdminCourseRequests.CreateLesson request) {
         return ApiResponse.success(service.createLesson(chapterId, request));
+    }
+
+    @DeleteMapping("/lessons/{lessonId}")
+    public ApiResponse<Void> deleteLesson(@PathVariable Long lessonId) {
+        service.deleteLesson(lessonId);
+        return ApiResponse.success(null);
     }
 
     @PostMapping(value = "/lessons/{lessonId}/video", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

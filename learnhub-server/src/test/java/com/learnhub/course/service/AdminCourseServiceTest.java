@@ -1,16 +1,21 @@
 package com.learnhub.course.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.learnhub.common.exception.BusinessException;
 import com.learnhub.course.dto.AdminCourseRequests;
 import com.learnhub.course.mapper.CourseChapterMapper;
 import com.learnhub.course.mapper.CourseLessonMapper;
 import com.learnhub.course.mapper.CourseMapper;
 import com.learnhub.course.model.Course;
+import com.learnhub.course.model.CourseChapter;
 import com.learnhub.course.model.CourseLesson;
 import com.learnhub.search.CourseIndexTaskService;
 import com.learnhub.storage.MediaAssetService;
@@ -20,6 +25,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockMultipartFile;
 
 class AdminCourseServiceTest {
@@ -63,6 +69,85 @@ class AdminCourseServiceTest {
 
         verify(courseMapper).update(any(), any());
         verify(indexTaskService).enqueue(88L);
+    }
+
+    @Test
+    void listsCoursesWithFixedTenItemPageAndSafePageBoundary() {
+        when(courseMapper.selectPage(any(Page.class), any(Wrapper.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        Page<Course> result = service.list(0);
+
+        ArgumentCaptor<Page<Course>> pageCaptor = ArgumentCaptor.forClass(Page.class);
+        ArgumentCaptor<Wrapper<Course>> queryCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(courseMapper).selectPage(pageCaptor.capture(), queryCaptor.capture());
+        assertThat(result).isSameAs(pageCaptor.getValue());
+        assertThat(pageCaptor.getValue().getCurrent()).isEqualTo(1);
+        assertThat(pageCaptor.getValue().getSize()).isEqualTo(10);
+        assertThat(queryCaptor.getValue()).isNotNull();
+    }
+
+    @Test
+    void createsTrimmedLessonOnlyWhenChapterAndCourseExist() {
+        CourseChapter chapter = new CourseChapter();
+        chapter.setId(2001L);
+        chapter.setCourseId(1001L);
+        Course course = new Course();
+        course.setId(1001L);
+        when(chapterMapper.selectById(2001L)).thenReturn(chapter);
+        when(courseMapper.selectById(1001L)).thenReturn(course);
+        when(lessonMapper.insert(any(CourseLesson.class))).thenAnswer(invocation -> {
+            CourseLesson lesson = invocation.getArgument(0);
+            lesson.setId(3001L);
+            assertThat(lesson.getTitle()).isEqualTo("第一课");
+            return 1;
+        });
+
+        Long lessonId = service.createLesson(2001L,
+                new AdminCourseRequests.CreateLesson("  第一课  ", 60, true, 1));
+
+        assertThat(lessonId).isEqualTo(3001L);
+    }
+
+    @Test
+    void rejectsLessonCreationForMissingParentsOrBlankTitle() {
+        assertThatThrownBy(() -> service.createLesson(404L,
+                new AdminCourseRequests.CreateLesson("第一课", 60, true, 1)))
+                .isInstanceOf(BusinessException.class).hasMessage("章节不存在");
+
+        CourseChapter orphan = new CourseChapter();
+        orphan.setId(2001L);
+        orphan.setCourseId(404L);
+        when(chapterMapper.selectById(2001L)).thenReturn(orphan);
+        assertThatThrownBy(() -> service.createLesson(2001L,
+                new AdminCourseRequests.CreateLesson("第一课", 60, true, 1)))
+                .isInstanceOf(BusinessException.class).hasMessage("课程不存在");
+
+        CourseChapter chapter = new CourseChapter();
+        chapter.setId(2002L);
+        chapter.setCourseId(1001L);
+        Course course = new Course();
+        course.setId(1001L);
+        when(chapterMapper.selectById(2002L)).thenReturn(chapter);
+        when(courseMapper.selectById(1001L)).thenReturn(course);
+        assertThatThrownBy(() -> service.createLesson(2002L,
+                new AdminCourseRequests.CreateLesson("   ", 60, true, 1)))
+                .isInstanceOf(BusinessException.class).hasMessage("课时标题不能为空");
+    }
+
+    @Test
+    void logicallyDeletesLessonOnceAndRejectsRepeatedOrMissingDelete() {
+        CourseLesson lesson = new CourseLesson();
+        lesson.setId(3001L);
+        when(lessonMapper.selectById(3001L)).thenReturn(lesson).thenReturn(null);
+
+        service.deleteLesson(3001L);
+
+        verify(lessonMapper).deleteById(3001L);
+        assertThatThrownBy(() -> service.deleteLesson(3001L))
+                .isInstanceOf(BusinessException.class).hasMessage("课时不存在");
+        assertThatThrownBy(() -> service.deleteLesson(9999L))
+                .isInstanceOf(BusinessException.class).hasMessage("课时不存在");
     }
 
     @Test

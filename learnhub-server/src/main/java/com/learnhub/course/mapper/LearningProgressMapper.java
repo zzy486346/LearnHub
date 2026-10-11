@@ -14,7 +14,7 @@ public interface LearningProgressMapper extends BaseMapper<LearningProgress> {
             SELECT lp.* FROM learning_progress lp
             JOIN course_lesson cl ON cl.id = lp.lesson_id
             JOIN course_chapter cc ON cc.id = cl.chapter_id
-            WHERE lp.user_id = #{userId} AND cc.course_id = #{courseId}
+            WHERE lp.user_id = #{userId} AND cc.course_id = #{courseId} AND cl.deleted = 0
             ORDER BY cc.sort_order, cl.sort_order
             """)
     List<LearningProgress> selectByUserAndCourse(@Param("userId") Long userId, @Param("courseId") Long courseId);
@@ -22,7 +22,7 @@ public interface LearningProgressMapper extends BaseMapper<LearningProgress> {
     @Select("""
             SELECT COUNT(*) FROM course_lesson cl
             JOIN course_chapter cc ON cc.id = cl.chapter_id
-            WHERE cl.id = #{lessonId} AND cc.course_id = #{courseId}
+            WHERE cl.id = #{lessonId} AND cc.course_id = #{courseId} AND cl.deleted = 0
             """)
     long countLessonInCourse(@Param("lessonId") Long lessonId, @Param("courseId") Long courseId);
 
@@ -32,17 +32,24 @@ public interface LearningProgressMapper extends BaseMapper<LearningProgress> {
                 FROM learning_progress lp
                 JOIN course_lesson cl ON cl.id = lp.lesson_id
                 JOIN course_chapter cc ON cc.id = cl.chapter_id
-                WHERE lp.user_id = #{userId}
+                WHERE lp.user_id = #{userId} AND cl.deleted = 0
                 GROUP BY cc.course_id
                 HAVING SUM(CASE WHEN lp.completed = 1 THEN 1 ELSE 0 END) < (
                     SELECT COUNT(*)
                     FROM course_lesson all_lessons
                     JOIN course_chapter all_chapters ON all_chapters.id = all_lessons.chapter_id
-                    WHERE all_chapters.course_id = cc.course_id
+                    WHERE all_chapters.course_id = cc.course_id AND all_lessons.deleted = 0
                 )
             ) active_courses
             """)
     long countLearningCourses(@Param("userId") Long userId);
+
+    @Select("""
+            SELECT COUNT(*) FROM learning_progress lp
+            JOIN course_lesson cl ON cl.id = lp.lesson_id
+            WHERE lp.user_id = #{userId} AND lp.completed = 1 AND cl.deleted = 0
+            """)
+    long countCompletedLessons(@Param("userId") Long userId);
 
     @Select("""
             SELECT cc.course_id AS course_id,
@@ -57,7 +64,7 @@ public interface LearningProgressMapper extends BaseMapper<LearningProgress> {
             JOIN course_lesson cl ON cl.id = lp.lesson_id
             JOIN course_chapter cc ON cc.id = cl.chapter_id
             JOIN course c ON c.id = cc.course_id
-            WHERE lp.user_id = #{userId}
+            WHERE lp.user_id = #{userId} AND cl.deleted = 0
             ORDER BY lp.last_learned_at DESC
             LIMIT 1
             """)
