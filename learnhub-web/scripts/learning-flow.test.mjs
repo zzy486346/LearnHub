@@ -71,6 +71,7 @@ async function mountCourseDetail(detail) {
       favoriteStatus: () => result(false),
     },
     orderApi: {},
+    couponApi: {},
     useAuthStore: () => reactive({ authenticated: false }),
     useRoute: () => route,
     useRouter: () => ({ push: async () => {} }),
@@ -82,7 +83,7 @@ async function mountCourseDetail(detail) {
     .replace(/from ['"]vue['"]/g, `from ${JSON.stringify(vueUrl)}`)
     .replace(/import \{ useRoute, useRouter \} from ['"]vue-router['"]/, 'const { useRoute, useRouter } = globalThis.courseDetailHarness')
     .replace(/import \{ ElMessage \} from ['"]element-plus['"]/, 'const { ElMessage } = globalThis.courseDetailHarness')
-    .replace(/import \{ courseApi, orderApi \} from ['"]@\/api['"]/, 'const { courseApi, orderApi } = globalThis.courseDetailHarness')
+    .replace(/import \{ couponApi, courseApi, orderApi \} from ['"]@\/api['"]/, 'const { couponApi, courseApi, orderApi } = globalThis.courseDetailHarness')
     .replace(/import \{ isSessionExpired \} from ['"]@\/api\/session['"]/, "const isSessionExpired = error => error?.code === 'AUTH_SESSION_EXPIRED'")
     .replace(/import \{ useAuthStore \} from ['"]@\/stores\/auth['"]/, 'const { useAuthStore } = globalThis.courseDetailHarness')
   const code = ts.transpileModule(compiled, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText

@@ -2,10 +2,10 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { courseApi, orderApi } from '@/api'
+import { couponApi, courseApi, orderApi } from '@/api'
 import { isSessionExpired } from '@/api/session'
 import { useAuthStore } from '@/stores/auth'
-import type { Course, CourseOrder, Lesson } from '@/types'
+import type { Course, CourseOrder, Lesson, MyCoupon } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -16,12 +16,18 @@ const errorMessage = ref('')
 const likeAnnouncement = ref('')
 const creatingOrder = ref(false)
 const paying = ref(false)
+const couponLoading = ref(false)
+const usableCoupons = ref<MyCoupon[]>([])
+const selectedCouponClaimId = ref('')
 const orderDialogVisible = ref(false)
 const activeOrder = ref<CourseOrder | null>(null)
 let loadGeneration = 0
 const lessons = computed(() => course.value?.chapters?.flatMap((chapter) => chapter.lessons || []) ?? [])
 const firstAccessibleLesson = computed(() => lessons.value.find((lesson) => lesson.accessible) ?? null)
 const hasFullAccess = computed(() => course.value?.accessLevel === 'FULL')
+const selectedCoupon = computed(() => usableCoupons.value.find(item => item.claimId === selectedCouponClaimId.value))
+const estimatedDiscount = computed(() => Math.min(Number(course.value?.price || 0), Number(selectedCoupon.value?.discountAmount || 0)))
+const estimatedPayable = computed(() => Math.max(0, Number(course.value?.price || 0) - estimatedDiscount.value))
 
 async function loadCourse() {
   const generation = ++loadGeneration
@@ -93,23 +99,45 @@ async function openPurchase() {
     ElMessage.info('你已购买该课程')
     return
   }
-  creatingOrder.value = true
+  activeOrder.value = null
+  selectedCouponClaimId.value = ''
+  usableCoupons.value = []
+  orderDialogVisible.value = true
+  couponLoading.value = true
   try {
-    const order = (await orderApi.createCourseOrder(requestedCourseId)).data.data
+    const wallet = (await couponApi.mine()).data.data || []
     if (course.value?.id !== requestedCourseId) return
-    activeOrder.value = order
-    if (activeOrder.value.status === 'PAID') {
-      await loadCourse()
-      ElMessage.success('课程已解锁')
-      return
-    }
-    orderDialogVisible.value = true
+    const now = Date.now()
+    const price = Number(course.value.price || 0)
+    usableCoupons.value = wallet.filter(item => item.status === 'AVAILABLE'
+      && Number(item.thresholdAmount || 0) <= price
+      && new Date(item.useStartAt).getTime() <= now
+      && now < new Date(item.useEndAt).getTime())
   } catch (error) {
     if (isSessionExpired(error)) return
-    ElMessage.error('订单创建失败，请稍后重试')
+    ElMessage.error('可用优惠券加载失败，请稍后重试')
   } finally {
-    creatingOrder.value = false
+    couponLoading.value = false
   }
+}
+
+async function createOrder() {
+  if (!course.value || creatingOrder.value) return
+  const requestedCourseId = course.value.id
+  creatingOrder.value = true
+  try {
+    const order = (await orderApi.createCourseOrder(requestedCourseId, selectedCouponClaimId.value || undefined)).data.data
+    if (course.value?.id !== requestedCourseId) return
+    activeOrder.value = order
+    if (order.status === 'PAID') {
+      orderDialogVisible.value = false
+      await loadCourse()
+      ElMessage.success('课程已解锁')
+    }
+  } catch (error) {
+    if (isSessionExpired(error)) return
+    ElMessage.error((error as { response?: { data?: { message?: string } } }).response?.data?.message || '订单创建失败，请稍后重试')
+  } finally { creatingOrder.value = false }
 }
 
 async function payOrder() {
@@ -126,7 +154,7 @@ async function payOrder() {
     await loadCourse()
   } catch (error) {
     if (isSessionExpired(error)) return
-    ElMessage.error('支付失败，请稍后重试')
+    ElMessage.error((error as { response?: { data?: { message?: string } } }).response?.data?.message || '支付失败，请稍后重试')
   } finally {
     paying.value = false
   }
@@ -199,10 +227,29 @@ watch(() => route.params.id, loadCourse, { immediate: true })
           <div><span>课程</span><strong>{{ activeOrder.courseTitle }}</strong></div>
           <div><span>订单号</span><strong>{{ activeOrder.orderNo }}</strong></div>
           <div><span>课程原价</span><strong>¥{{ Number(activeOrder.originalAmount || 0).toFixed(2) }}</strong></div>
-          <div class="order-payable"><span>本次支付</span><strong>¥0.00</strong></div>
-          <p>当前为零元支付，确认后将立即解锁全部课时。</p>
+          <div><span>优惠抵扣</span><strong>-¥{{ Number(activeOrder.discountAmount || 0).toFixed(2) }}</strong></div>
+          <div class="order-payable"><span>应付金额</span><strong>¥{{ Number(activeOrder.payableAmount ?? activeOrder.originalAmount).toFixed(2) }}</strong></div>
+          <p v-if="activeOrder.paymentMode === 'LOCAL_DEMO'">本机演示支付：不会请求支付宝或微信，也不会发生真实扣款。确认后按应付金额记录订单并解锁课程。</p>
+          <p v-else role="alert">当前环境未启用支付，请稍后再试或取消待支付订单。</p>
         </div>
-        <template #footer><el-button :disabled="paying" @click="orderDialogVisible = false">取消</el-button><el-button type="primary" :loading="paying" @click="payOrder">确认支付 ¥0.00</el-button></template>
+        <div v-else class="order-summary" :aria-busy="couponLoading">
+          <div><span>课程</span><strong>{{ course.title }}</strong></div>
+          <div><span>课程原价</span><strong>¥{{ Number(course.price || 0).toFixed(2) }}</strong></div>
+          <el-form-item label="选择优惠券">
+            <el-select v-model="selectedCouponClaimId" :loading="couponLoading" clearable placeholder="不使用优惠券" style="width:100%">
+              <el-option v-for="item in usableCoupons" :key="item.claimId" :value="item.claimId" :label="`${item.name} · 减 ¥${Number(item.discountAmount).toFixed(2)}`" />
+            </el-select>
+          </el-form-item>
+          <p v-if="!couponLoading && !usableCoupons.length">当前没有满足金额和有效期条件的优惠券。</p>
+          <div><span>优惠抵扣</span><strong>-¥{{ estimatedDiscount.toFixed(2) }}</strong></div>
+          <div class="order-payable"><span>预计应付</span><strong>¥{{ estimatedPayable.toFixed(2) }}</strong></div>
+          <p>下一步会创建待支付订单并锁定所选优惠券。</p>
+        </div>
+        <template #footer>
+          <el-button :disabled="paying || creatingOrder" @click="orderDialogVisible = false">关闭</el-button>
+          <el-button v-if="!activeOrder" type="primary" :loading="creatingOrder" :disabled="couponLoading" @click="createOrder">创建订单</el-button>
+          <el-button v-else type="primary" :loading="paying" :disabled="activeOrder.paymentMode === 'DISABLED'" @click="payOrder">本机演示支付 ¥{{ Number(activeOrder.payableAmount ?? activeOrder.originalAmount).toFixed(2) }}</el-button>
+        </template>
       </el-dialog>
     </template>
   </section>

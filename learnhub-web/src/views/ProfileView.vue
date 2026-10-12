@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { AxiosError } from 'axios'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { authApi, orderApi, profileApi } from '@/api'
 import { clearTokens } from '@/api/http'
 import { isSessionExpired } from '@/api/session'
@@ -22,6 +22,8 @@ const orders = ref<CourseOrder[]>([])
 const loadingOrders = ref(true)
 const ordersError = ref(false)
 const payingOrderId = ref<string>()
+const processingOrderId = ref<string>()
+const couponsKey = ref(0)
 const changingPassword = ref(false)
 const passwordDialogVisible = ref(false)
 const passwordError = ref('')
@@ -79,10 +81,60 @@ async function payPendingOrder(order: CourseOrder) {
     ElMessage.success('支付成功，课程已解锁')
   } catch (error) {
     if (isSessionExpired(error)) return
-    ElMessage.error('支付失败，请稍后重试')
+    ElMessage.error((error as { response?: { data?: { message?: string } } }).response?.data?.message || '支付失败，请稍后重试')
   } finally {
     payingOrderId.value = undefined
   }
+}
+
+function replaceOrder(updated: CourseOrder) {
+  const index = orders.value.findIndex(item => item.id === updated.id)
+  if (index >= 0) orders.value[index] = updated
+}
+
+async function cancelOrder(order: CourseOrder) {
+  if (processingOrderId.value) return
+  try {
+    await ElMessageBox.confirm('取消后，订单锁定的优惠券会退回券包。', '取消待支付订单', {
+      type: 'warning', confirmButtonText: '确认取消', cancelButtonText: '保留订单',
+    })
+  } catch { return }
+  processingOrderId.value = order.id
+  try {
+    replaceOrder((await orderApi.cancel(order.id)).data.data)
+    couponsKey.value++
+    ElMessage.success('订单已取消，优惠券已退回')
+  } catch (error) {
+    if (!isSessionExpired(error)) ElMessage.error((error as { response?: { data?: { message?: string } } }).response?.data?.message || '订单取消失败')
+  } finally { processingOrderId.value = undefined }
+}
+
+async function refundOrder(order: CourseOrder) {
+  if (processingOrderId.value) return
+  try {
+    await ElMessageBox.confirm('退款后将立即撤销该课程的已购学习权益，已使用优惠券会退回券包。', '申请本机演示退款', {
+      type: 'warning', confirmButtonText: '确认退款', cancelButtonText: '暂不退款',
+    })
+  } catch { return }
+  processingOrderId.value = order.id
+  try {
+    replaceOrder((await orderApi.refund(order.id)).data.data)
+    couponsKey.value++
+    await loadOverview()
+    ElMessage.success('退款完成，课程权益已撤销，优惠券已退回')
+  } catch (error) {
+    if (!isSessionExpired(error)) ElMessage.error((error as { response?: { data?: { message?: string } } }).response?.data?.message || '退款失败')
+  } finally { processingOrderId.value = undefined }
+}
+
+function orderStatusLabel(status: CourseOrder['status']) {
+  return ({ PENDING: '待支付', PAID: '已支付', CANCELLED: '已取消', CLOSED: '已关闭', REFUNDED: '已退款' } as const)[status]
+}
+
+function orderStatusType(status: CourseOrder['status']) {
+  if (status === 'PAID') return 'success'
+  if (status === 'PENDING') return 'warning'
+  return 'info'
 }
 
 function formatOrderTime(value?: string) {
@@ -267,7 +319,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <MyCoupons />
+    <MyCoupons :key="couponsKey" />
 
     <div class="profile-management-grid profile-orders-only">
       <div class="content-card profile-orders-card" :aria-busy="loadingOrders">
@@ -280,13 +332,22 @@ onBeforeUnmount(() => {
         <div v-else-if="orders.length" class="profile-order-list">
           <article v-for="order in orders" :key="order.id" class="profile-order-item">
             <div class="profile-order-main">
-              <div class="profile-order-title"><RouterLink :to="`/courses/${order.courseId}`">{{ order.courseTitle }}</RouterLink><el-tag :type="order.status === 'PAID' ? 'success' : 'warning'" size="small">{{ order.status === 'PAID' ? '已支付' : '待支付' }}</el-tag></div>
+              <div class="profile-order-title"><RouterLink :to="`/courses/${order.courseId}`">{{ order.courseTitle }}</RouterLink><el-tag :type="orderStatusType(order.status)" size="small">{{ orderStatusLabel(order.status) }}</el-tag></div>
               <p>订单号 {{ order.orderNo }}</p>
-              <small>{{ formatOrderTime(order.createdAt) }}</small>
+              <small>{{ formatOrderTime(order.createdAt) }}<template v-if="order.status === 'REFUNDED'"> · 退款后课程权益已撤销</template></small>
             </div>
-            <div class="profile-order-amount"><span>实付</span><strong>¥{{ Number(order.paidAmount ?? 0).toFixed(2) }}</strong><small>原价 ¥{{ Number(order.originalAmount || 0).toFixed(2) }}</small></div>
-            <el-button v-if="order.status === 'PENDING'" type="primary" :loading="payingOrderId === order.id" @click="payPendingOrder(order)">零元支付</el-button>
-            <RouterLink v-else class="profile-order-action" :to="`/courses/${order.courseId}`">进入课程</RouterLink>
+            <div class="profile-order-amount"><span>{{ order.status === 'PENDING' ? '应付' : '实付' }}</span><strong>¥{{ Number(order.status === 'PENDING' ? (order.payableAmount ?? order.originalAmount) : (order.paidAmount ?? 0)).toFixed(2) }}</strong><small>优惠 ¥{{ Number(order.discountAmount || 0).toFixed(2) }}</small></div>
+            <div class="profile-order-actions">
+              <template v-if="order.status === 'PENDING'">
+                <el-button type="primary" :loading="payingOrderId === order.id" :disabled="processingOrderId === order.id || order.paymentMode === 'DISABLED'" @click="payPendingOrder(order)">本机演示支付</el-button>
+                <el-button :loading="processingOrderId === order.id" :disabled="payingOrderId === order.id" @click="cancelOrder(order)">取消订单</el-button>
+              </template>
+              <template v-else-if="order.status === 'PAID'">
+                <RouterLink class="profile-order-action" :to="`/courses/${order.courseId}`">进入课程</RouterLink>
+                <el-button plain type="danger" :loading="processingOrderId === order.id" @click="refundOrder(order)">演示退款</el-button>
+              </template>
+              <RouterLink v-else-if="order.status !== 'REFUNDED'" class="profile-order-action" :to="`/courses/${order.courseId}`">查看课程</RouterLink>
+            </div>
           </article>
         </div>
         <div v-else class="profile-state profile-empty-state">

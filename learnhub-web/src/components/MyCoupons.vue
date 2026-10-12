@@ -48,7 +48,7 @@ onBeforeUnmount(() => { generation++; clearTimeout(timer) })
     <div v-if="loading" class="profile-state" role="status">正在加载优惠券…</div>
     <div v-else-if="error" class="profile-state profile-state-error" role="alert">{{ error }}</div>
     <div v-else-if="coupons.length" class="wallet-list">
-      <article v-for="item in coupons" :key="item.couponId" class="wallet-item">
+      <article v-for="item in coupons" :key="item.claimId || item.couponId" class="wallet-item">
         <div class="wallet-value">¥{{ money(item.discountAmount) }}</div>
         <div class="wallet-detail">
           <h3>{{ item.name }} <el-tag :type="item.status === 'AVAILABLE' ? 'success' : item.status === 'RESERVED' ? 'warning' : 'info'">{{ labels[item.status] }}</el-tag></h3>

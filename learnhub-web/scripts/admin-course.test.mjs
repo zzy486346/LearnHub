@@ -23,10 +23,14 @@ async function mount(publish = async () => {}, overrides = {}, confirm = async (
     list: (page = 1) => result({ records: [{ id: 7, title: '测试课程', status }], total: 1, current: page, size: 10 }),
     detail: id => result({ id, title: '测试课程', status, chapters: [] }),
     publishCourse: async id => { await publish(id); status = 'PUBLISHED' },
+    categories: () => result([{ id: 1, name: '后端开发', sortOrder: 1, status: 'ENABLED' }]),
+    tags: () => result([]),
+    courseTags: () => result([]),
     ...overrides,
   }
   globalThis.adminHarness = {
     adminCourseApi: api,
+    couponApi: {},
     ElMessage: { success: message => messages.push(['success', message]), error: message => messages.push(['error', message]), warning: message => messages.push(['warning', message]) },
     ElMessageBox: { confirm },
   }
@@ -34,7 +38,7 @@ async function mount(publish = async () => {}, overrides = {}, confirm = async (
     .replace('</script>', 'defineExpose({ selected, courses, publishing, publishCourse, selectCourse, loadCourses, coursePage, courseTotal, pageSize, changeCoursePage, openLessonDialog, lessonForm, createLesson, deleteLesson, deletingLessonId, submitting, createCourse, courseForm })\n</script>')
   const compiled = compileScript(parse(source).descriptor, { id: 'admin-course-test' }).content
     .replace(/from ['"]vue['"]/g, `from ${JSON.stringify(vueUrl)}`)
-    .replace(/import \{ adminCourseApi \} from ['"]@\/api['"]/, 'const { adminCourseApi } = globalThis.adminHarness')
+    .replace(/import \{ adminCourseApi, couponApi \} from ['"]@\/api['"]/, 'const { adminCourseApi, couponApi } = globalThis.adminHarness')
     .replace(/import \{ isSessionExpired \} from ['"]@\/api\/session['"]/, "const isSessionExpired = error => error?.code === 'AUTH_SESSION_EXPIRED'")
     .replace(/import \{ ElMessage, ElMessageBox \} from ['"]element-plus['"]/, 'const { ElMessage, ElMessageBox } = globalThis.adminHarness')
   const code = ts.transpileModule(compiled, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
@@ -167,7 +171,7 @@ test('第二页创建课程后回到第一页并选中新课程', async () => {
   })
   try {
     await view.changeCoursePage(2)
-    Object.assign(view.courseForm, { title: '新课', instructor: '讲师' })
+    Object.assign(view.courseForm, { categoryId: 1, title: '新课', instructor: '讲师' })
     await view.createCourse()
     assert.equal(view.coursePage, 1)
     assert.equal(view.selected.id, 99)
@@ -188,7 +192,7 @@ test('第二页创建后新课程详情失败，不保留上一页旧课程编�
     await view.changeCoursePage(2)
     await view.selectCourse(view.courses[0])
     assert.equal(view.selected.id, 11)
-    Object.assign(view.courseForm, { title: '新课', instructor: '讲师' })
+    Object.assign(view.courseForm, { categoryId: 1, title: '新课', instructor: '讲师' })
     await view.createCourse()
     assert.equal(view.coursePage, 1)
     assert.equal(view.courses[0].id, 99)
@@ -294,4 +298,38 @@ test('分页和删除API使用服务端对应请求，分页组件绑定10条和
   const view = await readFile(new URL('../src/views/AdminView.vue', import.meta.url), 'utf8')
   assert.match(view, /:total="courseTotal" :page-size="pageSize" :current-page="coursePage"/)
   assert.match(view, /@click="deleteLesson\(lesson\)"/)
+})
+
+test('新课程强制创建草稿，后台提供编辑、下架、封面、分类与标签契约', async () => {
+  const calls = []
+  globalThis.adminHttp = {
+    get: (...args) => { calls.push(['get', ...args]); return result([]) },
+    post: (...args) => { calls.push(['post', ...args]); return result(null) },
+    put: (...args) => { calls.push(['put', ...args]); return result(null) },
+    delete: (...args) => { calls.push(['delete', ...args]); return result(null) },
+  }
+  const source = (await readFile(new URL('../src/api/index.ts', import.meta.url), 'utf8'))
+    .replace(/import \{ http, logoutSession \} from ['"]\.\/http['"]/, 'const http = globalThis.adminHttp; const logoutSession = () => {}')
+  const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
+  const api = await import(`data:text/javascript;base64,${Buffer.from(code + `\n// ${++serial}`).toString('base64')}`)
+  await api.adminCourseApi.updateCourse(7, { title: '新标题' })
+  await api.adminCourseApi.offlineCourse(7)
+  await api.adminCourseApi.updateChapter(8, { title: '章', sortOrder: 1 })
+  await api.adminCourseApi.updateLesson(9, { title: '课', durationSeconds: 60, freePreview: false, sortOrder: 1 })
+  await api.adminCourseApi.replaceCourseTags(7, [2, 3])
+  await api.adminCourseApi.categories()
+  await api.adminCourseApi.tags()
+  assert.deepEqual(calls, [
+    ['put', '/admin/courses/7', { title: '新标题' }],
+    ['post', '/admin/courses/7/offline'],
+    ['put', '/admin/chapters/8', { title: '章', sortOrder: 1 }],
+    ['put', '/admin/lessons/9', { title: '课', durationSeconds: 60, freePreview: false, sortOrder: 1 }],
+    ['put', '/admin/courses/7/tags', { tagIds: [2, 3] }],
+    ['get', '/admin/course-categories'],
+    ['get', '/admin/course-tags'],
+  ])
+  const view = await readFile(new URL('../src/views/AdminView.vue', import.meta.url), 'utf8')
+  assert.doesNotMatch(view, /立即发布/)
+  assert.match(view, /status: 'DRAFT'/)
+  assert.match(view, /至少包含章节、课时和可用视频后才能发布/)
 })

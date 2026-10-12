@@ -30,7 +30,7 @@ function label(item: Coupon) {
   if (claiming.value.includes(item.id)) return '提交中'
   if (claimed(item)) return '已领取'
   if (pending(item)) return '处理中'
-  return ({ UPCOMING: '尚未开始', ENDED: '已结束', DISABLED: '已下架', SOLD_OUT: '已抢光' } as Record<string, string>)[activityStatus(item)]
+  return ({ UPCOMING: '尚未开始', ENDED: '已结束', DISABLED: '已下架', SOLD_OUT: '已抢光', UNAVAILABLE: '库存暂不可用' } as Record<string, string>)[activityStatus(item)]
     || (item.seckill ? '立即秒杀' : '立即领取')
 }
 function formatDate(value: string) { return new Date(value).toLocaleString('zh-CN') }
@@ -106,7 +106,7 @@ onBeforeUnmount(() => { generation++; clearTimeout(timer) })
         <div>
           <el-tag :type="item.seckill ? 'danger' : 'success'">{{ item.seckill ? '限时秒杀' : '普通券' }}</el-tag>
           <h3>{{ item.name }}</h3>
-          <p>{{ item.thresholdAmount > 0 ? `满 ${formatMoney(item.thresholdAmount)} 元可用` : '无门槛' }} · 剩余 {{ item.stock }} 张</p>
+          <p>{{ item.thresholdAmount > 0 ? `满 ${formatMoney(item.thresholdAmount)} 元可用` : '无门槛' }} · {{ item.status === 'UNAVAILABLE' ? '库存服务暂不可用' : `剩余 ${item.stock} 张` }}</p>
           <small>领取截止：{{ formatDate(item.endAt) }}</small>
         </div>
         <el-button :type="item.seckill ? 'danger' : 'primary'" :loading="claiming.includes(item.id)"

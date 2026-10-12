@@ -7,6 +7,7 @@
     "test:auth": "node --test scripts/auth-session.test.mjs",
     "test:vote": "node --test scripts/vote-button.test.mjs",
     "test:coupon": "node --test scripts/coupon.test.mjs",
+    "test:commerce": "node --test scripts/commerce-flow.test.mjs",
     "test:search": "node --test scripts/course-search.test.mjs",
     "test:admin": "node --test scripts/admin-course.test.mjs",
     "test:learning": "node --test scripts/learning-flow.test.mjs",

@@ -22,7 +22,7 @@ async function mount(api, { reducedMotion = false } = {}) {
   globalThis.document = Object.assign(new EventTarget(), { hidden: false })
   globalThis.searchHarness = { courseApi: api }
   const source = (await readFile(new URL('../src/views/CourseListView.vue', import.meta.url), 'utf8'))
-    .replace('</script>', 'defineExpose({ courses, filters, total, loadError, loading, load, submitSearch, selectTag, fetchSuggestions, nextPage, previousPage, setHovered, setFocused, handleFocusIn })\n</script>')
+    .replace('</script>', 'defineExpose({ courses, filters, categories, availableTags, total, loadError, loading, load, submitSearch, selectCategory, selectTag, fetchSuggestions, nextPage, previousPage, setHovered, setFocused, handleFocusIn })\n</script>')
   const compiled = compileScript(parse(source).descriptor, { id: 'course-search-test' }).content
     .replace(/from ['"]vue['"]/g, `from ${JSON.stringify(vueUrl)}`)
     .replace(/import \{ courseApi \} from ['"]@\/api['"]/, 'const { courseApi } = globalThis.searchHarness')
@@ -53,6 +53,25 @@ test('默认课程使用普通分页，关键词和多标签使用搜索分页',
   assert.equal(view.courses[0].title, '搜索课程')
   assert.equal(view.total, 21)
   app.unmount()
+})
+
+test('分类和标签来自公共接口，分类可与关键词标签组合提交', async () => {
+  const calls = []
+  const api = {
+    list: params => result({ records: [], total: 0, current: params.page, size: params.size }),
+    searchPage: params => { calls.push(params); return result({ records: [], total: 0, current: 1, size: 3 }) },
+    categories: () => result([{ id: 2, name: '人工智能', status: 'ENABLED', sortOrder: 1 }]),
+    tags: () => result([{ id: 8, name: '大模型' }]),
+  }
+  const { app, view } = await mount(api)
+  try {
+    assert.deepEqual(view.categories.map(item => item.name), ['人工智能'])
+    assert.deepEqual(view.availableTags.map(item => item.name), ['大模型'])
+    view.filters.keyword = '应用'
+    view.filters.tags.push('大模型')
+    await view.selectCategory(2)
+    assert.deepEqual(calls.at(-1), { keyword: '应用', categoryId: 2, tags: '大模型', page: 1, size: 3 })
+  } finally { app.unmount() }
 })
 
 test('较早的慢请求不能覆盖用户后发起的搜索', async () => {

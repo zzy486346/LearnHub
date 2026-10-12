@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { courseApi } from '@/api'
 import { isSessionExpired } from '@/api/session'
-import type { Course, CourseSearchResult } from '@/types'
+import type { Course, CourseCategory, CourseSearchResult, CourseTag } from '@/types'
 
 interface CourseCard {
   id: number
@@ -21,20 +21,21 @@ const courses = ref<CourseCard[]>([])
 const loading = ref(false)
 const loadError = ref('')
 const total = ref(0)
-const filters = reactive({ keyword: '', tags: [] as string[], current: 1, size: 3 })
-const activeQuery = reactive({ keyword: '', tags: [] as string[] })
+const filters = reactive({ keyword: '', categoryId: undefined as number | undefined, tags: [] as string[], current: 1, size: 3 })
+const activeQuery = reactive({ keyword: '', categoryId: undefined as number | undefined, tags: [] as string[] })
+const categories = ref<CourseCategory[]>([])
+const availableTags = ref<CourseTag[]>([])
 const carouselRegion = ref<HTMLElement | null>(null)
 const slideVersion = ref(0)
 const slideDirection = ref('next')
 const hovered = ref(false)
 const focused = ref(false)
 const regionVisible = ref(true)
-const paginationTotal = computed(() => activeQuery.keyword || activeQuery.tags.length ? Math.min(total.value, 9999) : total.value)
+const paginationTotal = computed(() => activeQuery.keyword || activeQuery.tags.length || activeQuery.categoryId ? Math.min(total.value, 9999) : total.value)
 const pageCount = computed(() => Math.ceil(paginationTotal.value / filters.size))
 let rotationTimer: ReturnType<typeof setTimeout> | undefined
 let visibilityObserver: IntersectionObserver | undefined
 let mounted = false
-const quickTags = ['Java', '架构', '搜索']
 let scrollFrame: number | undefined
 let loadGeneration = 0
 let suggestionGeneration = 0
@@ -63,9 +64,10 @@ async function load() {
   loadError.value = ''
   try {
     const keyword = activeQuery.keyword
-    if (keyword || activeQuery.tags.length) {
+    if (keyword || activeQuery.tags.length || activeQuery.categoryId) {
       const result = (await courseApi.searchPage({
         keyword,
+        ...(activeQuery.categoryId ? { categoryId: activeQuery.categoryId } : {}),
         tags: activeQuery.tags.length ? activeQuery.tags.join(',') : undefined,
         page: filters.current,
         size: filters.size,
@@ -74,7 +76,7 @@ async function load() {
       courses.value = result.records.map(toCourseCard)
       total.value = result.total
     } else {
-      const result = (await courseApi.list({ page: filters.current, size: filters.size })).data.data
+      const result = (await courseApi.list({ page: filters.current, size: filters.size, ...(activeQuery.categoryId ? { categoryId: activeQuery.categoryId } : {}) })).data.data
       if (generation !== loadGeneration) return
       courses.value = result.records.map(toCourseCard)
       total.value = result.total
@@ -94,6 +96,14 @@ async function load() {
       scheduleRotation()
     }
   }
+}
+
+async function loadTaxonomy() {
+  try {
+    const [categoryResult, tagResult] = await Promise.all([courseApi.categories(), courseApi.tags()])
+    categories.value = categoryResult.data.data || []
+    availableTags.value = tagResult.data.data || []
+  } catch { categories.value = []; availableTags.value = [] }
 }
 
 function scheduleRotation() {
@@ -144,13 +154,20 @@ onMounted(() => {
     if (carouselRegion.value) visibilityObserver.observe(carouselRegion.value)
   }
   void load()
+  void loadTaxonomy()
 })
 
 function submitSearch() {
   activeQuery.keyword = filters.keyword.trim()
+  activeQuery.categoryId = filters.categoryId
   activeQuery.tags = [...filters.tags]
   filters.current = 1
   return load()
+}
+
+function selectCategory(categoryId?: number) {
+  filters.categoryId = categoryId
+  return submitSearch()
 }
 
 function selectTag(tag: string) {
@@ -259,10 +276,10 @@ onBeforeUnmount(() => {
 
   <div id="featured-courses" class="section-heading">
     <div><p class="eyebrow">CURATED LEARNING</p><h2>精选课程</h2><p>按能力成长设计，让每一次学习都更接近真实工作。</p></div>
-    <div class="filter-chips" aria-label="课程标签筛选"><button v-for="tag in quickTags" :key="tag" type="button" :class="{ active: filters.tags.includes(tag) }" :aria-pressed="filters.tags.includes(tag)" @click="selectTag(tag)">{{ tag }}</button></div>
+    <div class="course-taxonomy-filters"><div class="filter-chips" aria-label="课程分类筛选"><button type="button" :class="{ active: !filters.categoryId }" :aria-pressed="!filters.categoryId" @click="selectCategory(undefined)">全部分类</button><button v-for="category in categories" :key="category.id" type="button" :class="{ active: filters.categoryId === category.id }" :aria-pressed="filters.categoryId === category.id" @click="selectCategory(category.id)">{{ category.name }}</button></div><div v-if="availableTags.length" class="filter-chips" aria-label="课程标签筛选"><button v-for="tag in availableTags" :key="tag.id" type="button" :class="{ active: filters.tags.includes(tag.name) }" :aria-pressed="filters.tags.includes(tag.name)" @click="selectTag(tag.name)">{{ tag.name }}</button></div></div>
   </div>
   <div v-if="loadError" class="content-card state-panel course-search-state" role="alert"><h3>暂时无法加载课程</h3><p>{{ loadError }}</p><el-button @click="load">重新加载</el-button></div>
-  <p v-else-if="activeQuery.keyword || activeQuery.tags.length" class="search-result-summary" aria-live="polite">找到 {{ total }} 门匹配课程</p>
+  <p v-else-if="activeQuery.keyword || activeQuery.tags.length || activeQuery.categoryId" class="search-result-summary" aria-live="polite">找到 {{ total }} 门匹配课程</p>
   <section v-if="!loadError" ref="carouselRegion" class="course-carousel" :class="{ 'is-auto-playing': !hovered && !focused }" aria-label="精选课程轮播" aria-roledescription="轮播" @mouseenter="setHovered(true)" @mouseleave="setHovered(false)" @focusin="handleFocusIn" @focusout="handleFocusOut">
   <div v-loading="loading && !courses.length" class="course-carousel-window" :aria-busy="loading">
   <Transition :name="slideDirection === 'previous' ? 'course-previous' : 'course-next'">
