@@ -2,6 +2,8 @@ package com.learnhub.interaction.favorite;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.learnhub.interaction.like.LikeTargetType;
+import com.learnhub.interaction.InteractionTargetService;
+import com.learnhub.common.exception.BusinessException;
 import java.time.LocalDateTime;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -10,13 +12,19 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class FavoriteService {
     private final FavoriteRecordMapper mapper;
+    private final InteractionTargetService targets;
 
-    public FavoriteService(FavoriteRecordMapper mapper) {
+    public FavoriteService(FavoriteRecordMapper mapper, InteractionTargetService targets) {
         this.mapper = mapper;
+        this.targets = targets;
     }
 
     @Transactional
     public boolean favorite(Long userId, LikeTargetType type, Long targetId) {
+        if (type != LikeTargetType.COURSE) {
+            throw new BusinessException("FAVORITE_TYPE_UNSUPPORTED", "当前仅支持收藏课程");
+        }
+        targets.requireVisible(userId, type, targetId);
         if (exists(userId, type, targetId)) return true;
         FavoriteRecord record = new FavoriteRecord();
         record.setUserId(userId);

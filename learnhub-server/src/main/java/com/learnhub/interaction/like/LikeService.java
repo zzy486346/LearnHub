@@ -2,6 +2,7 @@ package com.learnhub.interaction.like;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learnhub.interaction.InteractionTargetService;
 import java.time.Instant;
 import java.time.Duration;
 import java.util.List;
@@ -41,6 +42,7 @@ public class LikeService {
     private final boolean rabbitEnabled;
     private final Duration publisherConfirmTimeout;
     private final LikeSequenceService sequences;
+    private final InteractionTargetService targets;
 
     public LikeService(ObjectProvider<StringRedisTemplate> redisProvider,
                        ObjectProvider<RabbitTemplate> rabbitProvider,
@@ -48,7 +50,7 @@ public class LikeService {
                        ObjectMapper objectMapper,
                        @Value("${learnhub.rabbit.enabled:false}") boolean rabbitEnabled,
                        @Value("${learnhub.like.publisher-confirm-timeout:10s}") Duration publisherConfirmTimeout,
-                       LikeSequenceService sequences) {
+                       LikeSequenceService sequences, InteractionTargetService targets) {
         this.redis = redisProvider.getIfAvailable();
         this.rabbit = rabbitProvider.getIfAvailable();
         this.aggregationService = aggregationService;
@@ -56,9 +58,11 @@ public class LikeService {
         this.rabbitEnabled = rabbitEnabled;
         this.publisherConfirmTimeout = publisherConfirmTimeout;
         this.sequences = sequences;
+        this.targets = targets;
     }
 
     public LikeResult setLike(Long userId, LikeTargetType type, Long targetId, boolean liked) {
+        targets.requireVisible(userId, type, targetId);
         requireRedis();
         long sequence = sequences.next();
         LikeEvent event = new LikeEvent(UUID.randomUUID().toString(), userId, type, targetId,

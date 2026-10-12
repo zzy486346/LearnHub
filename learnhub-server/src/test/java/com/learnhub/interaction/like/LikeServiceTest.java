@@ -9,9 +9,13 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learnhub.course.mapper.CourseMapper;
+import com.learnhub.interaction.InteractionTargetService;
+import com.learnhub.common.exception.BusinessException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +35,7 @@ class LikeServiceTest {
     private SetOperations<String, String> sets;
     private LikeSequenceService sequences;
     private LikeService service;
+    private InteractionTargetService targets;
 
     @BeforeEach
     @SuppressWarnings("unchecked")
@@ -42,8 +47,18 @@ class LikeServiceTest {
         when(redis.opsForSet()).thenReturn(sets);
         sequences = mock(LikeSequenceService.class);
         when(sequences.next()).thenReturn(1L);
+        targets = mock(InteractionTargetService.class);
         service = new LikeService(provider(redis), provider(rabbit), aggregationService,
-                new ObjectMapper().findAndRegisterModules(), false, Duration.ofSeconds(1), sequences);
+                new ObjectMapper().findAndRegisterModules(), false, Duration.ofSeconds(1), sequences, targets);
+    }
+
+    @Test
+    void invisibleTargetIsRejectedBeforeAnyRedisSequenceOrMessageWrite() {
+        doThrow(new BusinessException("目标不可见")).when(targets)
+                .requireVisible(7L, LikeTargetType.COURSE, 1002L);
+        assertThatThrownBy(() -> service.setLike(7L, LikeTargetType.COURSE, 1002L, true))
+                .isInstanceOf(BusinessException.class);
+        verifyNoInteractions(redis, sequences, rabbit, aggregationService);
     }
 
     @Test
