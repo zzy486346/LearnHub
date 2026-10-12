@@ -173,9 +173,10 @@ test('较晚返回的旧请求复用已刷新令牌，不二次刷新', async ()
   assert.deepEqual(app.redirects, [])
 })
 
-async function authStore(app) {
+async function authStore(app, overrides = {}) {
   globalThis.storeHarness = {
-    authApi: { logout: app.logoutSession },
+    authApi: { logout: app.logoutSession, ...overrides },
+    SessionExpiredError: session.SessionExpiredError,
     ...app,
   }
   const source = (await readFile(new URL('../src/stores/auth.ts', import.meta.url), 'utf8'))
@@ -183,7 +184,8 @@ async function authStore(app) {
     .replace("from 'pinia'", `from '${moduleUrl('pinia')}'`)
     .replace("import { authApi } from '@/api'", 'const { authApi } = globalThis.storeHarness')
     .replace(/import \{\s*AUTH_SESSION_CLEARED_EVENT,[\s\S]*?\} from '@\/api\/http'/,
-      'const { AUTH_SESSION_CLEARED_EVENT, AUTH_SESSION_REPLACED_EVENT, clearTokens, replaceSessionFromStorage, saveTokens } = globalThis.storeHarness')
+      'const { AUTH_SESSION_CLEARED_EVENT, AUTH_SESSION_REPLACED_EVENT, clearTokens, getSessionGeneration, isCurrentSession, replaceSessionFromStorage, saveTokens } = globalThis.storeHarness')
+    .replace("import { SessionExpiredError } from '@/api/session'", 'const { SessionExpiredError } = globalThis.storeHarness')
   const module = await import(url(compile(source) + `\n// ${++serial}`))
   const pinia = createPinia()
   return module.useAuthStore(pinia)
@@ -461,6 +463,104 @@ test('其他标签页替换账号后清空旧用户并加载新账号资料', as
   assert.equal(meCalls, 1)
   assert.equal(store.user.username, 'new-user')
   assert.equal(store.authenticated, true)
+  store.$dispose()
+})
+
+test('旧账号刷新任务不被新账号复用，旧任务结束也不清除新刷新任务', async () => {
+  const app = await setup()
+  let releaseA
+  let releaseB
+  axios.defaults.adapter = config => {
+    const body = typeof config.data === 'string' ? JSON.parse(config.data) : config.data
+    return new Promise(resolve => {
+      if (body.refreshToken === 'refresh-token') {
+        releaseA = () => resolve(response(config, { data: { accessToken: 'late-a', refreshToken: 'late-a-refresh' } }))
+      } else {
+        releaseB = () => resolve(response(config, { data: { accessToken: 'fresh-b', refreshToken: 'fresh-b-refresh' } }))
+      }
+    })
+  }
+  app.http.defaults.adapter = async config => {
+    if (config.headers.Authorization === 'Bearer fresh-b') return response(config)
+    throw failure(config, 401)
+  }
+
+  const oldRequest = app.http.get('/account-a')
+  await new Promise(resolve => setImmediate(resolve))
+  app.saveTokens({ accessToken: 'account-b', refreshToken: 'account-b-refresh' })
+  const newRequest = app.http.get('/account-b')
+  await new Promise(resolve => setImmediate(resolve))
+  releaseA()
+  await assert.rejects(oldRequest, session.isSessionExpired)
+  assert.equal(app.storage.get(accessKey), 'account-b')
+  releaseB()
+  await newRequest
+  assert.equal(app.storage.get(accessKey), 'fresh-b')
+})
+
+test('旧登录资料和旧退出迟到后都不能覆盖或清理新账号', async () => {
+  const app = await setup()
+  let releaseOldProfile
+  let profileCalls = 0
+  let releaseLogout
+  const store = await authStore(app, {
+    login: async ({ username }) => response({}, { data: {
+      accessToken: `${username}-access`,
+      refreshToken: `${username}-refresh`,
+    } }),
+    me: async () => {
+      profileCalls++
+      if (profileCalls === 1) {
+        return new Promise(resolve => {
+          releaseOldProfile = () => resolve(response({}, { data: { id: 1, username: 'account-a', roles: [] } }))
+        })
+      }
+      return response({}, { data: { id: 2, username: 'account-b', roles: [] } })
+    },
+    logout: () => new Promise(resolve => { releaseLogout = resolve }),
+  })
+  const oldLogin = store.login('account-a', 'password')
+  await new Promise(resolve => setImmediate(resolve))
+  await store.login('account-b', 'password')
+  releaseOldProfile()
+  await oldLogin
+  assert.equal(store.user.username, 'account-b')
+  assert.equal(app.storage.get(accessKey), 'account-b-access')
+
+  const oldLogout = store.logout()
+  await new Promise(resolve => setImmediate(resolve))
+  await store.login('account-b', 'password')
+  releaseLogout()
+  await oldLogout
+  assert.equal(store.user.username, 'account-b')
+  assert.equal(store.authenticated, true)
+  assert.equal(app.storage.get(accessKey), 'account-b-access')
+  store.$dispose()
+})
+
+test('其他标签页换账号期间迟到的登录响应不能覆盖新账号', async () => {
+  const app = await setup()
+  let releaseLogin
+  const store = await authStore(app, {
+    login: () => new Promise(resolve => {
+      releaseLogin = () => resolve(response({}, { data: { accessToken: 'late-a', refreshToken: 'late-a-refresh' } }))
+    }),
+    me: async () => response({}, { data: { id: 2, username: 'account-b', roles: [] } }),
+  })
+  const oldLogin = store.login('account-a', 'password')
+  await new Promise(resolve => setImmediate(resolve))
+  app.storage.set(refreshKey, 'account-b-refresh')
+  app.storage.set(accessKey, 'account-b-access')
+  window.dispatchEvent(Object.assign(new Event('storage'), {
+    key: accessKey,
+    oldValue: 'expired-access',
+    newValue: 'account-b-access',
+  }))
+  await new Promise(resolve => setImmediate(resolve))
+  releaseLogin()
+  await assert.rejects(oldLogin, session.isSessionExpired)
+  assert.equal(app.storage.get(accessKey), 'account-b-access')
+  assert.equal(store.user.username, 'account-b')
   store.$dispose()
 })
 

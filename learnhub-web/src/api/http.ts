@@ -12,7 +12,8 @@ export const http = axios.create({
   timeout: 10_000,
 })
 
-let refreshing: Promise<string> | null = null
+type RefreshAttempt = { generation: number; promise: Promise<string> }
+let refreshing: RefreshAttempt | null = null
 let redirectingToLogin = false
 let loggingOut = false
 let sessionGeneration = 0
@@ -20,6 +21,7 @@ type SessionRequestConfig = InternalAxiosRequestConfig & { _retry?: boolean; _se
 
 export function saveTokens(tokens: TokenPair) {
   sessionGeneration++
+  refreshing = null
   redirectingToLogin = false
   loggingOut = false
   writeTokens(tokens)
@@ -31,18 +33,20 @@ function saveRefreshedTokens(tokens: TokenPair) {
 }
 
 function writeTokens(tokens: TokenPair) {
-  localStorage.setItem(ACCESS_KEY, tokens.accessToken)
   localStorage.setItem(REFRESH_KEY, tokens.refreshToken)
+  localStorage.setItem(ACCESS_KEY, tokens.accessToken)
 }
 
 export function replaceSessionFromStorage() {
   sessionGeneration++
+  refreshing = null
   redirectingToLogin = false
   loggingOut = false
 }
 
 export function clearTokens() {
   sessionGeneration++
+  refreshing = null
   localStorage.removeItem(ACCESS_KEY)
   localStorage.removeItem(REFRESH_KEY)
   window.dispatchEvent(new Event(AUTH_SESSION_CLEARED_EVENT))
@@ -51,6 +55,7 @@ export function clearTokens() {
 http.interceptors.request.use((config) => {
   const request = config as SessionRequestConfig
   request._sessionGeneration ??= sessionGeneration
+  if (request._sessionGeneration !== sessionGeneration) throw new SessionExpiredError()
   if (redirectingToLogin && !isAuthEndpoint(config.url)) throw new SessionExpiredError()
   const token = localStorage.getItem(ACCESS_KEY)
   if (token) config.headers.Authorization = `Bearer ${token}`
@@ -73,10 +78,30 @@ async function refreshAccessToken() {
   return data.data.accessToken
 }
 
+function refreshCurrentSession() {
+  if (refreshing?.generation === sessionGeneration) return refreshing.promise
+  const attempt = { generation: sessionGeneration } as RefreshAttempt
+  attempt.promise = refreshAccessToken().finally(() => {
+    if (refreshing === attempt) refreshing = null
+  })
+  refreshing = attempt
+  return attempt.promise
+}
+
+export function getSessionGeneration() {
+  return sessionGeneration
+}
+
+export function isCurrentSession(generation: number) {
+  return generation === sessionGeneration
+}
+
 export async function logoutSession() {
+  const generation = sessionGeneration
   loggingOut = true
   // 已开始的刷新可能轮换令牌；等它结束后撤销最新的一对凭据。
-  try { await refreshing } catch { /* 刷新失败仍尝试撤销现有凭据。 */ }
+  try { await refreshing?.promise } catch { /* 刷新失败仍尝试撤销现有凭据。 */ }
+  if (generation !== sessionGeneration) throw new SessionExpiredError()
   loggingOut = true
   const refreshToken = localStorage.getItem(REFRESH_KEY)
   return http.post<ApiResult<void>>('/auth/logout', refreshToken ? { refreshToken } : {})
@@ -126,9 +151,9 @@ http.interceptors.response.use(
       // 较晚返回的旧令牌请求复用刚刷新的令牌，避免再次消费旋转后的刷新令牌。
       let token = currentToken
       if (!currentToken || original.headers.Authorization === `Bearer ${currentToken}`) {
-        refreshing ??= refreshAccessToken().finally(() => { refreshing = null })
-        token = await refreshing
+        token = await refreshCurrentSession()
       }
+      if (generation !== sessionGeneration) return Promise.reject(new SessionExpiredError())
       original.headers.Authorization = `Bearer ${token}`
       return http(original)
     } catch (refreshError) {
