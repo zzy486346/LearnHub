@@ -336,14 +336,35 @@ public class CouponService {
 
     private Coupon toCoupon(CouponEntity entity) {
         LocalDateTime now = LocalDateTime.now();
+        boolean seckill = "SECKILL".equals(entity.getType());
+        Integer availableStock = entity.getAvailableStock();
         String status = !"ACTIVE".equals(entity.getStatus()) ? "DISABLED"
                 : now.isBefore(entity.getClaimStartAt()) ? "UPCOMING"
                 : !now.isBefore(entity.getClaimEndAt()) ? "ENDED"
-                : entity.getAvailableStock() <= 0 ? "SOLD_OUT" : "ACTIVE";
-        return new Coupon(entity.getId(), entity.getName(), entity.getAvailableStock(),
-                instant(entity.getClaimStartAt()), instant(entity.getClaimEndAt()), "SECKILL".equals(entity.getType()),
+                : null;
+        if (status == null && seckill) {
+            availableStock = readSeckillStock(entity.getId());
+            status = availableStock == null ? "UNAVAILABLE" : availableStock <= 0 ? "SOLD_OUT" : "ACTIVE";
+        } else if (status == null) {
+            status = availableStock <= 0 ? "SOLD_OUT" : "ACTIVE";
+        }
+        int visibleStock = availableStock == null ? 0 : Math.max(availableStock, 0);
+        return new Coupon(entity.getId(), entity.getName(), visibleStock,
+                instant(entity.getClaimStartAt()), instant(entity.getClaimEndAt()), seckill,
                 entity.getDiscountAmount(), entity.getThresholdAmount(),
                 instant(entity.getUseStartAt()), instant(entity.getUseEndAt()), status);
+    }
+
+    private Integer readSeckillStock(Long couponId) {
+        if (redis == null) return null;
+        try {
+            String value = redis.opsForValue().get(stockKey(couponId));
+            if (value == null) return null;
+            long stock = Long.parseLong(value);
+            return stock > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) Math.max(stock, 0);
+        } catch (RuntimeException exception) {
+            return null;
+        }
     }
 
     private CouponClaim toClaim(CouponClaimEntity entity) {

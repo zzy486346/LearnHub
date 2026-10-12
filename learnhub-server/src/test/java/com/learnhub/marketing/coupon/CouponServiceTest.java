@@ -13,6 +13,7 @@ import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.RedisScript;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,12 +32,15 @@ class CouponServiceTest {
     private SeckillPersistenceService persistence;
     private StringRedisTemplate redis;
     private RabbitTemplate rabbit;
+    private ValueOperations<String, String> valueOperations;
 
     @BeforeEach
     void setUp() {
         persistence = mock(SeckillPersistenceService.class);
         redis = mock(StringRedisTemplate.class);
         rabbit = mock(RabbitTemplate.class);
+        valueOperations = mock(ValueOperations.class);
+        when(redis.opsForValue()).thenReturn(valueOperations);
 
         CouponEntity activeCoupon = new CouponEntity();
         activeCoupon.setId(7L);
@@ -115,6 +119,45 @@ class CouponServiceTest {
         assertEquals(new BigDecimal("30.00"), result.discountAmount());
         assertEquals(new BigDecimal("100.00"), result.thresholdAmount());
         assertEquals("ENDED", result.status());
+    }
+
+    @Test
+    void activeSeckillListUsesRedisStockInsteadOfLaggingDatabaseStock() {
+        CouponEntity coupon = activeListCoupon();
+        coupon.setAvailableStock(98);
+        when(persistence.listCoupons()).thenReturn(List.of(coupon));
+        when(valueOperations.get("learnhub:coupon:{7}:stock")).thenReturn("3");
+
+        Coupon result = service(true).list().get(0);
+
+        assertEquals(3, result.stock());
+        assertEquals("ACTIVE", result.status());
+    }
+
+    @Test
+    void activeSeckillListFailsClosedWhenRedisSnapshotIsMissing() {
+        CouponEntity coupon = activeListCoupon();
+        coupon.setAvailableStock(98);
+        when(persistence.listCoupons()).thenReturn(List.of(coupon));
+
+        Coupon result = service(true).list().get(0);
+
+        assertEquals(0, result.stock());
+        assertEquals("UNAVAILABLE", result.status());
+    }
+
+    @Test
+    void activeSeckillListFailsClosedWhenRedisCannotBeRead() {
+        CouponEntity coupon = activeListCoupon();
+        coupon.setAvailableStock(98);
+        when(persistence.listCoupons()).thenReturn(List.of(coupon));
+        when(valueOperations.get("learnhub:coupon:{7}:stock"))
+                .thenThrow(new IllegalStateException("redis unavailable"));
+
+        Coupon result = service(true).list().get(0);
+
+        assertEquals(0, result.stock());
+        assertEquals("UNAVAILABLE", result.status());
     }
 
     @Test
@@ -200,6 +243,22 @@ class CouponServiceTest {
         order.setCompensated(compensated);
         order.setReservedAt(LocalDateTime.now());
         return order;
+    }
+
+    private CouponEntity activeListCoupon() {
+        CouponEntity coupon = new CouponEntity();
+        coupon.setId(7L);
+        coupon.setName("秒杀券");
+        coupon.setType("SECKILL");
+        coupon.setStatus("ACTIVE");
+        coupon.setTotalStock(100);
+        coupon.setDiscountAmount(new BigDecimal("30.00"));
+        coupon.setThresholdAmount(new BigDecimal("100.00"));
+        coupon.setClaimStartAt(LocalDateTime.now().minusMinutes(1));
+        coupon.setClaimEndAt(LocalDateTime.now().plusMinutes(1));
+        coupon.setUseStartAt(LocalDateTime.now().minusMinutes(1));
+        coupon.setUseEndAt(LocalDateTime.now().plusDays(1));
+        return coupon;
     }
 
     @SuppressWarnings("unchecked")
