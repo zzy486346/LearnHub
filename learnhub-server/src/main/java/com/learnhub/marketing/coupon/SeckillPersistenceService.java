@@ -56,6 +56,30 @@ public class SeckillPersistenceService {
     @Transactional
     public SeckillOrderEntity createPendingOrder(String requestId, Long couponId, Long userId,
                                                    LocalDateTime reservedAt) {
+        SeckillOrderEntity existing = findOrder(couponId, userId);
+        if (existing != null) {
+            if (!"FAILED".equals(existing.getStatus()) || !Boolean.TRUE.equals(existing.getCompensated())) {
+                throw new BusinessException("COUPON_ALREADY_CLAIMED", "已领取或正在处理中，请刷新查看结果");
+            }
+            int updated = orderMapper.update(null, new LambdaUpdateWrapper<SeckillOrderEntity>()
+                    .eq(SeckillOrderEntity::getId, existing.getId())
+                    .eq(SeckillOrderEntity::getRequestId, existing.getRequestId())
+                    .eq(SeckillOrderEntity::getStatus, "FAILED")
+                    .eq(SeckillOrderEntity::getCompensated, true)
+                    .set(SeckillOrderEntity::getRequestId, requestId)
+                    .set(SeckillOrderEntity::getStatus, "PENDING")
+                    .set(SeckillOrderEntity::getPublishStatus, "PENDING")
+                    .set(SeckillOrderEntity::getPublishAttempts, 0)
+                    .set(SeckillOrderEntity::getCompensated, false)
+                    .set(SeckillOrderEntity::getFailureReason, null)
+                    .set(SeckillOrderEntity::getReservedAt, reservedAt)
+                    .set(SeckillOrderEntity::getNextRetryAt, reservedAt)
+                    .set(SeckillOrderEntity::getUpdatedAt, reservedAt));
+            if (updated != 1) {
+                throw new BusinessException("COUPON_ALREADY_CLAIMED", "领取状态已变化，请刷新后重试");
+            }
+            return findOrder(requestId);
+        }
         SeckillOrderEntity order = new SeckillOrderEntity();
         order.setRequestId(requestId);
         order.setCouponId(couponId);
@@ -74,10 +98,18 @@ public class SeckillPersistenceService {
 
     @Transactional
     public SeckillOrderEntity confirm(SeckillMessage message) {
+        if (message.version() != 1) {
+            throw new IllegalArgumentException("Unsupported seckill message version: " + message.version());
+        }
         SeckillOrderEntity order = findOrder(message.requestId());
-        if (order == null) throw new IllegalStateException("Unknown seckill request: " + message.requestId());
-        if (message.version() != 1
-                || !message.couponId().equals(order.getCouponId())
+        if (order == null) {
+            SeckillOrderEntity currentAttempt = findOrder(message.couponId(), message.userId());
+            if (currentAttempt != null && !message.requestId().equals(currentAttempt.getRequestId())) {
+                return currentAttempt;
+            }
+            throw new IllegalStateException("Unknown seckill request: " + message.requestId());
+        }
+        if (!message.couponId().equals(order.getCouponId())
                 || !message.userId().equals(order.getUserId())) {
             throw new IllegalArgumentException("Seckill message does not match persisted request: " + message.requestId());
         }

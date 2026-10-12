@@ -19,25 +19,29 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration,org.redisson.spring.starter.RedissonAutoConfigurationV2",
         "spring.data.elasticsearch.repositories.enabled=false",
-        "spring.datasource.url=jdbc:mysql://localhost:3306/learnhub?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai",
+        "spring.datasource.url=jdbc:mysql://${learnhub.seckill.it.mysql-host:127.0.0.1}:${learnhub.seckill.it.mysql-port:3306}/${learnhub.seckill.it.mysql-database:learnhub}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai",
         "spring.datasource.username=learnhub",
         "spring.datasource.password=learnhub",
         "spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver",
-        "spring.data.redis.host=localhost",
-        "spring.data.redis.port=6379",
-        "spring.rabbitmq.host=localhost",
-        "spring.rabbitmq.port=5672",
+        "spring.data.redis.host=${learnhub.seckill.it.redis-host:127.0.0.1}",
+        "spring.data.redis.port=${learnhub.seckill.it.redis-port:6379}",
+        "spring.rabbitmq.host=${learnhub.seckill.it.rabbit-host:127.0.0.1}",
+        "spring.rabbitmq.port=${learnhub.seckill.it.rabbit-port:5672}",
         "spring.rabbitmq.username=learnhub",
         "spring.rabbitmq.password=learnhub",
         "spring.rabbitmq.publisher-confirm-type=correlated",
         "spring.rabbitmq.publisher-returns=true",
         "spring.rabbitmq.template.mandatory=true",
+        "spring.rabbitmq.listener.simple.retry.max-attempts=1",
         "learnhub.rabbit.enabled=true",
         "learnhub.seckill.reconciliation-enabled=false",
         "learnhub.storage.oss.enabled=false"
@@ -49,6 +53,9 @@ class SeckillInfrastructureIntegrationTest {
 
     @Autowired
     private CouponService couponService;
+
+    @Autowired
+    private SeckillPersistenceService persistence;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -69,7 +76,8 @@ class SeckillInfrastructureIntegrationTest {
         jdbc.update("DELETE FROM coupon_claim WHERE coupon_id = ?", couponId);
         jdbc.update("DELETE FROM seckill_order WHERE coupon_id = ?", couponId);
         jdbc.update("DELETE FROM coupon WHERE id = ?", couponId);
-        redis.delete(List.of(stockKey(), usersKey(), reservationsKey()));
+        var ownedKeys = redis.keys("learnhub:coupon:{" + couponId + "}:*");
+        if (ownedKeys != null && !ownedKeys.isEmpty()) redis.delete(ownedKeys);
     }
 
     @Test
@@ -93,6 +101,50 @@ class SeckillInfrastructureIntegrationTest {
         assertEquals(STOCK, count("seckill_order", "status = 'SUCCESS'"));
         assertEquals(STOCK, count("coupon_claim", "1 = 1"));
         assertEquals(0, availableStock());
+    }
+
+    @Test
+    void consecutiveFailuresCompensateAndThirdAttemptSucceedsWithoutOldMessageInterference() throws Exception {
+        Coupon coupon = couponService.create(new CouponRequests.Create(
+                "retry-infrastructure-it-" + System.nanoTime(), 1,
+                Instant.now().minusSeconds(5), Instant.now().plusSeconds(120), true));
+        couponId = coupon.id();
+        long userId = 9_900_001L;
+        jdbc.update("UPDATE coupon SET available_stock = 0 WHERE id = ?", couponId);
+
+        couponService.seckill(couponId, userId);
+        SeckillOrderEntity firstPending = persistence.findOrder(couponId, userId);
+        couponService.failAndCompensate(message(firstPending), "simulated first attempt failure");
+        SeckillOrderEntity firstFailure = awaitCompensatedFailure(null, userId);
+        assertCompensatedRedisState(userId);
+
+        couponService.seckill(couponId, userId);
+        SeckillOrderEntity secondPending = persistence.findOrder(couponId, userId);
+        couponService.failAndCompensate(message(secondPending), "simulated second attempt failure");
+        SeckillOrderEntity secondFailure = awaitCompensatedFailure(firstFailure.getRequestId(), userId);
+        assertNotEquals(firstFailure.getRequestId(), secondFailure.getRequestId());
+        assertCompensatedRedisState(userId);
+
+        jdbc.update("UPDATE coupon SET available_stock = 1 WHERE id = ?", couponId);
+        couponService.seckill(couponId, userId);
+        SeckillOrderEntity retried = persistence.findOrder(couponId, userId);
+        assertNotNull(retried);
+        assertNotEquals(secondFailure.getRequestId(), retried.getRequestId());
+
+        SeckillMessage delayedOldMessage = new SeckillMessage(
+                firstFailure.getRequestId(), firstFailure.getRequestId(), couponId, userId,
+                firstFailure.getReservedAt(), 1);
+        assertEquals(retried.getRequestId(), couponService.confirm(delayedOldMessage).getRequestId());
+        couponService.failAndCompensate(delayedOldMessage, "delayed old message reached DLQ");
+
+        awaitSingleRetrySuccess();
+        assertEquals(1, count("seckill_order", "status = 'SUCCESS'"));
+        assertEquals(1, count("coupon_claim", "user_id = " + userId));
+        assertEquals(0, availableStock());
+        assertEquals("0", redis.opsForValue().get(stockKey()));
+        assertTrue(Boolean.TRUE.equals(redis.opsForSet().isMember(usersKey(), Long.toString(userId))));
+        assertEquals(0L, redis.opsForHash().size(reservationsKey()));
+        assertEquals(retried.getRequestId(), persistence.findOrder(couponId, userId).getRequestId());
     }
 
     private AtomicInteger submitConcurrentRequests() throws Exception {
@@ -133,6 +185,43 @@ class SeckillInfrastructureIntegrationTest {
             Thread.sleep(100);
         }
         fail("Timed out waiting for RabbitMQ consumers to persist all successful reservations");
+    }
+
+    private void awaitSingleRetrySuccess() throws InterruptedException {
+        Instant deadline = Instant.now().plus(Duration.ofSeconds(20));
+        while (Instant.now().isBefore(deadline)) {
+            if (count("seckill_order", "status = 'SUCCESS'") == 1
+                    && count("coupon_claim", "1 = 1") == 1) return;
+            Thread.sleep(100);
+        }
+        fail("Timed out waiting for the retried reservation to succeed");
+    }
+
+    private SeckillOrderEntity awaitCompensatedFailure(String previousRequestId, long userId)
+            throws InterruptedException {
+        Instant deadline = Instant.now().plus(Duration.ofSeconds(20));
+        while (Instant.now().isBefore(deadline)) {
+            SeckillOrderEntity order = persistence.findOrder(couponId, userId);
+            if (order != null && "FAILED".equals(order.getStatus())
+                    && Boolean.TRUE.equals(order.getCompensated())
+                    && (previousRequestId == null || !previousRequestId.equals(order.getRequestId()))) {
+                return order;
+            }
+            Thread.sleep(100);
+        }
+        fail("Timed out waiting for failed reservation compensation");
+        throw new IllegalStateException("unreachable");
+    }
+
+    private void assertCompensatedRedisState(long userId) {
+        assertEquals("1", redis.opsForValue().get(stockKey()));
+        assertFalse(Boolean.TRUE.equals(redis.opsForSet().isMember(usersKey(), Long.toString(userId))));
+        assertEquals(0L, redis.opsForHash().size(reservationsKey()));
+    }
+
+    private SeckillMessage message(SeckillOrderEntity order) {
+        return new SeckillMessage(order.getRequestId(), order.getRequestId(), order.getCouponId(),
+                order.getUserId(), order.getReservedAt(), 1);
     }
 
     private int count(String table, String predicate) {

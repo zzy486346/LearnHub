@@ -165,6 +165,22 @@ class CouponServiceTest {
         verify(persistence).markCompensated("request-1");
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void compensatesNewReservationWhenFailedOrderIsNotReadyForRetry() {
+        CouponService service = service(false);
+        when(redis.execute(any(RedisScript.class), anyList(), any(Object[].class))).thenReturn(0L, 1L);
+        doThrow(new BusinessException("COUPON_ALREADY_CLAIMED", "领取状态尚未完成补偿"))
+                .when(persistence).createPendingOrder(any(), eq(7L), eq(21L), any());
+
+        BusinessException error = assertThrows(BusinessException.class, () -> service.seckill(7L, 21L));
+
+        assertEquals("COUPON_ALREADY_CLAIMED", error.getCode());
+        verify(redis, org.mockito.Mockito.times(2))
+                .execute(any(RedisScript.class), anyList(), any(Object[].class));
+        verify(persistence, never()).markCompensated(any());
+    }
+
     private CouponService service(boolean rabbitEnabled) {
         return new CouponService(persistence, provider(redis), provider(rabbit),
                 provider((RedissonClient) null), rabbitEnabled, 3,
