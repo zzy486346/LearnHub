@@ -102,7 +102,9 @@ function currentPosition() {
 function queueProgressSave(completed?: boolean, force = false, positionOverride?: number): Promise<boolean> {
   if (!auth.authenticated || !currentEntry.value || !currentAccessible.value) return Promise.resolve(true)
   const positionSeconds = positionOverride ?? currentPosition()
-  const finalCompleted = completed ?? completedLessonIds.value.has(currentEntry.value.lesson.id)
+  const activeLessonId = currentEntry.value.lesson.id
+  const pendingCompleted = pendingProgress.value?.lessonId === activeLessonId && pendingProgress.value.completed
+  const finalCompleted = Boolean(completed || pendingCompleted || completedLessonIds.value.has(activeLessonId))
   if (!force && !finalCompleted && Math.abs(positionSeconds - lastSavedPosition) < 5) return Promise.resolve(true)
   saveState.value = 'saving'
   const savedLessonId = currentEntry.value.lesson.id
@@ -141,8 +143,9 @@ function queueProgressSave(completed?: boolean, force = false, positionOverride?
 async function retryProgressSave() {
   const pending = pendingProgress.value
   if (!pending) return
+  const generation = lessonLoadGeneration
   const saved = await queueProgressSave(pending.completed, true, pending.positionSeconds)
-  if (saved) ElMessage.success('学习进度已重新同步')
+  if (saved && isActiveLesson(generation, pending.courseId, pending.lessonId)) ElMessage.success('学习进度已重新同步')
 }
 
 function handleTimeUpdate() {
@@ -153,12 +156,19 @@ function handleTimeUpdate() {
 }
 
 async function handleEnded() {
+  const generation = lessonLoadGeneration
+  const requestedCourseId = courseId.value
+  const requestedLessonId = lessonId.value
   const saved = await queueProgressSave(true, true)
+  if (!isActiveLesson(generation, requestedCourseId, requestedLessonId)) return
   if (saved && nextEntry.value) ElMessage.success('本课时已完成，可以继续下一课')
   else if (!saved) ElMessage.error('课时完成状态保存失败，请重试')
 }
 
 async function goToLesson(targetLessonId: number) {
+  const generation = lessonLoadGeneration
+  const requestedCourseId = courseId.value
+  const requestedLessonId = lessonId.value
   const target = lessonEntries.value.find((item) => item.lesson.id === targetLessonId)
   if (!target) return
   if (!auth.authenticated) {
@@ -171,6 +181,7 @@ async function goToLesson(targetLessonId: number) {
     return
   }
   const saved = await queueProgressSave(undefined, true)
+  if (!isActiveLesson(generation, requestedCourseId, requestedLessonId)) return
   if (!saved) {
     ElMessage.error('学习进度保存失败，请重试后再切换课时')
     return

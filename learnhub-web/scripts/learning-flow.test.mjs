@@ -109,11 +109,14 @@ test('完成状态保存失败时不提示完成，保留进度并允许原值�
     assert.equal(view.pendingProgress.completed, true)
     assert.deepEqual(messages, [['error', '课时完成状态保存失败，请重试']])
 
+    await view.queueProgressSave(undefined, true)
+    assert.equal(payloads[1][1].completed, true)
+
     view.videoRef.currentTime = 3
     failing = false
     await view.retryProgressSave()
-    assert.equal(payloads[1][1].positionSeconds, 42)
-    assert.equal(payloads[1][1].completed, true)
+    assert.equal(payloads[2][1].positionSeconds, 42)
+    assert.equal(payloads[2][1].completed, true)
     assert.equal(view.pendingProgress, null)
     assert.equal(view.saveState, 'saved')
     assert.deepEqual(messages[1], ['success', '学习进度已重新同步'])
