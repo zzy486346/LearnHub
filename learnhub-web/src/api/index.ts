@@ -55,9 +55,9 @@ export const orderApi = {
 export const adminCourseApi = {
   list: (page = 1) => http.get<ApiResult<PageResult<Course>>>('/admin/courses', { params: { page } }),
   detail: (courseId: string | number) => http.get<ApiResult<Course>>(`/admin/courses/${courseId}`),
-  createCourse: (body: { categoryId: number; title: string; description?: string; instructor: string; price: number; status?: 'DRAFT' }) =>
+  createCourse: (body: { categoryId: string | number; title: string; description?: string; instructor: string; price: number; status?: 'DRAFT' }) =>
     http.post<ApiResult<number>>('/admin/courses', body),
-  updateCourse: (courseId: string | number, body: { categoryId?: number; title?: string; subtitle?: string; coverUrl?: string; description?: string; instructor?: string; price?: number }) =>
+  updateCourse: (courseId: string | number, body: { categoryId?: string | number; title?: string; subtitle?: string; coverUrl?: string; description?: string; instructor?: string; price?: number }) =>
     http.put<ApiResult<void>>(`/admin/courses/${courseId}`, body),
   publishCourse: (courseId: string | number) =>
     http.post<ApiResult<void>>(`/admin/courses/${courseId}/publish`),
@@ -87,15 +87,15 @@ export const adminCourseApi = {
     return http.post<ApiResult<unknown>>(`/admin/courses/${courseId}/cover`, form)
   },
   categories: () => http.get<ApiResult<CourseCategory[]>>('/admin/course-categories'),
-  createCategory: (body: { name: string; sortOrder: number; status: 'ENABLED' | 'DISABLED' }) => http.post<ApiResult<number>>('/admin/course-categories', body),
-  updateCategory: (id: number, body: { name: string; sortOrder: number; status: 'ENABLED' | 'DISABLED' }) => http.put<ApiResult<void>>(`/admin/course-categories/${id}`, body),
-  deleteCategory: (id: number) => http.delete<ApiResult<void>>(`/admin/course-categories/${id}`),
+  createCategory: (body: { name: string; sortOrder: number; status: 'ENABLED' | 'DISABLED' }) => http.post<ApiResult<string>>('/admin/course-categories', body),
+  updateCategory: (id: string, body: { name: string; sortOrder: number; status: 'ENABLED' | 'DISABLED' }) => http.put<ApiResult<void>>(`/admin/course-categories/${id}`, body),
+  deleteCategory: (id: string) => http.delete<ApiResult<void>>(`/admin/course-categories/${id}`),
   tags: () => http.get<ApiResult<CourseTag[]>>('/admin/course-tags'),
-  createTag: (body: { name: string }) => http.post<ApiResult<number>>('/admin/course-tags', body),
-  updateTag: (id: number, body: { name: string }) => http.put<ApiResult<void>>(`/admin/course-tags/${id}`, body),
-  deleteTag: (id: number) => http.delete<ApiResult<void>>(`/admin/course-tags/${id}`),
+  createTag: (body: { name: string }) => http.post<ApiResult<string>>('/admin/course-tags', body),
+  updateTag: (id: string, body: { name: string }) => http.put<ApiResult<void>>(`/admin/course-tags/${id}`, body),
+  deleteTag: (id: string) => http.delete<ApiResult<void>>(`/admin/course-tags/${id}`),
   courseTags: (courseId: string | number) => http.get<ApiResult<CourseTag[]>>(`/admin/courses/${courseId}/tags`),
-  replaceCourseTags: (courseId: string | number, tagIds: number[]) => http.put<ApiResult<void>>(`/admin/courses/${courseId}/tags`, { tagIds }),
+  replaceCourseTags: (courseId: string | number, tagIds: string[]) => http.put<ApiResult<void>>(`/admin/courses/${courseId}/tags`, { tagIds }),
 }
 
 export const questionApi = {

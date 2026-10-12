@@ -21,8 +21,8 @@ const courses = ref<CourseCard[]>([])
 const loading = ref(false)
 const loadError = ref('')
 const total = ref(0)
-const filters = reactive({ keyword: '', categoryId: undefined as number | undefined, tags: [] as string[], current: 1, size: 3 })
-const activeQuery = reactive({ keyword: '', categoryId: undefined as number | undefined, tags: [] as string[] })
+const filters = reactive({ keyword: '', categoryId: undefined as string | undefined, tags: [] as string[], current: 1, size: 3 })
+const activeQuery = reactive({ keyword: '', categoryId: undefined as string | undefined, tags: [] as string[] })
 const categories = ref<CourseCategory[]>([])
 const availableTags = ref<CourseTag[]>([])
 const carouselRegion = ref<HTMLElement | null>(null)
@@ -165,7 +165,7 @@ function submitSearch() {
   return load()
 }
 
-function selectCategory(categoryId?: number) {
+function selectCategory(categoryId?: string) {
   filters.categoryId = categoryId
   return submitSearch()
 }

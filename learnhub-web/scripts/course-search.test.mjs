@@ -60,8 +60,8 @@ test('分类和标签来自公共接口，分类可与关键词标签组合提�
   const api = {
     list: params => result({ records: [], total: 0, current: params.page, size: params.size }),
     searchPage: params => { calls.push(params); return result({ records: [], total: 0, current: 1, size: 3 }) },
-    categories: () => result([{ id: 2, name: '人工智能', status: 'ENABLED', sortOrder: 1 }]),
-    tags: () => result([{ id: 8, name: '大模型' }]),
+    categories: () => result([{ id: '9007199254740993', name: '人工智能', status: 'ENABLED', sortOrder: 1 }]),
+    tags: () => result([{ id: '9007199254740995', name: '大模型' }]),
   }
   const { app, view } = await mount(api)
   try {
@@ -69,8 +69,8 @@ test('分类和标签来自公共接口，分类可与关键词标签组合提�
     assert.deepEqual(view.availableTags.map(item => item.name), ['大模型'])
     view.filters.keyword = '应用'
     view.filters.tags.push('大模型')
-    await view.selectCategory(2)
-    assert.deepEqual(calls.at(-1), { keyword: '应用', categoryId: 2, tags: '大模型', page: 1, size: 3 })
+    await view.selectCategory('9007199254740993')
+    assert.deepEqual(calls.at(-1), { keyword: '应用', categoryId: '9007199254740993', tags: '大模型', page: 1, size: 3 })
   } finally { app.unmount() }
 })
 

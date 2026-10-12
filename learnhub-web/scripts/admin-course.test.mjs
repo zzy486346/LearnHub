@@ -316,7 +316,9 @@ test('新课程强制创建草稿，后台提供编辑、下架、封面、分�
   await api.adminCourseApi.offlineCourse(7)
   await api.adminCourseApi.updateChapter(8, { title: '章', sortOrder: 1 })
   await api.adminCourseApi.updateLesson(9, { title: '课', durationSeconds: 60, freePreview: false, sortOrder: 1 })
-  await api.adminCourseApi.replaceCourseTags(7, [2, 3])
+  await api.adminCourseApi.replaceCourseTags(7, ['9007199254740993', '9007199254740995'])
+  await api.adminCourseApi.updateCategory('9007199254740993', { name: '后端', sortOrder: 1, status: 'ENABLED' })
+  await api.adminCourseApi.updateTag('9007199254740995', { name: '大模型' })
   await api.adminCourseApi.categories()
   await api.adminCourseApi.tags()
   assert.deepEqual(calls, [
@@ -324,7 +326,9 @@ test('新课程强制创建草稿，后台提供编辑、下架、封面、分�
     ['post', '/admin/courses/7/offline'],
     ['put', '/admin/chapters/8', { title: '章', sortOrder: 1 }],
     ['put', '/admin/lessons/9', { title: '课', durationSeconds: 60, freePreview: false, sortOrder: 1 }],
-    ['put', '/admin/courses/7/tags', { tagIds: [2, 3] }],
+    ['put', '/admin/courses/7/tags', { tagIds: ['9007199254740993', '9007199254740995'] }],
+    ['put', '/admin/course-categories/9007199254740993', { name: '后端', sortOrder: 1, status: 'ENABLED' }],
+    ['put', '/admin/course-tags/9007199254740995', { name: '大模型' }],
     ['get', '/admin/course-categories'],
     ['get', '/admin/course-tags'],
   ])
@@ -332,4 +336,19 @@ test('新课程强制创建草稿，后台提供编辑、下架、封面、分�
   assert.doesNotMatch(view, /立即发布/)
   assert.match(view, /status: 'DRAFT'/)
   assert.match(view, /至少包含章节、课时和可用视频后才能发布/)
+})
+
+test('创建课程时分类雪花ID保持字符串精度', async () => {
+  const categoryId = '9007199254740993'
+  const calls = []
+  const { app, view } = await mount(undefined, {
+    categories: () => result([{ id: categoryId, name: '后端开发', sortOrder: 1, status: 'ENABLED' }]),
+    createCourse: body => { calls.push(body); return result(99) },
+  })
+  try {
+    Object.assign(view.courseForm, { categoryId, title: '雪花课程', instructor: '讲师' })
+    await view.createCourse()
+    assert.equal(calls[0].categoryId, categoryId)
+    assert.equal(typeof calls[0].categoryId, 'string')
+  } finally { app.unmount() }
 })

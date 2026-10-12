@@ -5,7 +5,7 @@ export interface User { id: number; username: string; nickname: string; avatarUr
 export interface Course {
   id: number; title: string; subtitle?: string; coverUrl?: string; description?: string
   teacherName?: string; instructor?: string; price?: number; likeCount?: number; favoriteCount?: number
-  categoryId?: number; status?: 'DRAFT' | 'PUBLISHED' | 'OFFLINE'; tags?: string[]; chapters?: Chapter[]; liked?: boolean; favorited?: boolean
+  categoryId?: string | number; status?: 'DRAFT' | 'PUBLISHED' | 'OFFLINE'; tags?: string[]; chapters?: Chapter[]; liked?: boolean; favorited?: boolean
   accessLevel?: 'LOGIN_REQUIRED' | 'PREVIEW' | 'FULL'
 }
 export interface CourseSearchResult {
@@ -55,6 +55,6 @@ export interface MyCoupon {
 }
 export interface LikeState { liked: boolean; count: number }
 export interface CourseCategory {
-  id: number; name: string; sortOrder: number; status: 'ENABLED' | 'DISABLED'; createdAt?: string; updatedAt?: string
+  id: string; name: string; sortOrder: number; status: 'ENABLED' | 'DISABLED'; createdAt?: string; updatedAt?: string
 }
-export interface CourseTag { id: number; name: string; createdAt?: string; updatedAt?: string }
+export interface CourseTag { id: string; name: string; createdAt?: string; updatedAt?: string }

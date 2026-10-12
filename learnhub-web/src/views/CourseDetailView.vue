@@ -150,8 +150,12 @@ async function payOrder() {
     if (activeOrder.value?.id !== requestedOrderId || course.value?.id !== requestedCourseId) return
     activeOrder.value = paidOrder
     orderDialogVisible.value = false
-    ElMessage.success('支付成功，全部课程已解锁')
-    await loadCourse()
+    if (paidOrder.status === 'PAID') {
+      ElMessage.success('支付成功，全部课程已解锁')
+      await loadCourse()
+    } else if (paidOrder.status === 'CLOSED') {
+      ElMessage.warning('订单已关闭，优惠券已退回，请重新下单')
+    }
   } catch (error) {
     if (isSessionExpired(error)) return
     ElMessage.error((error as { response?: { data?: { message?: string } } }).response?.data?.message || '支付失败，请稍后重试')

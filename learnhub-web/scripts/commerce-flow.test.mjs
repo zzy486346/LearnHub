@@ -15,17 +15,17 @@ const renderer = createRenderer({
 const result = data => Promise.resolve({ data: { data } })
 let serial = 0
 
-async function mountPurchase(wallet, createOrder) {
+async function mountPurchase(wallet, createOrder, pay = () => result(null), messages = []) {
   const route = reactive({ params: { id: '7' }, fullPath: '/courses/7' })
   globalThis.commerceHarness = {
     courseApi: { detail: () => result({ id: 7, title: '系统课', price: 100, accessLevel: 'PREVIEW', chapters: [] }), likeStatus: () => result({ liked: false, count: 0 }), favoriteStatus: () => result(false) },
     couponApi: { mine: () => result(wallet) },
-    orderApi: { createCourseOrder: createOrder },
+    orderApi: { createCourseOrder: createOrder, pay },
     useAuthStore: () => reactive({ authenticated: true }), useRoute: () => route, useRouter: () => ({ push: async () => {} }),
-    ElMessage: Object.fromEntries(['success', 'info', 'error', 'warning'].map(level => [level, () => {}])),
+    ElMessage: Object.fromEntries(['success', 'info', 'error', 'warning'].map(level => [level, message => messages.push([level, message])])),
   }
   const source = (await readFile(new URL('../src/views/CourseDetailView.vue', import.meta.url), 'utf8'))
-    .replace('</script>', 'defineExpose({ openPurchase, createOrder, usableCoupons, selectedCouponClaimId, estimatedDiscount, estimatedPayable, activeOrder })\n</script>')
+    .replace('</script>', 'defineExpose({ openPurchase, createOrder, payOrder, usableCoupons, selectedCouponClaimId, estimatedDiscount, estimatedPayable, activeOrder })\n</script>')
   const compiled = compileScript(parse(source).descriptor, { id: 'commerce-flow-test' }).content
     .replace(/from ['"]vue['"]/g, `from ${JSON.stringify(vueUrl)}`)
     .replace(/import \{ useRoute, useRouter \} from ['"]vue-router['"]/, 'const { useRoute, useRouter } = globalThis.commerceHarness')
@@ -82,4 +82,16 @@ test('订单接口携带优惠券领取记录，并提供取消与退款端点',
   assert.match(profile, /退款后将立即撤销该课程的已购学习权益/)
   assert.match(profile, /订单已取消，优惠券已退回/)
   assert.match(profile, /本机演示支付/)
+})
+
+test('支付时订单已过期只提示关闭，不误报课程解锁', async () => {
+  const messages = []
+  const closedOrder = { id: 'o-closed', status: 'CLOSED', courseId: '7', paymentMode: 'LOCAL_DEMO' }
+  const { app, view } = await mountPurchase([], () => result(closedOrder), () => result(closedOrder), messages)
+  try {
+    view.activeOrder = closedOrder
+    await view.payOrder()
+    assert.deepEqual(messages.at(-1), ['warning', '订单已关闭，优惠券已退回，请重新下单'])
+    assert.equal(messages.some(([level]) => level === 'success'), false)
+  } finally { app.unmount() }
 })

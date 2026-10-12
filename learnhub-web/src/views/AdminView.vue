@@ -38,9 +38,9 @@ const videoInput = ref<HTMLInputElement>()
 const coverInput = ref<HTMLInputElement>()
 const categories = ref<CourseCategory[]>([])
 const tags = ref<CourseTag[]>([])
-const selectedTagIds = ref<number[]>([])
+const selectedTagIds = ref<string[]>([])
 
-const courseForm = reactive({ categoryId: 0, title: '', subtitle: '', description: '', instructor: '', price: 0 })
+const courseForm = reactive({ categoryId: '' as string | number, title: '', subtitle: '', description: '', instructor: '', price: 0 })
 const chapterForm = reactive({ title: '', sortOrder: 1 })
 const lessonForm = reactive({ title: '', durationSeconds: 60, freePreview: false, sortOrder: 1 })
 const categoryForm = reactive({ name: '', sortOrder: 1, status: 'ENABLED' as 'ENABLED' | 'DISABLED' })
@@ -139,14 +139,14 @@ async function publishCourse() {
 
 function openCourseDialog() {
   editingCourse.value = false
-  Object.assign(courseForm, { categoryId: enabledCategories.value[0]?.id || 0, title: '', subtitle: '', description: '', instructor: '', price: 0 })
+  Object.assign(courseForm, { categoryId: enabledCategories.value[0]?.id || '', title: '', subtitle: '', description: '', instructor: '', price: 0 })
   courseDialog.value = true
 }
 
 function openEditCourseDialog() {
   if (!selected.value) return
   editingCourse.value = true
-  Object.assign(courseForm, { categoryId: selected.value.categoryId || 0, title: selected.value.title, subtitle: selected.value.subtitle || '', description: selected.value.description || '', instructor: selected.value.instructor || selected.value.teacherName || '', price: Number(selected.value.price || 0) })
+  Object.assign(courseForm, { categoryId: selected.value.categoryId || '', title: selected.value.title, subtitle: selected.value.subtitle || '', description: selected.value.description || '', instructor: selected.value.instructor || selected.value.teacherName || '', price: Number(selected.value.price || 0) })
   courseDialog.value = true
 }
 
