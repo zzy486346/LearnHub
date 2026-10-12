@@ -21,10 +21,12 @@ public class MediaAssetService {
     private static final String UPLOADING = "UPLOADING";
     private static final String READY = "READY";
     private static final String FAILED = "FAILED";
+    private static final long MAX_AVATAR_SIZE = 5L * 1024 * 1024;
     private static final Pattern BIZ_TYPE = Pattern.compile("[A-Z][A-Z0-9_]{0,31}");
     private static final Pattern EXTENSION = Pattern.compile("[a-zA-Z0-9]{1,10}");
     private static final Set<String> EXTRA_CONTENT_TYPES = Set.of(
             "application/pdf", "application/zip", "application/json", "text/plain");
+    private static final Set<String> PUBLIC_BIZ_TYPES = Set.of("AVATAR", "COURSE_COVER");
 
     private final MediaAssetMapper mapper;
     private final ObjectStorageService storage;
@@ -40,11 +42,13 @@ public class MediaAssetService {
     public MediaResponses.UploadTicket createUpload(Long userId, MediaRequests.PresignUpload request) {
         validate(request.originalFilename(), request.contentType(), request.size(), request.bizType());
         String bizType = request.bizType().trim().toUpperCase(Locale.ROOT);
-        String objectKey = createObjectKey(userId, bizType, request.originalFilename());
-        PresignedUpload upload = storage.presignUpload(objectKey, request.contentType(), properties.getUploadUrlTtl());
+        Long bizId = validateGenericBusiness(userId, bizType, request.bizId(), request.contentType(), request.size());
+        String objectKey = createTemporaryObjectKey(userId, bizType, request.originalFilename());
+        PresignedUpload upload = storage.presignUpload(
+                objectKey, request.contentType(), properties.getUploadUrlTtl());
 
         MediaAsset asset = newAsset(userId, objectKey, request.originalFilename(), request.contentType(),
-                request.size(), bizType, request.bizId(), UPLOADING);
+                request.size(), bizType, bizId, UPLOADING);
         mapper.insert(asset);
         return new MediaResponses.UploadTicket(asset.getId(), objectKey, "PUT", upload.url().toString(),
                 upload.headers(), upload.expiresAt());
@@ -56,21 +60,37 @@ public class MediaAssetService {
         if (!UPLOADING.equals(asset.getStatus())) {
             throw new BusinessException("MEDIA_STATE_INVALID", "当前文件状态不能完成上传");
         }
-        StoredObjectMetadata actual = storage.metadata(asset.getObjectKey());
-        if (actual.size() != asset.getFileSize() || !sameContentType(asset.getContentType(), actual.contentType())) {
-            mapper.update(null, new LambdaUpdateWrapper<MediaAsset>()
-                    .eq(MediaAsset::getId, assetId)
-                    .eq(MediaAsset::getOwnerId, userId)
-                    .set(MediaAsset::getStatus, FAILED)
-                    .set(MediaAsset::getUpdatedAt, LocalDateTime.now()));
-            storage.delete(asset.getObjectKey());
-            throw new BusinessException("MEDIA_MISMATCH", "上传文件与申请信息不一致，已清理");
+        if (!isTemporaryObjectKey(asset.getObjectKey())) {
+            if (asset.getEtag() == null || asset.getEtag().isBlank()) {
+                return rejectLegacyUpload(asset);
+            }
+            return promoteAndComplete(asset, temporaryKeyFor(asset.getObjectKey()), asset.getObjectKey(), asset.getEtag());
         }
-        asset.setStatus(READY);
-        asset.setEtag(actual.etag());
-        asset.setUpdatedAt(LocalDateTime.now());
-        mapper.updateById(asset);
-        return toResponse(asset, true);
+
+        String temporaryKey = asset.getObjectKey();
+        StoredObjectMetadata uploaded = storage.metadata(temporaryKey);
+        validateUploadedObject(asset, uploaded, temporaryKey);
+        String finalKey = finalKeyFor(temporaryKey);
+        int claimed = mapper.update(null, new LambdaUpdateWrapper<MediaAsset>()
+                .eq(MediaAsset::getId, assetId)
+                .eq(MediaAsset::getOwnerId, userId)
+                .eq(MediaAsset::getStatus, UPLOADING)
+                .eq(MediaAsset::getObjectKey, temporaryKey)
+                .set(MediaAsset::getObjectKey, finalKey)
+                .set(MediaAsset::getEtag, uploaded.etag())
+                .set(MediaAsset::getUpdatedAt, LocalDateTime.now()));
+        if (claimed == 0) {
+            MediaAsset current = requireOwned(userId, assetId);
+            if (READY.equals(current.getStatus())) return toResponse(current, true);
+            if (!UPLOADING.equals(current.getStatus())) {
+                throw new BusinessException("MEDIA_STATE_INVALID", "当前文件状态不能完成上传");
+            }
+            return promoteAndComplete(current, temporaryKeyFor(current.getObjectKey()),
+                    current.getObjectKey(), current.getEtag());
+        }
+        asset.setObjectKey(finalKey);
+        asset.setEtag(uploaded.etag());
+        return promoteAndComplete(asset, temporaryKey, finalKey, uploaded.etag());
     }
 
     public MediaResponses.Asset upload(Long userId, MultipartFile file, String bizType, Long bizId) {
@@ -78,7 +98,14 @@ public class MediaAssetService {
         String contentType = file.getContentType();
         validate(file.getOriginalFilename(), contentType, file.getSize(), bizType);
         String normalizedBizType = bizType.trim().toUpperCase(Locale.ROOT);
-        String objectKey = createObjectKey(userId, normalizedBizType, file.getOriginalFilename());
+        Long normalizedBizId = validateGenericBusiness(userId, normalizedBizType, bizId, contentType, file.getSize());
+        return storeUpload(userId, file, normalizedBizType, normalizedBizId);
+    }
+
+    private MediaResponses.Asset storeUpload(Long userId, MultipartFile file, String bizType, Long bizId) {
+        String contentType = file.getContentType();
+        validate(file.getOriginalFilename(), contentType, file.getSize(), bizType);
+        String objectKey = createObjectKey(userId, bizType, file.getOriginalFilename());
         StoredObjectMetadata metadata;
         try (InputStream input = file.getInputStream()) {
             metadata = storage.upload(objectKey, input, file.getSize(), contentType);
@@ -87,7 +114,7 @@ public class MediaAssetService {
         }
 
         MediaAsset asset = newAsset(userId, objectKey, file.getOriginalFilename(), contentType,
-                file.getSize(), normalizedBizType, bizId, READY);
+                file.getSize(), bizType, bizId, READY);
         asset.setEtag(metadata.etag());
         try {
             mapper.insert(asset);
@@ -104,7 +131,10 @@ public class MediaAssetService {
                 || "image/svg+xml".equalsIgnoreCase(contentType)) {
             throw new BusinessException("AVATAR_TYPE_INVALID", "头像仅支持常见图片格式");
         }
-        return upload(userId, file, "AVATAR", userId);
+        if (file.getSize() > MAX_AVATAR_SIZE) {
+            throw new BusinessException("MEDIA_SIZE_INVALID", "头像大小不能超过 5MB");
+        }
+        return storeUpload(userId, file, "AVATAR", userId);
     }
 
     public MediaResponses.Asset uploadCourseVideo(Long userId, Long lessonId, MultipartFile file) {
@@ -112,14 +142,14 @@ public class MediaAssetService {
         if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("video/")) {
             throw new BusinessException("COURSE_VIDEO_TYPE_INVALID", "课程视频仅支持视频文件");
         }
-        return upload(userId, file, "COURSE_LESSON", lessonId);
+        return storeUpload(userId, file, "COURSE_LESSON", lessonId);
     }
 
     public String readyAccessUrl(Long assetId) {
         if (assetId == null) return null;
         MediaAsset asset = mapper.selectById(assetId);
         if (asset == null || !READY.equals(asset.getStatus())) return null;
-        return storage.accessUrl(asset.getObjectKey(), properties.getDownloadUrlTtl()).toString();
+        return accessFor(asset).url().toString();
     }
 
     public MediaResponses.Asset detail(Long userId, Long assetId) {
@@ -146,8 +176,9 @@ public class MediaAssetService {
         String url = null;
         Instant expiresAt = null;
         if (includeUrl && READY.equals(asset.getStatus())) {
-            url = storage.accessUrl(asset.getObjectKey(), properties.getDownloadUrlTtl()).toString();
-            expiresAt = Instant.now().plus(properties.getDownloadUrlTtl());
+            StoredObjectAccess access = accessFor(asset);
+            url = access.url().toString();
+            expiresAt = access.expiresAt();
         }
         return new MediaResponses.Asset(asset.getId(), asset.getOriginalName(), asset.getContentType(),
                 asset.getFileSize(), asset.getStatus(), asset.getBizType(), asset.getBizId(), url,
@@ -199,6 +230,109 @@ public class MediaAssetService {
         return "uploads/" + bizType.toLowerCase(Locale.ROOT) + "/"
                 + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd")) + "/"
                 + userId + "/" + UUID.randomUUID().toString().replace("-", "") + suffix;
+    }
+
+    private String createTemporaryObjectKey(Long userId, String bizType, String filename) {
+        return createObjectKey(userId, bizType, filename).replaceFirst("^uploads/", "uploads/.tmp/");
+    }
+
+    private boolean isTemporaryObjectKey(String objectKey) {
+        return objectKey.startsWith("uploads/.tmp/");
+    }
+
+    private String finalKeyFor(String temporaryKey) {
+        return temporaryKey.replaceFirst("^uploads/\\.tmp/", "uploads/");
+    }
+
+    private String temporaryKeyFor(String finalKey) {
+        if (isTemporaryObjectKey(finalKey)) return finalKey;
+        return finalKey.replaceFirst("^uploads/", "uploads/.tmp/");
+    }
+
+    private MediaResponses.Asset promoteAndComplete(MediaAsset asset, String temporaryKey,
+                                                     String finalKey, String sourceEtag) {
+        if (sourceEtag == null || sourceEtag.isBlank()) {
+            throw new BusinessException("MEDIA_STATE_INVALID", "上传文件缺少校验信息");
+        }
+        StoredObjectMetadata promoted = storage.promote(temporaryKey, finalKey, sourceEtag);
+        validatePromotedObject(asset, promoted);
+        storage.delete(temporaryKey);
+        int completed = mapper.update(null, new LambdaUpdateWrapper<MediaAsset>()
+                .eq(MediaAsset::getId, asset.getId())
+                .eq(MediaAsset::getOwnerId, asset.getOwnerId())
+                .eq(MediaAsset::getStatus, UPLOADING)
+                .eq(MediaAsset::getObjectKey, finalKey)
+                .set(MediaAsset::getStatus, READY)
+                .set(MediaAsset::getEtag, promoted.etag())
+                .set(MediaAsset::getUpdatedAt, LocalDateTime.now()));
+        if (completed == 0) {
+            MediaAsset current = requireOwned(asset.getOwnerId(), asset.getId());
+            if (READY.equals(current.getStatus())) return toResponse(current, true);
+            throw new BusinessException("MEDIA_STATE_INVALID", "上传状态已发生变化，请重试");
+        }
+        asset.setObjectKey(finalKey);
+        asset.setStatus(READY);
+        asset.setEtag(promoted.etag());
+        asset.setUpdatedAt(LocalDateTime.now());
+        return toResponse(asset, true);
+    }
+
+    private MediaResponses.Asset rejectLegacyUpload(MediaAsset asset) {
+        mapper.update(null, new LambdaUpdateWrapper<MediaAsset>()
+                .eq(MediaAsset::getId, asset.getId())
+                .eq(MediaAsset::getOwnerId, asset.getOwnerId())
+                .eq(MediaAsset::getStatus, UPLOADING)
+                .eq(MediaAsset::getObjectKey, asset.getObjectKey())
+                .set(MediaAsset::getStatus, FAILED)
+                .set(MediaAsset::getUpdatedAt, LocalDateTime.now()));
+        storage.delete(asset.getObjectKey());
+        throw new BusinessException("MEDIA_UPLOAD_EXPIRED", "旧版上传地址已失效，请重新上传");
+    }
+
+    private void validateUploadedObject(MediaAsset asset, StoredObjectMetadata actual, String objectKey) {
+        if (metadataMatches(asset, actual)) return;
+        mapper.update(null, new LambdaUpdateWrapper<MediaAsset>()
+                .eq(MediaAsset::getId, asset.getId())
+                .eq(MediaAsset::getOwnerId, asset.getOwnerId())
+                .eq(MediaAsset::getStatus, UPLOADING)
+                .set(MediaAsset::getStatus, FAILED)
+                .set(MediaAsset::getUpdatedAt, LocalDateTime.now()));
+        storage.delete(objectKey);
+        throw new BusinessException("MEDIA_MISMATCH", "上传文件与申请信息不一致，已清理");
+    }
+
+    private void validatePromotedObject(MediaAsset asset, StoredObjectMetadata actual) {
+        if (!metadataMatches(asset, actual)) {
+            throw new BusinessException("MEDIA_MISMATCH", "转存文件与申请信息不一致");
+        }
+    }
+
+    private boolean metadataMatches(MediaAsset asset, StoredObjectMetadata actual) {
+        return actual.size() == asset.getFileSize()
+                && sameContentType(asset.getContentType(), actual.contentType());
+    }
+
+    private StoredObjectAccess accessFor(MediaAsset asset) {
+        return storage.accessUrl(asset.getObjectKey(), properties.getDownloadUrlTtl(),
+                PUBLIC_BIZ_TYPES.contains(asset.getBizType()));
+    }
+
+    private Long validateGenericBusiness(Long userId, String bizType, Long bizId,
+                                         String contentType, long size) {
+        if (!"AVATAR".equals(bizType)) {
+            throw new BusinessException("MEDIA_BIZ_FORBIDDEN", "该业务类型只能通过专用管理接口上传");
+        }
+        if (bizId != null && !userId.equals(bizId)) {
+            throw new BusinessException("MEDIA_BIZ_FORBIDDEN", "不能为其他用户上传头像");
+        }
+        if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/")
+                || "image/svg+xml".equalsIgnoreCase(contentType)) {
+            throw new BusinessException("AVATAR_TYPE_INVALID", "头像仅支持常见图片格式");
+        }
+        if (size > MAX_AVATAR_SIZE) {
+            throw new BusinessException("MEDIA_SIZE_INVALID", "头像大小不能超过 5MB");
+        }
+        return userId;
     }
 
     private String extensionOf(String filename) {

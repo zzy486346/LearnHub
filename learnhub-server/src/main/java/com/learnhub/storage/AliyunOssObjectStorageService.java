@@ -3,6 +3,7 @@ package com.learnhub.storage;
 import com.aliyun.sdk.service.oss2.OSSClient;
 import com.aliyun.sdk.service.oss2.PresignOptions;
 import com.aliyun.sdk.service.oss2.exceptions.ServiceException;
+import com.aliyun.sdk.service.oss2.models.CopyObjectRequest;
 import com.aliyun.sdk.service.oss2.models.DeleteObjectRequest;
 import com.aliyun.sdk.service.oss2.models.GetObjectRequest;
 import com.aliyun.sdk.service.oss2.models.HeadObjectRequest;
@@ -78,10 +79,33 @@ public class AliyunOssObjectStorageService implements ObjectStorageService {
     }
 
     @Override
-    public URI accessUrl(String objectKey, Duration ttl) {
+    public StoredObjectMetadata promote(String sourceKey, String targetKey, String expectedSourceEtag) {
+        try {
+            client.copyObject(CopyObjectRequest.newBuilder()
+                    .bucket(properties.getBucket())
+                    .key(targetKey)
+                    .sourceBucket(properties.getBucket())
+                    .sourceKey(sourceKey)
+                    .copySourceIfMatch(expectedSourceEtag)
+                    .forbidOverwrite("true")
+                    .build());
+            return metadata(targetKey);
+        } catch (RuntimeException copyFailure) {
+            try {
+                return metadata(targetKey);
+            } catch (RuntimeException targetMissing) {
+                copyFailure.addSuppressed(targetMissing);
+                throw storageFailure("文件转存失败", copyFailure);
+            }
+        }
+    }
+
+    @Override
+    public StoredObjectAccess accessUrl(String objectKey, Duration ttl, boolean allowPublicUrl) {
         String publicBaseUrl = properties.getPublicBaseUrl();
-        if (publicBaseUrl != null && !publicBaseUrl.isBlank()) {
-            return URI.create(publicBaseUrl.replaceAll("/+$", "") + "/" + objectKey);
+        if (allowPublicUrl && publicBaseUrl != null && !publicBaseUrl.isBlank()) {
+            return new StoredObjectAccess(
+                    URI.create(publicBaseUrl.replaceAll("/+$", "") + "/" + objectKey), null);
         }
         try {
             Instant expiresAt = Instant.now().plus(ttl);
@@ -89,7 +113,8 @@ public class AliyunOssObjectStorageService implements ObjectStorageService {
                     .bucket(properties.getBucket())
                     .key(objectKey)
                     .build(), presignOptions(expiresAt));
-            return URI.create(result.url());
+            return new StoredObjectAccess(URI.create(result.url()),
+                    result.expiration().orElse(expiresAt));
         } catch (Exception exception) {
             throw storageFailure("生成文件访问地址失败", exception);
         }
