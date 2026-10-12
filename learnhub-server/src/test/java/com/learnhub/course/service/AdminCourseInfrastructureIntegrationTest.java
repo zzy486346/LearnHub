@@ -14,6 +14,7 @@ import com.learnhub.course.mapper.CourseLessonMapper;
 import com.learnhub.course.mapper.CourseMapper;
 import com.learnhub.course.mapper.LearningProgressMapper;
 import com.learnhub.course.model.Course;
+import com.learnhub.course.model.LearningProgress;
 import com.learnhub.interaction.like.LikeService;
 import com.learnhub.order.CourseOrderService;
 import com.learnhub.order.CourseOrderMapper;
@@ -231,6 +232,18 @@ class AdminCourseInfrastructureIntegrationTest {
             assertThat(saved).hasSize(1);
             assertThat(saved.get(0).getCompleted()).isTrue();
             assertThat(saved.get(0).getPositionSeconds()).isEqualTo(60);
+            LearningProgress olderRequest = new LearningProgress();
+            olderRequest.setId(uniqueBase());
+            olderRequest.setUserId(userId);
+            olderRequest.setLessonId(lessonId);
+            olderRequest.setPositionSeconds(1);
+            olderRequest.setCompleted(false);
+            olderRequest.setLastLearnedAt(saved.get(0).getLastLearnedAt().minusMinutes(1));
+            context.getBean(LearningProgressMapper.class).upsert(olderRequest);
+            var afterLateRequest = progress.getByCourse(userId, courseId).get(0);
+            assertThat(afterLateRequest.getPositionSeconds()).isEqualTo(60);
+            assertThat(afterLateRequest.getCompleted()).isTrue();
+            assertThat(afterLateRequest.getLastLearnedAt()).isEqualTo(saved.get(0).getLastLearnedAt());
         } finally {
             executor.shutdownNow();
             if (!executor.awaitTermination(30, TimeUnit.SECONDS)) throw new IllegalStateException("进度测试线程未退出");

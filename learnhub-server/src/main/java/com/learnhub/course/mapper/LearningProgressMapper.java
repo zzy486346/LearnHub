@@ -15,7 +15,8 @@ public interface LearningProgressMapper extends BaseMapper<LearningProgress> {
             INSERT INTO learning_progress (id, user_id, lesson_id, position_seconds, completed, last_learned_at)
             VALUES (#{id}, #{userId}, #{lessonId}, #{positionSeconds}, #{completed}, #{lastLearnedAt})
             ON DUPLICATE KEY UPDATE
-                position_seconds = VALUES(position_seconds),
+                position_seconds = IF(VALUES(last_learned_at) >= last_learned_at,
+                    VALUES(position_seconds), position_seconds),
                 completed = GREATEST(completed, VALUES(completed)),
                 last_learned_at = GREATEST(last_learned_at, VALUES(last_learned_at))
             """)
