@@ -3,7 +3,7 @@
 ## 已完成
 
 - 搜索使用 ES 原生 `bool + multi_match + function_score`，文本采用 BM25；标题权重 6、讲师和标签权重 2，描述权重 1。点赞通过 `log1p` 加权，额外分值上限 1，防止热度完全覆盖相关性。
-- 标签为 keyword，多标签按全部满足过滤；只返回 PUBLISHED 课程。分页 size 为 1～100，最大深度 10000。
+- 标签为 keyword，多标签按全部满足过滤；分类按 categoryId long 精确过滤，可与关键词和标签组合；只返回 PUBLISHED 课程。分页 size 为 1～100，最大深度 10000。
 - 联想使用 completion 字段，并以发布状态 context 限制；输入来自标题、讲师、标签，空前缀不查询，重复项去重，最多 20 条。
 - MySQL 是事实源；创建、编辑、发布、下架及点赞计数落库和索引任务同事务提交。任务以 course_id 合并、generation 递增，完成与失败更新均通过 generation CAS 防止丢失后续更新。
 - 定时同步失败后指数退避重试，最高退避 2560 秒。全量重建 keyset 分页读取 MySQL，构建新索引、刷新后原子切换 alias，旧版本保留。
@@ -61,7 +61,7 @@ POST _analyze
 
 在 Kibana 执行 `GET learnhub-courses-search/_mapping`，核对 title 的 analyzer 为 ik_max_word、search_analyzer 为 ik_smart，以及 suggest 的 completion 类型。未重建的旧索引仍保持其原分词配置；若 alias 尚未初始化，新配置后端启动时会自动创建 IK 版本。缺失插件的环境可以显式把两个配置设回 standard，但该模式不等价于中文 IK 检索。
 
-用户自行启动日常后端。本阶段测试通过 MockMvc 与独立测试 alias 验证，没有启动额外监听端口的后端服务。服务运行后，同步任务会在 alias 缺失时自动从 MySQL 初始化；也可由管理员显式重建。
+用户自行启动日常后端。本阶段测试通过 MockMvc 与独立测试 alias 验证，没有启动额外监听端口的后端服务。服务运行后，同步任务会在 alias 缺失时自动从 MySQL 初始化；2026-10-14 起也会检测旧 alias 缺少 categoryId long 映射并自动重建、原子切换，保留旧索引。也可由管理员显式重建。新的分类筛选及旧映射自愈已通过 4 项真实 ES 测试，测试随机索引已清理；详见[本轮验收](PLATFORM_REMAINING_FIXES_20261014.md)。
 
 ## 管理与故障恢复
 
@@ -74,7 +74,7 @@ POST _analyze
 
 查询接口：
 
-- `GET /api/search/courses/page?keyword=Java&tags=Java,后端&page=1&size=20`：records、total、current、size。
+- `GET /api/search/courses/page?keyword=Java&tags=Java,后端&categoryId=1&page=1&size=20`：records、total、current、size；categoryId 可省略。
 - `GET /api/search/courses?keyword=Java&page=1&limit=20`：保留列表兼容接口。
 - `GET /api/search/courses/suggestions?prefix=Java&limit=8`：联想；旧 /suggest 同样支持。
 
