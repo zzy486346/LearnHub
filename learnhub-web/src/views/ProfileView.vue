@@ -78,7 +78,12 @@ async function payPendingOrder(order: CourseOrder) {
     const paid = (await orderApi.pay(order.id)).data.data
     const index = orders.value.findIndex((item) => item.id === paid.id)
     if (index >= 0) orders.value[index] = paid
-    ElMessage.success('支付成功，课程已解锁')
+    if (paid.status === 'PAID') {
+      ElMessage.success('支付成功，课程已解锁')
+    } else if (paid.status === 'CLOSED') {
+      couponsKey.value++
+      ElMessage.warning('订单已关闭，优惠券已退回，请重新下单')
+    }
   } catch (error) {
     if (isSessionExpired(error)) return
     ElMessage.error((error as { response?: { data?: { message?: string } } }).response?.data?.message || '支付失败，请稍后重试')
@@ -339,7 +344,7 @@ onBeforeUnmount(() => {
             <div class="profile-order-amount"><span>{{ order.status === 'PENDING' ? '应付' : '实付' }}</span><strong>¥{{ Number(order.status === 'PENDING' ? (order.payableAmount ?? order.originalAmount) : (order.paidAmount ?? 0)).toFixed(2) }}</strong><small>优惠 ¥{{ Number(order.discountAmount || 0).toFixed(2) }}</small></div>
             <div class="profile-order-actions">
               <template v-if="order.status === 'PENDING'">
-                <el-button type="primary" :loading="payingOrderId === order.id" :disabled="processingOrderId === order.id || order.paymentMode === 'DISABLED'" @click="payPendingOrder(order)">本机演示支付</el-button>
+                <el-button type="primary" :loading="payingOrderId === order.id" :disabled="processingOrderId === order.id || order.paymentMode === 'DISABLED'" @click="payPendingOrder(order)">本机演示支付 ¥0.00</el-button>
                 <el-button :loading="processingOrderId === order.id" :disabled="payingOrderId === order.id" @click="cancelOrder(order)">取消订单</el-button>
               </template>
               <template v-else-if="order.status === 'PAID'">

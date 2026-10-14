@@ -232,8 +232,9 @@ watch(() => route.params.id, loadCourse, { immediate: true })
           <div><span>订单号</span><strong>{{ activeOrder.orderNo }}</strong></div>
           <div><span>课程原价</span><strong>¥{{ Number(activeOrder.originalAmount || 0).toFixed(2) }}</strong></div>
           <div><span>优惠抵扣</span><strong>-¥{{ Number(activeOrder.discountAmount || 0).toFixed(2) }}</strong></div>
-          <div class="order-payable"><span>应付金额</span><strong>¥{{ Number(activeOrder.payableAmount ?? activeOrder.originalAmount).toFixed(2) }}</strong></div>
-          <p v-if="activeOrder.paymentMode === 'LOCAL_DEMO'">本机演示支付：不会请求支付宝或微信，也不会发生真实扣款。确认后按应付金额记录订单并解锁课程。</p>
+          <div class="order-payable"><span>优惠后金额（仅计算）</span><strong>¥{{ Number(activeOrder.payableAmount ?? activeOrder.originalAmount).toFixed(2) }}</strong></div>
+          <div v-if="activeOrder.paymentMode === 'LOCAL_DEMO'"><span>本机演示实付</span><strong>¥0.00</strong></div>
+          <p v-if="activeOrder.paymentMode === 'LOCAL_DEMO'">优惠后金额用于验证订单与优惠券计算；本机演示不会请求支付宝或微信，也不会发生真实扣款。</p>
           <p v-else role="alert">当前环境未启用支付，请稍后再试或取消待支付订单。</p>
         </div>
         <div v-else class="order-summary" :aria-busy="couponLoading">
@@ -252,7 +253,7 @@ watch(() => route.params.id, loadCourse, { immediate: true })
         <template #footer>
           <el-button :disabled="paying || creatingOrder" @click="orderDialogVisible = false">关闭</el-button>
           <el-button v-if="!activeOrder" type="primary" :loading="creatingOrder" :disabled="couponLoading" @click="createOrder">创建订单</el-button>
-          <el-button v-else type="primary" :loading="paying" :disabled="activeOrder.paymentMode === 'DISABLED'" @click="payOrder">本机演示支付 ¥{{ Number(activeOrder.payableAmount ?? activeOrder.originalAmount).toFixed(2) }}</el-button>
+          <el-button v-else type="primary" :loading="paying" :disabled="activeOrder.paymentMode === 'DISABLED'" @click="payOrder">确认演示付款（实付 ¥0.00）</el-button>
         </template>
       </el-dialog>
     </template>

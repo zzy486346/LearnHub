@@ -42,6 +42,37 @@ async function mountPurchase(wallet, createOrder, pay = () => result(null), mess
   return { app, view }
 }
 
+async function mountProfile(order, pay, messages = []) {
+  globalThis.commerceHarness = {
+    authApi: {},
+    orderApi: { mine: () => result([order]), pay },
+    profileApi: { overview: () => result({}) },
+    clearTokens: () => {},
+    useAuthStore: () => reactive({ user: { roles: [] }, fetchMe: async () => {} }),
+    useRouter: () => ({ push: async () => {} }),
+    ElMessage: Object.fromEntries(['success', 'info', 'error', 'warning'].map(level => [level, message => messages.push([level, message])])),
+    ElMessageBox: { confirm: async () => {} },
+  }
+  const source = (await readFile(new URL('../src/views/ProfileView.vue', import.meta.url), 'utf8'))
+    .replace('</script>', 'defineExpose({ payPendingOrder, orders, couponsKey })\n</script>')
+  const compiled = compileScript(parse(source).descriptor, { id: 'commerce-profile-test' }).content
+    .replace(/from ['"]vue['"]/g, `from ${JSON.stringify(vueUrl)}`)
+    .replace(/import \{ useRouter \} from ['"]vue-router['"]/, 'const { useRouter } = globalThis.commerceHarness')
+    .replace(/import \{ ElMessage, ElMessageBox \} from ['"]element-plus['"]/, 'const { ElMessage, ElMessageBox } = globalThis.commerceHarness')
+    .replace(/import \{ authApi, orderApi, profileApi \} from ['"]@\/api['"]/, 'const { authApi, orderApi, profileApi } = globalThis.commerceHarness')
+    .replace(/import \{ clearTokens \} from ['"]@\/api\/http['"]/, 'const { clearTokens } = globalThis.commerceHarness')
+    .replace(/import \{ isSessionExpired \} from ['"]@\/api\/session['"]/, "const isSessionExpired = error => error?.code === 'AUTH_SESSION_EXPIRED'")
+    .replace(/import \{ useAuthStore \} from ['"]@\/stores\/auth['"]/, 'const { useAuthStore } = globalThis.commerceHarness')
+    .replace(/import MyCoupons from ['"]@\/components\/MyCoupons\.vue['"]/, 'const MyCoupons = {}')
+  const code = ts.transpileModule(compiled, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
+  const module = await import(`data:text/javascript;base64,${Buffer.from(code + `\n// ${++serial}`).toString('base64')}`)
+  module.default.render = () => null
+  const app = renderer.createApp(module.default)
+  const view = app.mount({})
+  await new Promise(resolve => setImmediate(resolve))
+  return { app, view }
+}
+
 test('购买页只展示本人可用且满足门槛与有效期的优惠券，并提交claimId', async () => {
   const now = Date.now()
   const wallet = [
@@ -94,4 +125,27 @@ test('支付时订单已过期只提示关闭，不误报课程解锁', async ()
     assert.deepEqual(messages.at(-1), ['warning', '订单已关闭，优惠券已退回，请重新下单'])
     assert.equal(messages.some(([level]) => level === 'success'), false)
   } finally { app.unmount() }
+})
+
+test('个人中心支付过期订单同步关闭状态并退回优惠券，不误报课程解锁', async () => {
+  const messages = []
+  const pendingOrder = { id: 'o-profile', status: 'PENDING', courseId: '7', paymentMode: 'LOCAL_DEMO' }
+  const closedOrder = { ...pendingOrder, status: 'CLOSED' }
+  const { app, view } = await mountProfile(pendingOrder, () => result(closedOrder), messages)
+  try {
+    await view.payPendingOrder(view.orders[0])
+    assert.equal(view.orders[0].status, 'CLOSED')
+    assert.equal(view.couponsKey, 1)
+    assert.deepEqual(messages.at(-1), ['warning', '订单已关闭，优惠券已退回，请重新下单'])
+    assert.equal(messages.some(([level]) => level === 'success'), false)
+  } finally { app.unmount() }
+})
+
+test('本机演示付款明确实付零元，应付金额只用于优惠计算', async () => {
+  const detail = await readFile(new URL('../src/views/CourseDetailView.vue', import.meta.url), 'utf8')
+  const profile = await readFile(new URL('../src/views/ProfileView.vue', import.meta.url), 'utf8')
+  assert.match(detail, /优惠后金额（仅计算）/)
+  assert.match(detail, /本机演示实付<\/span><strong>¥0\.00/)
+  assert.match(detail, /确认演示付款（实付 ¥0\.00）/)
+  assert.match(profile, /本机演示支付 ¥0\.00/)
 })
