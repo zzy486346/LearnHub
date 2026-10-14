@@ -1,7 +1,10 @@
+#Requires -Version 7.0
 [CmdletBinding()]
 param(
     [string]$MavenPath = 'D:\Android\apache-maven-3.9.10\bin\mvn.cmd',
-    [int]$StartupTimeoutSeconds = 120
+    [int]$StartupTimeoutSeconds = 120,
+    [ValidateSet('SeckillInfrastructureIntegrationTest', 'LikeInfrastructureIntegrationTest')]
+    [string]$TestClass = 'SeckillInfrastructureIntegrationTest'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -90,21 +93,27 @@ try {
     Push-Location -LiteralPath $taskRoot
     try {
         $taskMavenStartedUtc = [DateTime]::UtcNow
-        & $MavenPath '-pl' 'learnhub-server' '-am' '-Dtest=SeckillInfrastructureIntegrationTest' `
+        & $MavenPath '-pl' 'learnhub-server' '-am' "-Dtest=$TestClass" `
             '-Dsurefire.failIfNoSpecifiedTests=false' '-Dlearnhub.it.enabled=true' `
             "-Dlearnhub.seckill.it.mysql-port=$taskMysqlPort" `
             "-Dlearnhub.seckill.it.mysql-database=$taskDatabase" `
             "-Dlearnhub.seckill.it.redis-port=$taskRedisPort" `
-            "-Dlearnhub.seckill.it.rabbit-port=$taskRabbitPort" test
+            "-Dlearnhub.seckill.it.rabbit-port=$taskRabbitPort" `
+            "-Dlearnhub.like.it.mysql-port=$taskMysqlPort" `
+            "-Dlearnhub.like.it.mysql-database=$taskDatabase" `
+            "-Dlearnhub.like.it.redis-port=$taskRedisPort" `
+            "-Dlearnhub.like.it.rabbit-port=$taskRabbitPort" test
         $taskExitCode = $LASTEXITCODE
         if ($taskExitCode -eq 0) {
-            $taskReportPath = Join-Path $taskRoot 'learnhub-server\target\surefire-reports\TEST-com.learnhub.marketing.coupon.SeckillInfrastructureIntegrationTest.xml'
+            $taskTestPackage = if ($TestClass -eq 'LikeInfrastructureIntegrationTest') { 'interaction.like' } else { 'marketing.coupon' }
+            $taskMinimumTests = if ($TestClass -eq 'LikeInfrastructureIntegrationTest') { 3 } else { 2 }
+            $taskReportPath = Join-Path $taskRoot "learnhub-server\target\surefire-reports\TEST-com.learnhub.$taskTestPackage.$TestClass.xml"
             $taskReportFile = Get-Item -LiteralPath $taskReportPath
             if ($taskReportFile.LastWriteTimeUtc -lt $taskMavenStartedUtc) { throw 'Integration test report is stale' }
             [xml]$taskReport = Get-Content -LiteralPath $taskReportPath -Raw
-            if ([int]$taskReport.testsuite.tests -lt 2 -or [int]$taskReport.testsuite.skipped -ne 0 -or
+            if ([int]$taskReport.testsuite.tests -lt $taskMinimumTests -or [int]$taskReport.testsuite.skipped -ne 0 -or
                 [int]$taskReport.testsuite.errors -ne 0 -or [int]$taskReport.testsuite.failures -ne 0) {
-                throw 'Seckill integration tests did not execute all required scenarios successfully'
+                throw 'Integration tests did not execute all required scenarios successfully'
             }
         }
     } finally { Pop-Location }

@@ -18,19 +18,22 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
+import com.learnhub.interaction.favorite.FavoriteService;
+import com.learnhub.common.exception.BusinessException;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration,org.redisson.spring.starter.RedissonAutoConfigurationV2",
         "spring.data.elasticsearch.repositories.enabled=false",
-        "spring.datasource.url=jdbc:mysql://localhost:3306/learnhub?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai",
+        "spring.datasource.url=jdbc:mysql://127.0.0.1:${learnhub.like.it.mysql-port:3306}/${learnhub.like.it.mysql-database:learnhub}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai",
         "spring.datasource.username=learnhub",
         "spring.datasource.password=learnhub",
         "spring.data.redis.host=localhost",
-        "spring.data.redis.port=6379",
+        "spring.data.redis.port=${learnhub.like.it.redis-port:6379}",
         "spring.rabbitmq.host=localhost",
-        "spring.rabbitmq.port=5672",
+        "spring.rabbitmq.port=${learnhub.like.it.rabbit-port:5672}",
         "spring.rabbitmq.username=learnhub",
         "spring.rabbitmq.password=learnhub",
         "learnhub.rabbit.enabled=true",
@@ -43,6 +46,7 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 @EnabledIfSystemProperty(named = "learnhub.it.enabled", matches = "true")
 class LikeInfrastructureIntegrationTest {
     @Autowired private LikeService likeService;
+    @Autowired private FavoriteService favoriteService;
     @Autowired private LikeBatchFlushService flushService;
     @Autowired private LikePersistenceService persistence;
     @Autowired private LikeReconciliationService reconciliation;
@@ -67,11 +71,29 @@ class LikeInfrastructureIntegrationTest {
     void cleanUp() {
         clearRedisState();
         jdbc.update("DELETE FROM like_record WHERE target_type = 'COURSE' AND target_id = ?", courseId);
+        jdbc.update("DELETE FROM favorite_record WHERE target_type = 'COURSE' AND target_id = ?", courseId);
         jdbc.update("DELETE FROM like_event_inbox WHERE target_type = 'COURSE' AND target_id = ?", courseId);
         jdbc.queryForList("SELECT batch_id FROM like_sync_batch", String.class).stream()
                 .filter(batchId -> !existingBatchIds.contains(batchId))
                 .forEach(batchId -> jdbc.update("DELETE FROM like_sync_batch WHERE batch_id = ?", batchId));
         jdbc.update("DELETE FROM course WHERE id = ?", courseId);
+    }
+
+    @Test
+    void deletedTargetsHaveNoWriteSideEffectsAndStaleFavoritesCanBeRemoved() {
+        jdbc.update("UPDATE course SET deleted = 1 WHERE id = ?", courseId);
+        assertThrows(BusinessException.class, () -> likeService.setLike(userId, LikeTargetType.COURSE, courseId, true));
+        assertThrows(BusinessException.class, () -> favoriteService.favorite(userId, LikeTargetType.COURSE, courseId));
+        assertFalse(Boolean.TRUE.equals(redis.hasKey(LikeRedisKeys.userSet(LikeTargetType.COURSE, courseId))));
+        assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM like_event_inbox WHERE target_id = ?", Long.class, courseId));
+        assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM favorite_record WHERE target_id = ?", Long.class, courseId));
+        jdbc.update("UPDATE course SET deleted = 0 WHERE id = ?", courseId);
+        assertTrue(favoriteService.favorite(userId, LikeTargetType.COURSE, courseId));
+        assertTrue(favoriteService.favorite(userId, LikeTargetType.COURSE, courseId));
+        assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM favorite_record WHERE target_id = ?", Long.class, courseId));
+        jdbc.update("UPDATE course SET deleted = 1 WHERE id = ?", courseId);
+        assertFalse(favoriteService.unfavorite(userId, LikeTargetType.COURSE, courseId));
+        assertEquals(0L, jdbc.queryForObject("SELECT COUNT(*) FROM favorite_record WHERE target_id = ?", Long.class, courseId));
     }
 
     @Test
