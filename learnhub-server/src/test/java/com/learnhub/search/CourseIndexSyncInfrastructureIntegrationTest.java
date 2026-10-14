@@ -55,6 +55,8 @@ class CourseIndexSyncInfrastructureIntegrationTest {
     @SpyBean CourseSearchGateway gateway;
     @SpyBean CourseIndexTaskMapper tasks;
     private final List<Long> courses = new ArrayList<>();
+    private final List<Long> chapters = new ArrayList<>();
+    private final List<Long> lessons = new ArrayList<>();
     private final List<String> indexes = new ArrayList<>();
     private final long tagId = com.baomidou.mybatisplus.core.toolkit.IdWorker.getId();
     private final String marker = "syncfixture" + UUID.randomUUID().toString().replace("-", "");
@@ -83,8 +85,10 @@ class CourseIndexSyncInfrastructureIntegrationTest {
             for (Long id : courses) {
                 jdbc.update("DELETE FROM course_tag WHERE course_id = ?", id);
                 jdbc.update("DELETE FROM search_index_task WHERE course_id = ?", id);
-                jdbc.update("DELETE FROM course WHERE id = ?", id);
             }
+            for (Long id : lessons) jdbc.update("DELETE FROM course_lesson WHERE id = ?", id);
+            for (Long id : chapters) jdbc.update("DELETE FROM course_chapter WHERE id = ?", id);
+            for (Long id : courses) jdbc.update("DELETE FROM course WHERE id = ?", id);
             jdbc.update("DELETE FROM tag WHERE id = ?", tagId);
         }
     }
@@ -99,6 +103,8 @@ class CourseIndexSyncInfrastructureIntegrationTest {
         refresh();
         assertEquals(0, pending(id));
         assertEquals(id, search.search(marker, Set.of(marker + "|标签"), 20).get(0).id());
+        assertEquals(id, search.search(marker, Set.of(marker + "|标签"), 1L, 20).get(0).id());
+        assertTrue(search.search(marker, Set.of(marker + "|标签"), 2L, 20).isEmpty());
         jdbc.update("UPDATE course SET like_count=200 WHERE id=?", id);
         queue.enqueue(id);
         sync.syncDue(100); refresh();
@@ -152,8 +158,17 @@ class CourseIndexSyncInfrastructureIntegrationTest {
     }
 
     private Long create() {
-        Long id = admin.createCourse(new AdminCourseRequests.CreateCourse(1L, marker + " course", "description", "teacher", BigDecimal.ONE, "PUBLISHED"));
+        Long id = admin.createCourse(new AdminCourseRequests.CreateCourse(
+                1L, marker + " course", "description", "teacher", BigDecimal.ONE, "DRAFT"));
         courses.add(id);
+        Long chapterId = admin.createChapter(id, new AdminCourseRequests.CreateChapter("测试章节", 1));
+        chapters.add(chapterId);
+        Long lessonId = admin.createLesson(chapterId,
+                new AdminCourseRequests.CreateLesson("测试课时", 60, false, 1));
+        lessons.add(lessonId);
+        jdbc.update("UPDATE course_lesson SET media_url = ? WHERE id = ?",
+                "https://media.example/" + lessonId + ".mp4", lessonId);
+        admin.publishCourse(id);
         return id;
     }
     private int pending(Long id) { return jdbc.queryForObject("SELECT COUNT(*) FROM search_index_task WHERE course_id=?", Integer.class, id); }

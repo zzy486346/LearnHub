@@ -128,7 +128,7 @@ public class CourseIndexSyncService {
     }
 
     private CourseSearchDocument toDocument(CourseIndexSource source) {
-        CourseSearchDocument document = new CourseSearchDocument(source.getId(), source.getTitle(),
+        CourseSearchDocument document = new CourseSearchDocument(source.getId(), source.getCategoryId(), source.getTitle(),
                 source.getDescription(), source.getInstructor(), source.getCoverUrl(), tags(source.getTagJson()),
                 source.getLikeCount() == null ? 0L : source.getLikeCount());
         document.setStatus(source.getStatus());

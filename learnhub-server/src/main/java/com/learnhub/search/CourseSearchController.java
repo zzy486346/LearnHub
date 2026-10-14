@@ -16,9 +16,10 @@ public class CourseSearchController {
     @GetMapping
     public ApiResponse<List<SearchResult>> search(@RequestParam(defaultValue = "") String keyword,
                                      @RequestParam(required = false) Set<String> tags,
+                                     @RequestParam(required = false) Long categoryId,
                                      @RequestParam(defaultValue = "1") int page,
                                      @RequestParam(defaultValue = "20") int limit) {
-        return ApiResponse.success(service.searchPage(keyword, tags, page, limit).records());
+        return ApiResponse.success(service.searchPage(keyword, tags, categoryId, page, limit).records());
     }
 
     @GetMapping({"/suggest", "/suggestions"})
@@ -30,7 +31,8 @@ public class CourseSearchController {
     @GetMapping("/page")
     public ApiResponse<SearchPage> page(@RequestParam(defaultValue = "") String keyword,
             @RequestParam(required = false) Set<String> tags,
+            @RequestParam(required = false) Long categoryId,
             @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.success(service.searchPage(keyword, tags, page, size));
+        return ApiResponse.success(service.searchPage(keyword, tags, categoryId, page, size));
     }
 }

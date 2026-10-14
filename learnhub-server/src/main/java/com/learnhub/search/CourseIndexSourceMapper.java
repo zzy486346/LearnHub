@@ -9,7 +9,7 @@ import org.apache.ibatis.annotations.Select;
 @Mapper
 public interface CourseIndexSourceMapper {
     @Select("""
-            SELECT c.id, c.title, c.description, c.instructor, c.cover_url, c.like_count,
+            SELECT c.id, c.category_id, c.title, c.description, c.instructor, c.cover_url, c.like_count,
                    c.status, c.published_at, c.deleted,
                    (SELECT JSON_ARRAYAGG(t.name)
                     FROM course_tag ct JOIN tag t ON t.id = ct.tag_id
@@ -20,7 +20,7 @@ public interface CourseIndexSourceMapper {
     CourseIndexSource selectByCourseId(@Param("courseId") Long courseId);
 
     @Select("""
-            SELECT c.id, c.title, c.description, c.instructor, c.cover_url, c.like_count,
+            SELECT c.id, c.category_id, c.title, c.description, c.instructor, c.cover_url, c.like_count,
                    c.status, c.published_at, c.deleted,
                    (SELECT JSON_ARRAYAGG(t.name)
                     FROM course_tag ct JOIN tag t ON t.id = ct.tag_id
@@ -34,6 +34,7 @@ public interface CourseIndexSourceMapper {
 
     class CourseIndexSource {
         private Long id;
+        private Long categoryId;
         private String title;
         private String description;
         private String instructor;
@@ -46,6 +47,8 @@ public interface CourseIndexSourceMapper {
 
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
+        public Long getCategoryId() { return categoryId; }
+        public void setCategoryId(Long categoryId) { this.categoryId = categoryId; }
         public String getTitle() { return title; }
         public void setTitle(String title) { this.title = title; }
         public String getDescription() { return description; }

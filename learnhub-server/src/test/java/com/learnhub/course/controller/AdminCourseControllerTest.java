@@ -40,6 +40,7 @@ class AdminCourseControllerTest {
         Course course = new Course();
         course.setId(99L);
         course.setTitle("管理课程");
+        course.setCategoryId(9007199254740993L);
         Page<Course> page = Page.of(2, 10, 21);
         page.setRecords(List.of(course));
         when(service.list(2)).thenReturn(page);
@@ -49,7 +50,8 @@ class AdminCourseControllerTest {
                 .andExpect(jsonPath("$.data.current").value(2))
                 .andExpect(jsonPath("$.data.size").value(10))
                 .andExpect(jsonPath("$.data.total").value(21))
-                .andExpect(jsonPath("$.data.records[0].id").value(99));
+                .andExpect(jsonPath("$.data.records[0].id").value(99))
+                .andExpect(jsonPath("$.data.records[0].categoryId").value("9007199254740993"));
         mvc.perform(delete("/api/admin/lessons/3001").with(authentication(admin())))
                 .andExpect(status().isOk());
 

@@ -155,6 +155,39 @@ class MediaAssetServiceTest {
     }
 
     @Test
+    void uploadsCourseCoverThroughDedicatedPublicAssetFlow() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "cover.png", "image/png", new byte[] {1, 2, 3});
+        when(storage.upload(any(), any(), eq(3L), eq("image/png")))
+                .thenReturn(new StoredObjectMetadata(3, "image/png", "etag-cover"));
+        when(mapper.insert(any(MediaAsset.class))).thenAnswer(invocation -> {
+            MediaAsset asset = invocation.getArgument(0);
+            asset.setId(77L);
+            return 1;
+        });
+        when(storage.accessUrl(any(), any(), eq(true))).thenReturn(new StoredObjectAccess(
+                URI.create("https://cdn.example/cover.png"), null));
+
+        MediaResponses.Asset response = service.uploadCourseCover(1L, 1001L, file);
+
+        assertThat(response.id()).isEqualTo(77L);
+        assertThat(response.bizType()).isEqualTo("COURSE_COVER");
+        assertThat(response.bizId()).isEqualTo(1001L);
+        assertThat(response.url()).isEqualTo("https://cdn.example/cover.png");
+    }
+
+    @Test
+    void rejectsSvgCourseCoverBeforeStorageWrite() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "cover.svg", "image/svg+xml", new byte[] {1});
+
+        assertThatThrownBy(() -> service.uploadCourseCover(1L, 1001L, file))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getCode()).isEqualTo("COURSE_COVER_TYPE_INVALID"));
+        verify(storage, never()).upload(any(), any(), anyLong(), any());
+    }
+
+    @Test
     void resumesPromotionAfterDatabaseClaimWasPersisted() {
         MediaAsset asset = uploadingAsset();
         asset.setObjectKey("uploads/course_lesson/key.mp4");

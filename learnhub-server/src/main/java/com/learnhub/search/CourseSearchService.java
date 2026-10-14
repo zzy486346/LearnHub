@@ -16,14 +16,22 @@ public class CourseSearchService {
     public CourseSearchService(CourseSearchGateway gateway) { this.gateway = gateway; }
 
     public List<SearchResult> search(String keyword, Set<String> tags, int limit) {
-        return searchPage(keyword, tags, 1, limit).records();
+        return search(keyword, tags, null, limit);
+    }
+
+    public List<SearchResult> search(String keyword, Set<String> tags, Long categoryId, int limit) {
+        return searchPage(keyword, tags, categoryId, 1, limit).records();
     }
 
     public SearchPage searchPage(String keyword, Set<String> tags, int page, int size) {
+        return searchPage(keyword, tags, null, page, size);
+    }
+
+    public SearchPage searchPage(String keyword, Set<String> tags, Long categoryId, int page, int size) {
         if (page < 1 || size < 1 || size > 100 || (long) page * size > 10000) {
             throw new BusinessException("SEARCH_PAGE_INVALID", "搜索分页范围无效，页大小为1至100，最多查询前10000条");
         }
-        JsonNode result = gateway.search(query(keyword, tags, page, size));
+        JsonNode result = gateway.search(query(keyword, tags, categoryId, page, size));
         List<SearchResult> records = new ArrayList<>();
         for (JsonNode hit : result.path("hits").path("hits")) {
             JsonNode source = hit.path("_source");
@@ -38,9 +46,17 @@ public class CourseSearchService {
     }
 
     static Map<String, Object> query(String keyword, Set<String> tags, int page, int size) {
+        return query(keyword, tags, null, page, size);
+    }
+
+    static Map<String, Object> query(String keyword, Set<String> tags, Long categoryId, int page, int size) {
         String term = normalize(keyword, 200);
         List<Object> filters = new ArrayList<>();
         filters.add(Map.of("term", Map.of("status", "PUBLISHED")));
+        if (categoryId != null) {
+            if (categoryId <= 0) throw new BusinessException("SEARCH_CATEGORY_INVALID", "课程分类编号无效");
+            filters.add(Map.of("term", Map.of("categoryId", categoryId)));
+        }
         if (tags != null && !tags.isEmpty()) {
             if (tags.size() > 20) throw new BusinessException("SEARCH_TAGS_INVALID", "最多筛选20个标签");
             // 每个标签一个terms过滤条件，保持多选标签全部匹配的既有语义。

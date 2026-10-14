@@ -12,6 +12,8 @@ import java.time.Instant;
 public class CourseSearchDocument {
     @Id
     private Long id;
+    @Field(type = FieldType.Long)
+    private Long categoryId;
     @Field(type = FieldType.Text, analyzer = "ik_max_word", searchAnalyzer = "ik_smart")
     private String title;
     @Field(type = FieldType.Text, analyzer = "ik_max_word", searchAnalyzer = "ik_smart")
@@ -36,7 +38,13 @@ public class CourseSearchDocument {
 
     public CourseSearchDocument(Long id, String title, String description, String instructor, String coverUrl,
                                 Set<String> tags, long likeCount) {
+        this(id, null, title, description, instructor, coverUrl, tags, likeCount);
+    }
+
+    public CourseSearchDocument(Long id, Long categoryId, String title, String description, String instructor,
+                                String coverUrl, Set<String> tags, long likeCount) {
         this.id = id;
+        this.categoryId = categoryId;
         this.title = title;
         this.description = description;
         this.instructor = instructor;
@@ -46,6 +54,7 @@ public class CourseSearchDocument {
     }
 
     public Long getId() { return id; }
+    public Long getCategoryId() { return categoryId; }
     public String getTitle() { return title; }
     public String getDescription() { return description; }
     public String getInstructor() { return instructor; }

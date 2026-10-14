@@ -72,10 +72,24 @@ public class AdminCourseController {
         return ApiResponse.success(service.createChapter(courseId, request));
     }
 
+    @PutMapping("/chapters/{chapterId}")
+    public ApiResponse<Void> updateChapter(@PathVariable Long chapterId,
+                                           @Valid @RequestBody AdminCourseRequests.UpdateChapter request) {
+        service.updateChapter(chapterId, request);
+        return ApiResponse.success(null);
+    }
+
     @PostMapping("/chapters/{chapterId}/lessons")
     public ApiResponse<Long> createLesson(@PathVariable Long chapterId,
                                           @Valid @RequestBody AdminCourseRequests.CreateLesson request) {
         return ApiResponse.success(service.createLesson(chapterId, request));
+    }
+
+    @PutMapping("/lessons/{lessonId}")
+    public ApiResponse<Void> updateLesson(@PathVariable Long lessonId,
+                                          @Valid @RequestBody AdminCourseRequests.UpdateLesson request) {
+        service.updateLesson(lessonId, request);
+        return ApiResponse.success(null);
     }
 
     @DeleteMapping("/lessons/{lessonId}")
@@ -90,5 +104,13 @@ public class AdminCourseController {
             @PathVariable Long lessonId,
             @RequestPart("file") MultipartFile file) {
         return ApiResponse.success(service.uploadLessonVideo(principal.userId(), lessonId, file));
+    }
+
+    @PostMapping(value = "/courses/{courseId}/cover", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<MediaResponses.Asset> uploadCourseCover(
+            @AuthenticationPrincipal LearnHubPrincipal principal,
+            @PathVariable Long courseId,
+            @RequestPart("file") MultipartFile file) {
+        return ApiResponse.success(service.uploadCourseCover(principal.userId(), courseId, file));
     }
 }

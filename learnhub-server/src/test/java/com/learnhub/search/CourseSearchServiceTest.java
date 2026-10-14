@@ -15,7 +15,7 @@ class CourseSearchServiceTest {
 
     @Test
     void queryUsesNativeBm25BoundedBusinessWeightAndEveryTagFilter() throws Exception {
-        var query = mapper.valueToTree(CourseSearchService.query("Java", Set.of("Java", "架构"), 2, 12));
+        var query = mapper.valueToTree(CourseSearchService.query("Java", Set.of("Java", "架构"), 2L, 2, 12));
         assertEquals(12, query.path("from").asInt());
         assertEquals(12, query.path("size").asInt());
         var function = query.path("query").path("function_score");
@@ -23,8 +23,9 @@ class CourseSearchServiceTest {
         assertEquals(1.0, function.path("max_boost").asDouble());
         assertEquals("log1p", function.path("field_value_factor").path("modifier").asText());
         assertEquals("Java", function.path("query").path("bool").path("must").get(0).path("multi_match").path("query").asText());
-        assertEquals(3, function.path("query").path("bool").path("filter").size());
+        assertEquals(4, function.path("query").path("bool").path("filter").size());
         assertEquals("PUBLISHED", function.path("query").path("bool").path("filter").get(0).path("term").path("status").asText());
+        assertEquals(2L, function.path("query").path("bool").path("filter").get(1).path("term").path("categoryId").asLong());
     }
 
     @Test
@@ -70,6 +71,7 @@ class CourseSearchServiceTest {
         assertThrows(BusinessException.class, () -> service.searchPage("Java", Set.of(), 0, 20));
         assertThrows(BusinessException.class, () -> service.suggest("Java", 21));
         assertThrows(BusinessException.class, () -> service.searchPage("a".repeat(201), Set.of(), 1, 20));
+        assertThrows(BusinessException.class, () -> service.searchPage("Java", Set.of(), 0L, 1, 20));
         verifyNoInteractions(gateway);
     }
 

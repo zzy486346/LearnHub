@@ -93,7 +93,7 @@ public class CourseService {
         List<ChapterDetailResponse> chapterResponses = chapters.stream()
                 .map(chapter -> toChapterResponse(chapter, lessonsByChapter, authenticated, fullAccess))
                 .toList();
-        return new CourseDetailResponse(course.getId(), course.getTitle(), course.getDescription(),
+        return new CourseDetailResponse(course.getId(), course.getTitle(), course.getSubtitle(), course.getDescription(),
                 course.getCoverUrl(), course.getInstructor(), course.getCategoryId(), course.getPrice(),
                 course.getStatus(), liveLikeCount(course.getId()), accessLevel, chapterResponses);
     }

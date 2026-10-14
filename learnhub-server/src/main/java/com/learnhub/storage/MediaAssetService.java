@@ -22,6 +22,7 @@ public class MediaAssetService {
     private static final String READY = "READY";
     private static final String FAILED = "FAILED";
     private static final long MAX_AVATAR_SIZE = 5L * 1024 * 1024;
+    private static final long MAX_COURSE_COVER_SIZE = 10L * 1024 * 1024;
     private static final Pattern BIZ_TYPE = Pattern.compile("[A-Z][A-Z0-9_]{0,31}");
     private static final Pattern EXTENSION = Pattern.compile("[a-zA-Z0-9]{1,10}");
     private static final Set<String> EXTRA_CONTENT_TYPES = Set.of(
@@ -143,6 +144,18 @@ public class MediaAssetService {
             throw new BusinessException("COURSE_VIDEO_TYPE_INVALID", "课程视频仅支持视频文件");
         }
         return storeUpload(userId, file, "COURSE_LESSON", lessonId);
+    }
+
+    public MediaResponses.Asset uploadCourseCover(Long userId, Long courseId, MultipartFile file) {
+        String contentType = file == null ? null : file.getContentType();
+        if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/")
+                || "image/svg+xml".equalsIgnoreCase(contentType)) {
+            throw new BusinessException("COURSE_COVER_TYPE_INVALID", "课程封面仅支持常见图片格式");
+        }
+        if (file.getSize() > MAX_COURSE_COVER_SIZE) {
+            throw new BusinessException("MEDIA_SIZE_INVALID", "课程封面大小不能超过 10MB");
+        }
+        return storeUpload(userId, file, "COURSE_COVER", courseId);
     }
 
     public String readyAccessUrl(Long assetId) {

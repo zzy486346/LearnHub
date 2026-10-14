@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
+import java.util.Set;
 
 public final class AdminCourseRequests {
     private AdminCourseRequests() {}
@@ -35,10 +36,24 @@ public final class AdminCourseRequests {
             @NotNull @Min(0) Integer sortOrder
     ) {}
 
+    public record UpdateChapter(
+            @NotBlank @Size(max = 160) String title,
+            @NotNull @Min(0) Integer sortOrder
+    ) {}
+
     public record CreateLesson(
             @NotBlank @Size(max = 160) String title,
             @NotNull @Min(1) Integer durationSeconds,
             @NotNull Boolean freePreview,
             @NotNull @Min(0) Integer sortOrder
     ) {}
+
+    public record UpdateLesson(
+            @NotBlank @Size(max = 160) String title,
+            @NotNull @Min(1) Integer durationSeconds,
+            @NotNull Boolean freePreview,
+            @NotNull @Min(0) Integer sortOrder
+    ) {}
+
+    public record ReplaceTags(@NotNull @Size(max = 20) Set<@NotNull Long> tagIds) {}
 }

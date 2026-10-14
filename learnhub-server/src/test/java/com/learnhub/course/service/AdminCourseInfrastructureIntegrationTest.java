@@ -10,12 +10,17 @@ import com.learnhub.config.InfrastructureConfig;
 import com.learnhub.course.dto.AdminCourseRequests;
 import com.learnhub.course.dto.ProgressUpdateRequest;
 import com.learnhub.course.mapper.CourseChapterMapper;
+import com.learnhub.course.mapper.AdminCourseLockMapper;
+import com.learnhub.course.mapper.CourseCategoryMapper;
 import com.learnhub.course.mapper.CourseLessonMapper;
 import com.learnhub.course.mapper.CourseMapper;
 import com.learnhub.course.mapper.LearningProgressMapper;
+import com.learnhub.course.mapper.CourseTagBindingMapper;
+import com.learnhub.course.mapper.CourseTagMapper;
 import com.learnhub.course.model.Course;
 import com.learnhub.course.model.LearningProgress;
 import com.learnhub.interaction.like.LikeService;
+import com.learnhub.marketing.coupon.CouponClaimMapper;
 import com.learnhub.order.CourseOrderService;
 import com.learnhub.order.CourseOrderMapper;
 import java.util.concurrent.CompletableFuture;
@@ -24,6 +29,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import com.learnhub.search.CourseIndexTaskService;
 import com.learnhub.storage.MediaAssetService;
+import com.learnhub.storage.MediaAssetMapper;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -47,6 +53,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @EnabledIfSystemProperty(named = "learnhub.admin.course.it.enabled", matches = "true")
 class AdminCourseInfrastructureIntegrationTest {
+    private static final long ENABLED_CATEGORY_ID = 91001L;
     private final List<Long> lessonIds = new ArrayList<>();
     private final List<Long> progressIds = new ArrayList<>();
     private final List<Long> chapterIds = new ArrayList<>();
@@ -144,7 +151,7 @@ class AdminCourseInfrastructureIntegrationTest {
     void logicalDeleteRemovesLessonFromDetailsAndAccessButPreservesRow() {
         long courseId = uniqueBase();
         long chapterId = courseId + 1;
-        insertCourse(courseId, "逻辑删除课程", "PUBLISHED");
+        insertCourse(courseId, "逻辑删除课程", "DRAFT");
         insertChapter(chapterId, courseId);
         Long lessonId = adminService().createLesson(chapterId,
                 new AdminCourseRequests.CreateLesson("  第一课  ", 60, true, 1));
@@ -157,8 +164,6 @@ class AdminCourseInfrastructureIntegrationTest {
                 VALUES (?, ?, ?, 60, 1, CURRENT_TIMESTAMP(3))
                 """, progressId, userId, lessonId);
 
-        assertThat(courseService().detail(courseId, 7L).chapters().get(0).lessons())
-                .extracting(lesson -> lesson.title()).containsExactly("第一课");
         assertThat(adminService().detail(courseId).chapters().get(0).lessons()).hasSize(1);
         assertThat(context.getBean(LearningProgressMapper.class).countCompletedLessons(userId)).isEqualTo(1);
 
@@ -166,15 +171,11 @@ class AdminCourseInfrastructureIntegrationTest {
 
         assertThat(jdbc().queryForObject(
                 "SELECT deleted FROM course_lesson WHERE id = ?", Integer.class, lessonId)).isEqualTo(1);
-        assertThat(courseService().detail(courseId, 7L).chapters().get(0).lessons()).isEmpty();
         assertThat(adminService().detail(courseId).chapters().get(0).lessons()).isEmpty();
         assertThat(context.getBean(LearningProgressMapper.class).countLessonInCourse(lessonId, courseId)).isZero();
         assertThat(context.getBean(LearningProgressMapper.class).countCompletedLessons(userId)).isZero();
         assertThat(jdbc().queryForObject(
                 "SELECT COUNT(*) FROM learning_progress WHERE id = ?", Long.class, progressId)).isEqualTo(1);
-        assertThatThrownBy(() -> courseService().requireLessonAccess(7L, courseId, lessonId))
-                .isInstanceOfSatisfying(BusinessException.class,
-                        exception -> assertThat(exception.getCode()).isEqualTo("LESSON_NOT_FOUND"));
         assertThatThrownBy(() -> adminService().deleteLesson(lessonId))
                 .isInstanceOf(BusinessException.class).hasMessage("课时不存在");
     }
@@ -200,8 +201,8 @@ class AdminCourseInfrastructureIntegrationTest {
         courseIds.add(id);
         jdbc().update("""
                 INSERT INTO course (id, category_id, title, instructor, price, status, like_count)
-                VALUES (?, 1, ?, 'integration-test', ?, ?, 0)
-                """, id, title, BigDecimal.ZERO, status);
+                VALUES (?, ?, ?, 'integration-test', ?, ?, 0)
+                """, id, ENABLED_CATEGORY_ID, title, BigDecimal.ZERO, status);
     }
 
     @Test
@@ -209,11 +210,13 @@ class AdminCourseInfrastructureIntegrationTest {
         long courseId = uniqueBase();
         long chapterId = courseId + 1;
         long userId = uniqueBase();
-        insertCourse(courseId, "并发进度课程", "PUBLISHED");
+        insertCourse(courseId, "并发进度课程", "DRAFT");
         insertChapter(chapterId, courseId);
         long lessonId = adminService().createLesson(chapterId,
                 new AdminCourseRequests.CreateLesson("并发课时", 60, true, 1));
         lessonIds.add(lessonId);
+        setLegacyMedia(lessonId);
+        adminService().publishCourse(courseId);
         var progress = context.getBean(LearningProgressService.class);
         var executor = Executors.newFixedThreadPool(8);
         var gate = new CountDownLatch(1);
@@ -258,11 +261,13 @@ class AdminCourseInfrastructureIntegrationTest {
         long chapterId = courseId + 1;
         long paidUser = uniqueBase();
         long pendingUser = uniqueBase();
-        insertCourse(courseId, "下架权益课程", "PUBLISHED");
+        insertCourse(courseId, "下架权益课程", "DRAFT");
         insertChapter(chapterId, courseId);
         long lessonId = adminService().createLesson(chapterId,
                 new AdminCourseRequests.CreateLesson("已购课时", 60, false, 1));
         lessonIds.add(lessonId);
+        setLegacyMedia(lessonId);
+        adminService().publishCourse(courseId);
         var orders = context.getBean(CourseOrderService.class);
         long paidOrderId = Long.parseLong(orders.create(paidUser, courseId).id());
         orderIds.add(paidOrderId);
@@ -284,10 +289,55 @@ class AdminCourseInfrastructureIntegrationTest {
         assertThat(orders.pay(pendingUser, pendingId).status()).isEqualTo("PAID");
     }
 
+    @Test
+    void rejectsPublishingIncompleteCourseAndPreservesLastLessonOfPublishedCourse() {
+        long courseId = uniqueBase();
+        long chapterId = courseId + 1;
+        insertCourse(courseId, "发布完整性课程", "DRAFT");
+        assertThatThrownBy(() -> adminService().publishCourse(courseId))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getCode()).isEqualTo("COURSE_NOT_READY"));
+        insertChapter(chapterId, courseId);
+        long lessonId = adminService().createLesson(chapterId,
+                new AdminCourseRequests.CreateLesson("完整课时", 60, false, 1));
+        lessonIds.add(lessonId);
+        assertThatThrownBy(() -> adminService().publishCourse(courseId))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getCode()).isEqualTo("COURSE_NOT_READY"));
+        setLegacyMedia(lessonId);
+        long emptyChapterId = chapterId + 1;
+        insertChapter(emptyChapterId, courseId);
+        assertThatThrownBy(() -> adminService().publishCourse(courseId))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                    assertThat(exception.getCode()).isEqualTo("COURSE_NOT_READY");
+                    assertThat(exception.getMessage()).contains("集成测试章节");
+                });
+        long secondLessonId = adminService().createLesson(emptyChapterId,
+                new AdminCourseRequests.CreateLesson("第二章课时", 60, false, 1));
+        lessonIds.add(secondLessonId);
+        setLegacyMedia(secondLessonId);
+        adminService().publishCourse(courseId);
+
+        assertThatThrownBy(() -> adminService().createChapter(courseId,
+                new AdminCourseRequests.CreateChapter("发布后追加章节", 3)))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getCode()).isEqualTo("COURSE_OFFLINE_REQUIRED"));
+        assertThatThrownBy(() -> adminService().deleteLesson(lessonId))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getCode()).isEqualTo("COURSE_OFFLINE_REQUIRED"));
+        assertThat(jdbc().queryForObject("SELECT deleted FROM course_lesson WHERE id = ?", Integer.class, lessonId))
+                .isZero();
+    }
+
     private void insertChapter(long id, long courseId) {
         chapterIds.add(id);
         jdbc().update("INSERT INTO course_chapter (id, course_id, title, sort_order) VALUES (?, ?, ?, 1)",
                 id, courseId, "集成测试章节");
+    }
+
+    private void setLegacyMedia(long lessonId) {
+        jdbc().update("UPDATE course_lesson SET media_url = ? WHERE id = ?",
+                "https://media.example/" + lessonId + ".mp4", lessonId);
     }
 
     private long uniqueBase() {
@@ -323,11 +373,13 @@ class AdminCourseInfrastructureIntegrationTest {
     @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration
     @MapperScan(basePackageClasses = {
-            CourseMapper.class, CourseChapterMapper.class, CourseLessonMapper.class, LearningProgressMapper.class,
-            CourseOrderMapper.class
+            CourseMapper.class, AdminCourseLockMapper.class, CourseCategoryMapper.class,
+            CourseTagMapper.class, CourseTagBindingMapper.class, CourseChapterMapper.class,
+            CourseLessonMapper.class, LearningProgressMapper.class, CourseOrderMapper.class,
+            CouponClaimMapper.class, MediaAssetMapper.class
     })
     @Import({InfrastructureConfig.class, AdminCourseService.class, CourseService.class,
-            CourseOrderService.class, LearningProgressService.class})
+            CourseTaxonomyService.class, CourseOrderService.class, LearningProgressService.class})
     static class AdminCourseTestApplication {
         @Bean MediaAssetService mediaAssetService() { return mock(MediaAssetService.class); }
         @Bean LikeService likeService() { return mock(LikeService.class); }

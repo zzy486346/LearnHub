@@ -4,6 +4,7 @@
     "dynamic": "strict",
     "properties": {
       "id": { "type": "keyword" },
+      "categoryId": { "type": "long" },
       "title": { "type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart", "fields": { "exact": { "type": "keyword" } } },
       "description": { "type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart" },
       "instructorName": { "type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart" },

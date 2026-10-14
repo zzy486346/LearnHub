@@ -47,7 +47,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/coupons").hasRole("ADMIN")
                         .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout",
-                                "/api/courses/**", "/api/search/courses/**", "/actuator/health").permitAll()
+                                "/api/courses/**", "/api/course-categories", "/api/course-tags",
+                                "/api/search/courses/**", "/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/questions/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/coupons").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/likes/**").permitAll()

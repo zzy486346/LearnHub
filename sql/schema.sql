@@ -33,7 +33,8 @@ CREATE TABLE IF NOT EXISTS course_category (
     sort_order INT NOT NULL DEFAULT 0 COMMENT '展示排序序号，数值越小越靠前',
     status VARCHAR(20) NOT NULL DEFAULT 'ENABLED' COMMENT '分类状态：ENABLED启用，DISABLED禁用',
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间，精确到毫秒',
-    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间，记录修改时自动更新，精确到毫秒'
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间，记录修改时自动更新，精确到毫秒',
+    UNIQUE KEY uk_course_category_name (name)
 ) COMMENT='课程分类表';
 
 CREATE TABLE IF NOT EXISTS course (
@@ -42,6 +43,7 @@ CREATE TABLE IF NOT EXISTS course (
     title VARCHAR(160) NOT NULL COMMENT '课程标题',
     subtitle VARCHAR(255) COMMENT '课程副标题',
     cover_url VARCHAR(512) COMMENT '课程封面图片访问地址',
+    cover_media_id BIGINT COMMENT '课程封面媒体资源编号，关联媒体资源表',
     description TEXT COMMENT '课程详细介绍',
     instructor VARCHAR(80) NOT NULL COMMENT '课程讲师姓名',
     price DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '课程售价，单位为人民币元',
@@ -55,7 +57,8 @@ CREATE TABLE IF NOT EXISTS course (
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间，记录修改时自动更新，精确到毫秒',
     deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标记：0正常，1已删除',
     KEY idx_course_status_published (status, published_at),
-    KEY idx_course_category (category_id)
+    KEY idx_course_category (category_id),
+    KEY idx_course_cover_media (cover_media_id)
 ) COMMENT='课程信息表';
 
 CREATE TABLE IF NOT EXISTS course_chapter (
@@ -117,12 +120,15 @@ CREATE TABLE IF NOT EXISTS tag (
     id BIGINT PRIMARY KEY COMMENT '主键编号',
     name VARCHAR(64) NOT NULL COMMENT '课程标签名称，同一标签表内唯一',
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间，精确到毫秒',
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间，记录修改时自动更新，精确到毫秒',
     UNIQUE KEY uk_tag_name (name)
 ) COMMENT='课程标签表';
 
 CREATE TABLE IF NOT EXISTS course_tag (
     course_id BIGINT NOT NULL COMMENT '课程编号，关联课程表',
     tag_id BIGINT NOT NULL COMMENT '标签编号，关联标签表',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间，精确到毫秒',
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间，记录修改时自动更新，精确到毫秒',
     PRIMARY KEY (course_id, tag_id)
 ) COMMENT='课程标签关联表';
 

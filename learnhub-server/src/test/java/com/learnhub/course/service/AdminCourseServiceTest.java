@@ -12,12 +12,14 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.learnhub.common.exception.BusinessException;
 import com.learnhub.course.dto.AdminCourseRequests;
 import com.learnhub.course.mapper.CourseChapterMapper;
+import com.learnhub.course.mapper.AdminCourseLockMapper;
 import com.learnhub.course.mapper.CourseLessonMapper;
 import com.learnhub.course.mapper.CourseMapper;
 import com.learnhub.course.model.Course;
 import com.learnhub.course.model.CourseChapter;
 import com.learnhub.course.model.CourseLesson;
 import com.learnhub.search.CourseIndexTaskService;
+import com.learnhub.storage.MediaAssetMapper;
 import com.learnhub.storage.MediaAssetService;
 import com.learnhub.storage.MediaResponses;
 import java.math.BigDecimal;
@@ -30,17 +32,20 @@ import org.springframework.mock.web.MockMultipartFile;
 
 class AdminCourseServiceTest {
     private final CourseMapper courseMapper = mock(CourseMapper.class);
+    private final AdminCourseLockMapper courseLockMapper = mock(AdminCourseLockMapper.class);
     private final CourseChapterMapper chapterMapper = mock(CourseChapterMapper.class);
     private final CourseLessonMapper lessonMapper = mock(CourseLessonMapper.class);
     private final CourseService courseService = mock(CourseService.class);
+    private final CourseTaxonomyService taxonomyService = mock(CourseTaxonomyService.class);
     private final MediaAssetService mediaAssetService = mock(MediaAssetService.class);
+    private final MediaAssetMapper mediaAssetMapper = mock(MediaAssetMapper.class);
     private final CourseIndexTaskService indexTaskService = mock(CourseIndexTaskService.class);
     private AdminCourseService service;
 
     @BeforeEach
     void setUp() {
-        service = new AdminCourseService(courseMapper, chapterMapper, lessonMapper,
-                courseService, mediaAssetService, indexTaskService);
+        service = new AdminCourseService(courseMapper, courseLockMapper, chapterMapper, lessonMapper,
+                courseService, taxonomyService, mediaAssetService, mediaAssetMapper, indexTaskService);
     }
 
     @Test
@@ -60,10 +65,22 @@ class AdminCourseServiceTest {
     }
 
     @Test
-    void publishingCourseEnqueuesIndexRefresh() {
+    void publishingCompleteCourseEnqueuesIndexRefresh() {
         Course course = new Course();
         course.setId(88L);
+        course.setCategoryId(1L);
+        CourseChapter chapter = new CourseChapter();
+        chapter.setId(188L);
+        chapter.setCourseId(88L);
+        CourseLesson lesson = new CourseLesson();
+        lesson.setId(288L);
+        lesson.setChapterId(188L);
+        lesson.setDurationSeconds(60);
+        lesson.setMediaUrl("https://media.example/lesson.mp4");
+        when(courseLockMapper.selectForUpdate(88L)).thenReturn(course);
         when(courseMapper.selectById(88L)).thenReturn(course);
+        when(chapterMapper.selectList(any())).thenReturn(java.util.List.of(chapter));
+        when(lessonMapper.selectList(any())).thenReturn(java.util.List.of(lesson));
 
         service.publishCourse(88L);
 
@@ -95,7 +112,7 @@ class AdminCourseServiceTest {
         Course course = new Course();
         course.setId(1001L);
         when(chapterMapper.selectById(2001L)).thenReturn(chapter);
-        when(courseMapper.selectById(1001L)).thenReturn(course);
+        when(courseLockMapper.selectForUpdate(1001L)).thenReturn(course);
         when(lessonMapper.insert(any(CourseLesson.class))).thenAnswer(invocation -> {
             CourseLesson lesson = invocation.getArgument(0);
             lesson.setId(3001L);
@@ -129,7 +146,7 @@ class AdminCourseServiceTest {
         Course course = new Course();
         course.setId(1001L);
         when(chapterMapper.selectById(2002L)).thenReturn(chapter);
-        when(courseMapper.selectById(1001L)).thenReturn(course);
+        when(courseLockMapper.selectForUpdate(1001L)).thenReturn(course);
         assertThatThrownBy(() -> service.createLesson(2002L,
                 new AdminCourseRequests.CreateLesson("   ", 60, true, 1)))
                 .isInstanceOf(BusinessException.class).hasMessage("课时标题不能为空");
@@ -139,7 +156,16 @@ class AdminCourseServiceTest {
     void logicallyDeletesLessonOnceAndRejectsRepeatedOrMissingDelete() {
         CourseLesson lesson = new CourseLesson();
         lesson.setId(3001L);
+        lesson.setChapterId(2001L);
+        CourseChapter chapter = new CourseChapter();
+        chapter.setId(2001L);
+        chapter.setCourseId(1001L);
+        Course course = new Course();
+        course.setId(1001L);
+        course.setStatus("DRAFT");
         when(lessonMapper.selectById(3001L)).thenReturn(lesson).thenReturn(null);
+        when(chapterMapper.selectById(2001L)).thenReturn(chapter);
+        when(courseLockMapper.selectForUpdate(1001L)).thenReturn(course);
 
         service.deleteLesson(3001L);
 
@@ -154,7 +180,16 @@ class AdminCourseServiceTest {
     void uploadsVideoAndBindsAssetToLesson() {
         CourseLesson lesson = new CourseLesson();
         lesson.setId(3001L);
+        lesson.setChapterId(2001L);
+        CourseChapter chapter = new CourseChapter();
+        chapter.setId(2001L);
+        chapter.setCourseId(1001L);
+        Course course = new Course();
+        course.setId(1001L);
+        course.setStatus("DRAFT");
         when(lessonMapper.selectById(3001L)).thenReturn(lesson);
+        when(chapterMapper.selectById(2001L)).thenReturn(chapter);
+        when(courseLockMapper.selectForUpdate(1001L)).thenReturn(course);
         MockMultipartFile file = new MockMultipartFile(
                 "file", "lesson.mp4", "video/mp4", new byte[] {1, 2, 3});
         MediaResponses.Asset asset = new MediaResponses.Asset(88L, "lesson.mp4", "video/mp4", 3,
@@ -164,5 +199,70 @@ class AdminCourseServiceTest {
 
         assertThat(service.uploadLessonVideo(9L, 3001L, file).id()).isEqualTo(88L);
         verify(lessonMapper).update(any(), any());
+    }
+
+    @Test
+    void rejectsImmediatePublishOnCourseCreation() {
+        assertThatThrownBy(() -> service.createCourse(new AdminCourseRequests.CreateCourse(
+                1L, "课程", null, "讲师", BigDecimal.ZERO, "PUBLISHED")))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getCode()).isEqualTo("COURSE_DRAFT_REQUIRED"));
+    }
+
+    @Test
+    void rejectsPublishingCourseWithoutChapter() {
+        Course course = new Course();
+        course.setId(88L);
+        course.setCategoryId(1L);
+        when(courseLockMapper.selectForUpdate(88L)).thenReturn(course);
+        when(courseMapper.selectById(88L)).thenReturn(course);
+        when(chapterMapper.selectList(any())).thenReturn(java.util.List.of());
+
+        assertThatThrownBy(() -> service.publishCourse(88L))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getCode()).isEqualTo("COURSE_NOT_READY"));
+    }
+
+    @Test
+    void rejectsAddingChapterToPublishedCourse() {
+        Course course = new Course();
+        course.setId(88L);
+        course.setStatus("PUBLISHED");
+        when(courseLockMapper.selectForUpdate(88L)).thenReturn(course);
+
+        assertThatThrownBy(() -> service.createChapter(88L,
+                new AdminCourseRequests.CreateChapter("追加章节", 2)))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getCode()).isEqualTo("COURSE_OFFLINE_REQUIRED"));
+    }
+
+    @Test
+    void rejectsPublishingWhenAnyChapterHasNoLesson() {
+        Course course = new Course();
+        course.setId(88L);
+        course.setCategoryId(1L);
+        CourseChapter first = new CourseChapter();
+        first.setId(188L);
+        first.setCourseId(88L);
+        first.setTitle("基础章");
+        CourseChapter empty = new CourseChapter();
+        empty.setId(189L);
+        empty.setCourseId(88L);
+        empty.setTitle("空章节");
+        CourseLesson lesson = new CourseLesson();
+        lesson.setId(288L);
+        lesson.setChapterId(188L);
+        lesson.setDurationSeconds(60);
+        lesson.setMediaUrl("https://media.example/lesson.mp4");
+        when(courseLockMapper.selectForUpdate(88L)).thenReturn(course);
+        when(courseMapper.selectById(88L)).thenReturn(course);
+        when(chapterMapper.selectList(any())).thenReturn(java.util.List.of(first, empty));
+        when(lessonMapper.selectList(any())).thenReturn(java.util.List.of(lesson));
+
+        assertThatThrownBy(() -> service.publishCourse(88L))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                    assertThat(exception.getCode()).isEqualTo("COURSE_NOT_READY");
+                    assertThat(exception.getMessage()).contains("空章节");
+                });
     }
 }

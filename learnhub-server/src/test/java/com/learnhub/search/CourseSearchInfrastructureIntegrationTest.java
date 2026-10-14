@@ -1,6 +1,9 @@
 package com.learnhub.search;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -12,6 +15,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.jdbc.core.ConnectionCallback;
+import org.springframework.jdbc.core.JdbcTemplate;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -68,7 +73,7 @@ class CourseSearchInfrastructureIntegrationTest {
     @Test
     void realQueriesHonorBm25TagsPublishedStateAndBoundedPopularity() {
         gateway.upsert(document(1L, "Java concurrency", "thread basics", Set.of("Java", "架构"), 0, "PUBLISHED"));
-        gateway.upsert(document(2L, "Database overview", "Java concurrency", Set.of("Java"), 1000000000L, "PUBLISHED"));
+        gateway.upsert(document(2L, 2L, "Database overview", "Java concurrency", Set.of("Java"), 1000000000L, "PUBLISHED"));
         gateway.upsert(document(3L, "Java concurrency", "thread basics", Set.of("Java", "架构"), 100, "PUBLISHED"));
         gateway.upsert(document(4L, "Java concurrency", "thread basics", Set.of("Java"), 100, "DRAFT"));
         gateway.refresh(index);
@@ -78,6 +83,8 @@ class CourseSearchInfrastructureIntegrationTest {
         assertEquals(1L, page.records().get(1).id());
         assertEquals(2L, page.records().get(2).id());
         assertEquals(2, service.searchPage("Java", Set.of("Java", "架构"), 1, 20).total());
+        assertEquals(2, service.searchPage("Java", Set.of(), 1L, 1, 20).total());
+        assertEquals(1, service.searchPage("Java", Set.of(), 2L, 1, 20).total());
         assertEquals(1, service.searchPage("Java", Set.of(), 2, 1).records().size());
         assertEquals(List.of("Java concurrency"), service.suggest("Java con", 10));
         assertTrue(service.suggest("Java", 10).contains("Java"));
@@ -103,8 +110,53 @@ class CourseSearchInfrastructureIntegrationTest {
         assertTrue(service.search("", Set.of(), 20).isEmpty());
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void syncAutomaticallyRebuildsLegacyAliasMissingCategoryMapping() throws Exception {
+        String legacyIndex = gateway.aliasName() + "-v1-" + UUID.randomUUID().toString().replace("-", "");
+        gateway.request("PUT", "/" + legacyIndex,
+                java.util.Map.of("mappings", java.util.Map.of("properties",
+                        java.util.Map.of("title", java.util.Map.of("type", "keyword")))), false);
+        indexes.add(legacyIndex);
+        gateway.swapAlias(legacyIndex);
+        assertFalse(gateway.ensureAlias());
+
+        CourseIndexTaskMapper tasks = mock(CourseIndexTaskMapper.class);
+        CourseIndexSourceMapper sources = mock(CourseIndexSourceMapper.class);
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        Connection connection = mock(Connection.class);
+        PreparedStatement statement = mock(PreparedStatement.class);
+        ResultSet result = mock(ResultSet.class);
+        when(connection.prepareStatement(anyString())).thenReturn(statement);
+        when(statement.executeQuery()).thenReturn(result);
+        when(result.next()).thenReturn(true);
+        when(result.getInt(1)).thenReturn(1);
+        when(jdbc.execute(any(ConnectionCallback.class))).thenAnswer(invocation ->
+                invocation.<ConnectionCallback<Integer>>getArgument(0).doInConnection(connection));
+        when(sources.selectPageAfterId(anyLong(), anyInt())).thenReturn(List.of());
+        when(tasks.selectDue(anyInt())).thenReturn(List.of());
+
+        CourseIndexSyncService sync = new CourseIndexSyncService(
+                tasks, sources, gateway, jdbc, new ObjectMapper().findAndRegisterModules(), 100);
+        assertEquals(0, sync.syncDue(10));
+
+        assertTrue(gateway.ensureAlias());
+        String rebuiltIndex = gateway.request("GET", "/_alias/" + gateway.aliasName(), null, false)
+                .fieldNames().next();
+        indexes.add(rebuiltIndex);
+        assertNotEquals(legacyIndex, rebuiltIndex);
+        assertEquals("long", gateway.request("GET", "/" + rebuiltIndex + "/_mapping", null, false)
+                .path(rebuiltIndex).path("mappings").path("properties")
+                .path("categoryId").path("type").asText());
+    }
+
     private CourseSearchDocument document(Long id, String title, String description, Set<String> tags, long likes, String status) {
-        var doc = new CourseSearchDocument(id, title, description, "Teacher", "", tags, likes);
+        return document(id, 1L, title, description, tags, likes, status);
+    }
+
+    private CourseSearchDocument document(Long id, Long categoryId, String title, String description,
+                                          Set<String> tags, long likes, String status) {
+        var doc = new CourseSearchDocument(id, categoryId, title, description, "Teacher", "", tags, likes);
         doc.setStatus(status);
         doc.setPublishedAt(java.time.Instant.now());
         return doc;

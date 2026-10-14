@@ -51,7 +51,16 @@ public class CourseSearchGateway {
     }
 
     public boolean ensureAlias() {
-        return request("GET", "/_alias/" + alias, null, true) != null;
+        JsonNode aliases = request("GET", "/_alias/" + alias, null, true);
+        if (aliases == null || aliases.isEmpty()) return false;
+        JsonNode mappings = request("GET", "/" + alias + "/_mapping", null, false);
+        var indexNames = aliases.fieldNames();
+        while (indexNames.hasNext()) {
+            String index = indexNames.next();
+            if (!"long".equals(mappings.path(index).path("mappings").path("properties")
+                    .path("categoryId").path("type").asText())) return false;
+        }
+        return true;
     }
 
     public String createVersionedIndex() {
@@ -75,6 +84,7 @@ public class CourseSearchGateway {
         validateIndex(index);
         Map<String, Object> source = new LinkedHashMap<>();
         source.put("id", document.getId().toString());
+        source.put("categoryId", document.getCategoryId());
         source.put("title", document.getTitle());
         source.put("description", document.getDescription());
         source.put("instructorName", document.getInstructor());
