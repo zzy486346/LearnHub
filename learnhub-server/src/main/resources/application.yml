@@ -49,6 +49,9 @@ mybatis-plus:
       logic-delete-field: deleted
 
 learnhub:
+  payment:
+    mode: ${LEARNHUB_PAYMENT_MODE:DISABLED}
+    pending-timeout: ${LEARNHUB_ORDER_PENDING_TIMEOUT:PT30M}
   search:
     alias: ${LEARNHUB_SEARCH_ALIAS:learnhub-courses-search}
     analyzer: ${LEARNHUB_SEARCH_ANALYZER:ik_max_word}

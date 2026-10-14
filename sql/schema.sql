@@ -94,13 +94,21 @@ CREATE TABLE IF NOT EXISTS course_order (
     course_id BIGINT NOT NULL COMMENT '课程编号，关联课程表',
     course_title VARCHAR(160) NOT NULL COMMENT '下单时的课程标题快照',
     original_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT '订单原始金额，单位为人民币元',
+    coupon_claim_id BIGINT NULL COMMENT '订单使用的用户优惠券领取记录编号',
+    discount_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT '订单优惠抵扣金额，单位为人民币元',
+    payable_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT '订单应付金额，单位为人民币元',
     paid_amount DECIMAL(12,2) NULL COMMENT '订单实付金额，单位为人民币元；未支付时为空',
-    status VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT '课程订单状态：PENDING待支付，PAID已支付',
+    payment_mode VARCHAR(24) NOT NULL DEFAULT 'DISABLED' COMMENT '订单支付模式：DISABLED未开放、LOCAL_DEMO本机演示、LEGACY_DEMO历史演示',
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT '课程订单状态：PENDING待支付、PAID已支付、CANCELLED已取消、CLOSED超时关闭、REFUNDED已退款',
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间，精确到毫秒',
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间，记录修改时自动更新，精确到毫秒',
     paid_at DATETIME(3) NULL COMMENT '订单支付完成时间，精确到毫秒',
+    expires_at DATETIME(3) NULL COMMENT '待支付订单失效时间，精确到毫秒',
+    cancelled_at DATETIME(3) NULL COMMENT '订单主动取消或超时关闭时间，精确到毫秒',
+    refunded_at DATETIME(3) NULL COMMENT '演示订单退款完成时间，精确到毫秒',
     UNIQUE KEY uk_course_order_no (order_no),
     UNIQUE KEY uk_course_order_user_course (user_id, course_id),
+    KEY idx_course_order_coupon_claim (coupon_claim_id),
     KEY idx_course_order_course_status (course_id, status)
 ) COMMENT='课程购买订单表';
 
@@ -247,11 +255,17 @@ CREATE TABLE IF NOT EXISTS coupon_claim (
     id BIGINT PRIMARY KEY COMMENT '主键编号',
     coupon_id BIGINT NOT NULL COMMENT '优惠券活动编号，关联优惠券表',
     user_id BIGINT NOT NULL COMMENT '用户编号，关联用户表',
-    status VARCHAR(20) NOT NULL DEFAULT 'AVAILABLE' COMMENT '领取券状态：AVAILABLE可用、USED已使用、EXPIRED已过期；到期状态可按有效期计算',
+    status VARCHAR(20) NOT NULL DEFAULT 'AVAILABLE' COMMENT '领取券状态：AVAILABLE可用、RESERVED订单占用、USED已核销、EXPIRED已过期；到期状态可按有效期计算',
+    reserved_order_id BIGINT NULL COMMENT '当前占用该券的待支付课程订单编号',
+    used_order_id BIGINT NULL COMMENT '核销该券的已支付课程订单编号',
     claimed_at DATETIME(3) NOT NULL COMMENT '优惠券领取时间，精确到毫秒',
+    reserved_at DATETIME(3) NULL COMMENT '优惠券被订单占用的时间，精确到毫秒',
+    used_at DATETIME(3) NULL COMMENT '优惠券核销时间，精确到毫秒',
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间，精确到毫秒',
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间，记录修改时自动更新，精确到毫秒',
-    UNIQUE KEY uk_claim_coupon_user (coupon_id, user_id)
+    UNIQUE KEY uk_claim_coupon_user (coupon_id, user_id),
+    KEY idx_coupon_claim_reserved_order (reserved_order_id),
+    KEY idx_coupon_claim_used_order (used_order_id)
 ) COMMENT='用户优惠券领取记录表';
 
 CREATE TABLE IF NOT EXISTS seckill_order (

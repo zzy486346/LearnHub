@@ -69,18 +69,32 @@ public class CouponService {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime start = local(request.startAt() == null ? Instant.now() : request.startAt());
         LocalDateTime end = local(request.endAt());
+        LocalDateTime useStart = local(request.useStartAt() == null
+                ? start.atZone(ZoneId.systemDefault()).toInstant() : request.useStartAt());
+        LocalDateTime useEnd = local(request.useEndAt() == null ? request.endAt() : request.useEndAt());
+        if (!end.isAfter(start)) {
+            throw new BusinessException("COUPON_CLAIM_PERIOD_INVALID", "领取结束时间必须晚于开始时间");
+        }
+        if (!useEnd.isAfter(useStart)) {
+            throw new BusinessException("COUPON_USE_PERIOD_INVALID", "使用结束时间必须晚于开始时间");
+        }
+        BigDecimal discountAmount = request.discountAmount() == null ? BigDecimal.ZERO : request.discountAmount();
+        BigDecimal thresholdAmount = request.thresholdAmount() == null ? BigDecimal.ZERO : request.thresholdAmount();
+        if (discountAmount.signum() < 0 || thresholdAmount.signum() < 0) {
+            throw new BusinessException("COUPON_AMOUNT_INVALID", "优惠金额和使用门槛不能为负数");
+        }
         CouponEntity entity = new CouponEntity();
         entity.setId(IdWorker.getId());
         entity.setName(request.name());
         entity.setType(request.seckill() ? "SECKILL" : "NORMAL");
-        entity.setThresholdAmount(BigDecimal.ZERO);
-        entity.setDiscountAmount(BigDecimal.ZERO);
+        entity.setThresholdAmount(thresholdAmount);
+        entity.setDiscountAmount(discountAmount);
         entity.setTotalStock(request.stock());
         entity.setAvailableStock(request.stock());
         entity.setClaimStartAt(start);
         entity.setClaimEndAt(end);
-        entity.setUseStartAt(start);
-        entity.setUseEndAt(end);
+        entity.setUseStartAt(useStart);
+        entity.setUseEndAt(useEnd);
         entity.setPerUserLimit(1);
         entity.setStatus("ACTIVE");
         entity.setVersion(0);

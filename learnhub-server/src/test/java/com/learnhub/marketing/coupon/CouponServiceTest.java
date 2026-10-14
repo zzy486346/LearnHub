@@ -2,6 +2,7 @@ package com.learnhub.marketing.coupon;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.math.BigDecimal;
 import com.learnhub.common.exception.BusinessException;
 import java.util.List;
@@ -158,6 +159,20 @@ class CouponServiceTest {
 
         assertEquals(0, result.stock());
         assertEquals("UNAVAILABLE", result.status());
+    }
+
+    @Test
+    void createsCouponWithConfiguredAmountsAndUsePeriod() {
+        Instant now = Instant.now();
+        Coupon result = service(true).create(new CouponRequests.Create(
+                "满减券", 20, now.minusSeconds(30), now.plusSeconds(3600), false,
+                new BigDecimal("25.00"), new BigDecimal("100.00"),
+                now, now.plusSeconds(7200)));
+
+        assertEquals(new BigDecimal("25.00"), result.discountAmount());
+        assertEquals(new BigDecimal("100.00"), result.thresholdAmount());
+        assertEquals(now, result.useStartAt());
+        assertEquals(now.plusSeconds(7200), result.useEndAt());
     }
 
     @Test

@@ -3,10 +3,14 @@ package com.learnhub.marketing.coupon;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface CouponMapper extends BaseMapper<CouponEntity> {
+    @Select("SELECT * FROM coupon WHERE id = #{couponId} FOR UPDATE")
+    CouponEntity selectForUpdate(@Param("couponId") Long couponId);
+
     @Update("""
             UPDATE coupon
             SET available_stock = available_stock - 1,

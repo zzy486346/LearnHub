@@ -7,5 +7,8 @@ spring:
       - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration
       - org.redisson.spring.starter.RedissonAutoConfigurationV2
 learnhub:
+  payment:
+    mode: LOCAL_DEMO
+    pending-timeout: PT30M
   rabbit:
     enabled: false

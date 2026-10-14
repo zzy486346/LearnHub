@@ -12,7 +12,11 @@ public class CouponClaimEntity {
     private Long couponId;
     private Long userId;
     private String status;
+    private Long reservedOrderId;
+    private Long usedOrderId;
     private LocalDateTime claimedAt;
+    private LocalDateTime reservedAt;
+    private LocalDateTime usedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -24,8 +28,16 @@ public class CouponClaimEntity {
     public void setUserId(Long userId) { this.userId = userId; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public Long getReservedOrderId() { return reservedOrderId; }
+    public void setReservedOrderId(Long reservedOrderId) { this.reservedOrderId = reservedOrderId; }
+    public Long getUsedOrderId() { return usedOrderId; }
+    public void setUsedOrderId(Long usedOrderId) { this.usedOrderId = usedOrderId; }
     public LocalDateTime getClaimedAt() { return claimedAt; }
     public void setClaimedAt(LocalDateTime claimedAt) { this.claimedAt = claimedAt; }
+    public LocalDateTime getReservedAt() { return reservedAt; }
+    public void setReservedAt(LocalDateTime reservedAt) { this.reservedAt = reservedAt; }
+    public LocalDateTime getUsedAt() { return usedAt; }
+    public void setUsedAt(LocalDateTime usedAt) { this.usedAt = usedAt; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
