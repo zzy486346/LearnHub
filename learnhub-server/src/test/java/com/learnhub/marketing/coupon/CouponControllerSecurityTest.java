@@ -28,7 +28,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @Import(SecurityConfig.class)
 class CouponControllerSecurityTest {
     private static final String CREATE_REQUEST = """
-            {"name":"管理员券","stock":10,"endAt":"2099-01-01T00:00:00Z","seckill":false}
+            {"name":"管理员券","stock":10,"endAt":"2099-01-01T00:00:00Z","seckill":false,
+             "discountAmount":20.00,"thresholdAmount":100.00}
             """;
 
     @Autowired private MockMvc mvc;
