@@ -25,6 +25,7 @@ const filters = reactive({ keyword: '', categoryId: undefined as string | undefi
 const activeQuery = reactive({ keyword: '', categoryId: undefined as string | undefined, tags: [] as string[] })
 const categories = ref<CourseCategory[]>([])
 const availableTags = ref<CourseTag[]>([])
+const showTagFilters = ref(false)
 const carouselRegion = ref<HTMLElement | null>(null)
 const slideVersion = ref(0)
 const slideDirection = ref('next')
@@ -165,8 +166,12 @@ function submitSearch() {
   return load()
 }
 
+function toggleTagFilters() {
+  showTagFilters.value = !showTagFilters.value
+}
+
 function selectCategory(categoryId?: string) {
-  filters.categoryId = categoryId
+  filters.categoryId = categoryId || undefined
   return submitSearch()
 }
 
@@ -276,7 +281,16 @@ onBeforeUnmount(() => {
 
   <div id="featured-courses" class="section-heading">
     <div><p class="eyebrow">CURATED LEARNING</p><h2>精选课程</h2><p>按能力成长设计，让每一次学习都更接近真实工作。</p></div>
-    <div class="course-taxonomy-filters"><div class="filter-chips" aria-label="课程分类筛选"><button type="button" :class="{ active: !filters.categoryId }" :aria-pressed="!filters.categoryId" @click="selectCategory(undefined)">全部分类</button><button v-for="category in categories" :key="category.id" type="button" :class="{ active: filters.categoryId === category.id }" :aria-pressed="filters.categoryId === category.id" @click="selectCategory(category.id)">{{ category.name }}</button></div><div v-if="availableTags.length" class="filter-chips" aria-label="课程标签筛选"><button v-for="tag in availableTags" :key="tag.id" type="button" :class="{ active: filters.tags.includes(tag.name) }" :aria-pressed="filters.tags.includes(tag.name)" @click="selectTag(tag.name)">{{ tag.name }}</button></div></div>
+  </div>
+  <div class="course-taxonomy-filters" aria-label="课程筛选">
+    <div class="course-filter-toolbar">
+      <label class="course-filter-field"><span>课程分类</span><el-select v-model="filters.categoryId" aria-label="课程分类筛选" placeholder="全部分类" clearable filterable @change="selectCategory"><el-option v-for="category in categories" :key="category.id" :label="category.name" :value="category.id" /></el-select></label>
+      <el-button v-if="availableTags.length" :aria-expanded="showTagFilters" aria-controls="course-tag-filter" @click="toggleTagFilters">{{ showTagFilters ? '收起筛选' : '更多筛选' }}{{ filters.tags.length ? `（已选 ${filters.tags.length} 个标签）` : '' }}</el-button>
+    </div>
+    <div v-if="showTagFilters" id="course-tag-filter" class="course-tag-filter">
+      <label class="course-filter-field"><span>技能标签</span><el-select v-model="filters.tags" aria-label="课程标签筛选" placeholder="搜索或选择技能标签" multiple filterable clearable collapse-tags collapse-tags-tooltip :max-collapse-tags="1" @change="submitSearch"><el-option v-for="tag in availableTags" :key="tag.id" :label="tag.name" :value="tag.name" /></el-select></label>
+      <p>可选择多个标签，筛选同时包含这些技能的课程。</p>
+    </div>
   </div>
   <div v-if="loadError" class="content-card state-panel course-search-state" role="alert"><h3>暂时无法加载课程</h3><p>{{ loadError }}</p><el-button @click="load">重新加载</el-button></div>
   <p v-else-if="activeQuery.keyword || activeQuery.tags.length || activeQuery.categoryId" class="search-result-summary" aria-live="polite">找到 {{ total }} 门匹配课程</p>
