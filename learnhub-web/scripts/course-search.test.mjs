@@ -22,7 +22,7 @@ async function mount(api, { reducedMotion = false } = {}) {
   globalThis.document = Object.assign(new EventTarget(), { hidden: false })
   globalThis.searchHarness = { courseApi: api }
   const source = (await readFile(new URL('../src/views/CourseListView.vue', import.meta.url), 'utf8'))
-    .replace('</script>', 'defineExpose({ courses, filters, categories, availableTags, total, loadError, loading, load, submitSearch, selectCategory, selectTag, fetchSuggestions, nextPage, previousPage, setHovered, setFocused, handleFocusIn })\n</script>')
+    .replace('</script>', 'defineExpose({ courses, filters, categories, availableTags, showTagFilters, total, loadError, loading, load, submitSearch, selectCategory, selectTag, toggleTagFilters, fetchSuggestions, nextPage, previousPage, setHovered, setFocused, handleFocusIn })\n</script>')
   const compiled = compileScript(parse(source).descriptor, { id: 'course-search-test' }).content
     .replace(/from ['"]vue['"]/g, `from ${JSON.stringify(vueUrl)}`)
     .replace(/import \{ courseApi \} from ['"]@\/api['"]/, 'const { courseApi } = globalThis.searchHarness')
@@ -34,6 +34,33 @@ async function mount(api, { reducedMotion = false } = {}) {
   const view = app.mount({})
   await new Promise(resolve => setImmediate(resolve))
   return { app, view }
+}
+
+async function courseTemplate() {
+  const source = await readFile(new URL('../src/views/CourseListView.vue', import.meta.url), 'utf8')
+  const parsed = parse(source)
+  assert.deepEqual(parsed.errors, [])
+  assert.ok(parsed.descriptor.template?.ast)
+  return parsed.descriptor.template.ast
+}
+
+function findElements(node, predicate, found = []) {
+  if (node?.type === 1 && predicate(node)) found.push(node)
+  for (const child of node?.children || []) findElements(child, predicate, found)
+  return found
+}
+
+function hasAttribute(node, name) {
+  return node.props.some(prop => prop.type === 6 && prop.name === name)
+}
+
+function attributeValue(node, name) {
+  return node.props.find(prop => prop.type === 6 && prop.name === name)?.value?.content
+}
+
+function directiveExpression(node, name, argument) {
+  return node.props.find(prop => prop.type === 7 && prop.name === name
+    && (!argument || prop.arg?.content === argument))?.exp?.content
 }
 
 test('默认课程使用普通分页，关键词和多标签使用搜索分页', async () => {
@@ -72,6 +99,65 @@ test('分类和标签来自公共接口，分类可与关键词标签组合提�
     await view.selectCategory('9007199254740993')
     assert.deepEqual(calls.at(-1), { keyword: '应用', categoryId: '9007199254740993', tags: '大模型', page: 1, size: 3 })
   } finally { app.unmount() }
+})
+
+test('大量标签默认折叠，按需展开并保留标签切换方法契约', async () => {
+  const tags = Array.from({ length: 70 }, (_, index) => ({ id: String(9007199254740993n + BigInt(index)), name: `标签${index + 1}` }))
+  const { app, view } = await mount({
+    list: params => result({ records: [], total: 0, current: params.page, size: params.size }),
+    categories: () => result([]),
+    tags: () => result(tags),
+  })
+  try {
+    assert.equal(view.availableTags.length, 70)
+    assert.equal(view.showTagFilters, false)
+    view.toggleTagFilters()
+    assert.equal(view.showTagFilters, true)
+    view.selectTag('标签70')
+    assert.deepEqual(view.filters.tags, ['标签70'])
+    view.selectTag('标签70')
+    assert.deepEqual(view.filters.tags, [])
+  } finally { app.unmount() }
+})
+
+test('分类筛选保持雪花ID字符串，清空后请求不携带分类条件', async () => {
+  const calls = []
+  const categoryId = '9007199254740993'
+  const { app, view } = await mount({
+    list: params => { calls.push(['list', params]); return result({ records: [], total: 0, current: params.page, size: params.size }) },
+    searchPage: params => { calls.push(['search', params]); return result({ records: [], total: 0, current: 1, size: 3 }) },
+    categories: () => result([{ id: categoryId, name: '人工智能', status: 'ENABLED', sortOrder: 1 }]),
+    tags: () => result([]),
+  })
+  try {
+    await view.selectCategory(categoryId)
+    assert.equal(view.filters.categoryId, categoryId)
+    assert.equal(typeof view.filters.categoryId, 'string')
+    assert.deepEqual(calls.at(-1), ['search', { keyword: '', categoryId, tags: undefined, page: 1, size: 3 }])
+    await view.selectCategory(undefined)
+    assert.equal(view.filters.categoryId, undefined)
+    assert.deepEqual(calls.at(-1), ['list', { page: 1, size: 3 }])
+  } finally { app.unmount() }
+})
+
+test('课程筛选使用紧凑下拉并将多标签作为渐进式筛选', async () => {
+  const template = await courseTemplate()
+  const selects = findElements(template, node => node.tag === 'el-select')
+  const categorySelect = selects.find(node => attributeValue(node, 'aria-label') === '课程分类筛选')
+  const tagSelect = selects.find(node => attributeValue(node, 'aria-label') === '课程标签筛选')
+  assert.ok(categorySelect, '分类应由一个紧凑下拉框承载')
+  assert.ok(tagSelect, '标签应由一个可搜索的多选框承载')
+  assert.ok(hasAttribute(categorySelect, 'clearable'))
+  for (const attribute of ['multiple', 'filterable', 'collapse-tags']) assert.ok(hasAttribute(tagSelect, attribute), `标签选择器缺少 ${attribute}`)
+
+  const progressiveContainers = findElements(template, node => directiveExpression(node, 'if')?.includes('showTagFilters'))
+  assert.ok(progressiveContainers.some(node => findElements(node, child => child === tagSelect).length), '标签选择器默认应由展开状态控制')
+  const toggle = findElements(template, node => directiveExpression(node, 'on', 'click') === 'toggleTagFilters')
+  assert.equal(toggle.length, 1)
+
+  const chipLoops = findElements(template, node => node.tag === 'button'
+    && /categories|availableTags/.test(directiveExpression(node, 'for') || ''))
+  assert.equal(chipLoops.length, 0, '分类和标签不应继续渲染为完整按钮云')
 })
 
 test('较早的慢请求不能覆盖用户后发起的搜索', async () => {

@@ -51,6 +51,28 @@ async function mount(publish = async () => {}, overrides = {}, confirm = async (
   return { app, view, messages, api }
 }
 
+async function adminTemplate() {
+  const source = await readFile(new URL('../src/views/AdminView.vue', import.meta.url), 'utf8')
+  const parsed = parse(source)
+  assert.deepEqual(parsed.errors, [])
+  assert.ok(parsed.descriptor.template?.ast)
+  return parsed.descriptor.template.ast
+}
+
+function findElements(node, predicate, found = []) {
+  if (node?.type === 1 && predicate(node)) found.push(node)
+  for (const child of node?.children || []) findElements(child, predicate, found)
+  return found
+}
+
+function attributeValue(node, name) {
+  return node.props.find(prop => prop.type === 6 && prop.name === name)?.value?.content
+}
+
+function directiveExpression(node, name) {
+  return node.props.find(prop => prop.type === 7 && prop.name === name)?.exp?.content
+}
+
 test('发布成功后刷新课程状态，已发布课程不再提交', async () => {
   const calls = []
   const { app, view, messages } = await mount(async id => calls.push(id))
@@ -351,4 +373,29 @@ test('创建课程时分类雪花ID保持字符串精度', async () => {
     assert.equal(calls[0].categoryId, categoryId)
     assert.equal(typeof calls[0].categoryId, 'string')
   } finally { app.unmount() }
+})
+
+test('分类与标签弹窗提供宽屏双栏容器和窄屏可重排结构', async () => {
+  const template = await adminTemplate()
+  const dialog = findElements(template, node => node.tag === 'el-dialog'
+    && attributeValue(node, 'title') === '课程分类与标签')[0]
+  assert.ok(dialog)
+  assert.equal(attributeValue(dialog, 'class'), 'taxonomy-dialog')
+  assert.equal(attributeValue(dialog, 'width'), 'min(920px, calc(100vw - 32px))')
+  assert.equal(attributeValue(dialog, 'top'), '6vh')
+
+  const grid = findElements(dialog, node => attributeValue(node, 'class') === 'taxonomy-grid')[0]
+  assert.ok(grid)
+  assert.equal(grid.children.filter(child => child.type === 1 && child.tag === 'section').length, 2)
+})
+
+test('分类编辑项使用具名字段和独立操作组，避免紧凑控件含义不清', async () => {
+  const template = await adminTemplate()
+  const categoryItem = findElements(template, node => attributeValue(node, 'class') === 'taxonomy-category-item'
+    && directiveExpression(node, 'for')?.includes('categories'))[0]
+  assert.ok(categoryItem)
+  const labels = findElements(categoryItem, node => node.tag === 'el-form-item')
+    .map(node => attributeValue(node, 'label'))
+  assert.deepEqual(labels, ['分类名称', '排序', '状态'])
+  assert.equal(findElements(categoryItem, node => attributeValue(node, 'class') === 'taxonomy-item-actions').length, 1)
 })
