@@ -49,8 +49,9 @@ class KnowledgeJdbcRepository {
     }
 
     int chunkCount(long documentId, long version) {
+        // 等待来源行锁后使用当前读，避免 RR 旧快照漏看另一导入事务已提交的片段。
         Integer count = jdbc.queryForObject("""
-                SELECT COUNT(*) FROM knowledge_chunk WHERE document_id = ? AND source_version = ?
+                SELECT COUNT(*) FROM knowledge_chunk WHERE document_id = ? AND source_version = ? FOR UPDATE
                 """, Integer.class, documentId, version);
         return count == null ? 0 : count;
     }

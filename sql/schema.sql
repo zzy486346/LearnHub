@@ -183,6 +183,7 @@ CREATE TABLE IF NOT EXISTS knowledge_chunk (
     heading VARCHAR(255) NULL COMMENT '片段所属场景标题',
     content TEXT NOT NULL COMMENT '知识片段正文，最多六百个Unicode代码点',
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间，精确到毫秒',
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间，记录修改时自动更新，精确到毫秒',
     UNIQUE KEY uk_knowledge_chunk_order (document_id, source_version, chunk_order),
     KEY idx_knowledge_chunk_version (document_id, source_version, id)
 ) COMMENT='知识文档版本片段表';
