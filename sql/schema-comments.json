@@ -21,7 +21,9 @@
     "seckill_order": "优惠券秒杀请求及可靠发布状态表",
     "mq_consume_log": "消息消费幂等日志表",
     "media_asset": "媒体文件资源表",
-    "search_index_task": "课程搜索索引同步任务表"
+    "search_index_task": "课程搜索索引同步任务表",
+    "knowledge_document": "课程课时知识文档表",
+    "knowledge_chunk": "知识文档版本片段表"
   },
   "columns": {
     "id": "主键编号",
@@ -121,7 +123,16 @@
     "biz_id": "媒体关联业务记录编号，可为空",
     "generation": "任务代次，每次课程变更时递增，用于完成和失败更新的并发校验",
     "attempts": "当前代次已失败的同步尝试次数",
-    "last_error": "最近一次索引同步失败的错误摘要，成功或新代次时为空"
+    "last_error": "最近一次索引同步失败的错误摘要，成功或新代次时为空",
+    "source_key": "外部知识来源稳定标识，同一来源全局唯一",
+    "visibility": "正文可见范围：COURSE_LESSON按绑定课程和课时鉴权",
+    "content_hash": "标题、归属和场景正文的SHA-256摘要，用于幂等导入",
+    "source_version": "知识来源版本号，内容变化时由服务端递增",
+    "indexed_version": "已完整写入并刷新知识索引的来源版本号",
+    "index_status": "索引状态：PENDING待同步、INDEXED已同步、FAILED同步失败",
+    "document_id": "所属知识文档编号，关联知识文档表",
+    "chunk_order": "片段在当前文档版本内的顺序，从零开始",
+    "heading": "片段所属场景标题"
   },
   "overrides": {
     "user.status": "账号状态：ACTIVE正常，DISABLED禁用",
@@ -150,6 +161,16 @@
     "mq_consume_log.status": "消息消费结果状态，如SUCCESS消费成功",
     "media_asset.status": "媒体资源状态：UPLOADING上传中、READY可用、FAILED失败",
     "search_index_task.course_id": "待同步的课程编号，关联课程表",
-    "search_index_task.next_retry_at": "下次允许执行索引同步的时间，精确到毫秒"
+    "search_index_task.next_retry_at": "下次允许执行索引同步的时间，精确到毫秒",
+    "knowledge_document.id": "知识文档主键编号",
+    "knowledge_document.title": "知识文档标题",
+    "knowledge_document.course_id": "绑定课程编号，关联课程信息表",
+    "knowledge_document.lesson_id": "绑定课时编号，关联课程课时表",
+    "knowledge_document.attempts": "当前版本索引同步失败次数",
+    "knowledge_document.next_retry_at": "当前版本下次允许重试索引的时间，精确到毫秒",
+    "knowledge_document.last_error": "当前版本最近一次索引同步失败摘要",
+    "knowledge_chunk.id": "知识片段主键编号",
+    "knowledge_chunk.source_version": "片段所属知识来源版本号",
+    "knowledge_chunk.content": "知识片段正文，最多六百个Unicode代码点"
   }
 }
