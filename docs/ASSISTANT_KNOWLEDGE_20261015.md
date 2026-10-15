@@ -122,3 +122,16 @@ node --test scripts/assistant/prepare-documents.test.mjs
 专项覆盖：重复导入与版本失效、错误课时归属、真实中文 IK/BM25 召回及授权课时过滤、索引失败后重试、迁移重复执行与注释/索引约束、材料更新/删除及丢失索引重建，以及两个 RR 事务同时导入同一来源。
 
 测试后核实本次带标签的 MySQL 容器与 `knowledge-it-*` 索引均为 0；未启动常驻后端进程，用户已有服务未重启。测试日志位于忽略目录 `.local/assistant-*.log`，不提交日志和构建产物。
+
+## 7. 本地环境安装记录
+
+2026-10-15，经用户授权，已直接配置 `deploy/docker-compose.yml` 对应的本地环境：
+
+- 复用现有健康的 MySQL、Elasticsearch、Redis、RabbitMQ；ES 已有 8.15.3 的 IK 插件，无需安装额外中间件。
+- 在 `learnhub` 库执行 `V20261015__knowledge_documents.sql` 并重复执行验证成功。两张新表合计 24 列，中文注释无缺失，主键、唯一索引、创建和更新时间均已检查。
+- 迁移前结构备份保存在被忽略的 `.local/knowledge-setup/schema-before.sql`。迁移后排除两张新表的结构快照与原快照 SHA-256 相同；原课程 24 条、课时 51 条未改变。
+- 应用数据库账号已验证可读取两张新表。没有导入演示材料，文档和知识块均为 0 条。
+- 已创建 `learnhub-knowledge-search-v1` 和写别名 `learnhub-knowledge-search`，映射与知识 Gateway 一致。本地单节点设置 1 个主分片、0 个副本；健康为 green，真实 IK 分词验证通过，索引中为 0 条文档。
+- 本地被 Git 忽略的 `.env` 已设置 `LEARNHUB_KNOWLEDGE_SYNC_ENABLED=true`、`LEARNHUB_KNOWLEDGE_ALIAS=learnhub-knowledge-search`、`LEARNHUB_AI_MODE=DISABLED`。
+
+这次操作未重启现有后端，也未保留临时后端进程；新的 `.env` 配置在下次正常启动后端时加载。材料导入仍须先完成显式课程/课时映射和内容审校。
