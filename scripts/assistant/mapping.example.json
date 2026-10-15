@@ -1,0 +1,13 @@
+{
+  "_instructions": "填写并人工核对 courseId、lessonId 后，将 reviewed 改为 true；空字符串是待填占位，不代表真实数据库编号。",
+  "reviewed": false,
+  "mappings": [
+    {
+      "courseSlug": "java-basics",
+      "lessonTitle": "变量和方法怎样配合",
+      "courseId": "",
+      "lessonId": "",
+      "sourceKey": "catalog.java-basics.variables-and-methods"
+    }
+  ]
+}
