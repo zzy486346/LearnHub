@@ -118,6 +118,20 @@ public class CourseService {
         }
     }
 
+    /** 只计算正文读取范围，不生成媒体签名或查询点赞。 */
+    public List<Long> readableLessonIds(Long userId, Long courseId) {
+        if (userId == null) throw new BusinessException("UNAUTHORIZED", "请先登录");
+        requireAvailable(courseId, userId);
+        List<Long> chapterIds = chapterMapper.selectList(new LambdaQueryWrapper<CourseChapter>()
+                .eq(CourseChapter::getCourseId, courseId)).stream().map(CourseChapter::getId).toList();
+        if (chapterIds.isEmpty()) return List.of();
+        boolean purchased = orderService.hasPurchased(userId, courseId);
+        return lessonMapper.selectList(new LambdaQueryWrapper<CourseLesson>()
+                .in(CourseLesson::getChapterId, chapterIds)
+                .eq(!purchased, CourseLesson::getFreePreview, true)).stream()
+                .map(CourseLesson::getId).toList();
+    }
+
     public Course requireAvailable(Long courseId, Long userId) {
         Course course = courseMapper.selectById(courseId);
         if (course != null && ("PUBLISHED".equals(course.getStatus())

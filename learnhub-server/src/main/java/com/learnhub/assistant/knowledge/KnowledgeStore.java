@@ -87,6 +87,11 @@ public class KnowledgeStore {
         return repository.currentChunk(chunkId);
     }
 
+    public List<CurrentKnowledgeChunk> currentChunks(List<Long> chunkIds) {
+        if (chunkIds.size() > 100) throw new IllegalArgumentException("一次最多复核100个知识块");
+        return repository.currentChunks(chunkIds);
+    }
+
     private ImportDocumentResult result(long id, long version, int chunkCount, boolean unchanged) {
         return new ImportDocumentResult(Long.toString(id), version, chunkCount, unchanged);
     }

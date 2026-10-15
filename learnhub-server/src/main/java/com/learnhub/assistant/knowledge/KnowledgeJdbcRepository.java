@@ -134,16 +134,22 @@ class KnowledgeJdbcRepository {
     }
 
     Optional<CurrentKnowledgeChunk> currentChunk(long chunkId) {
+        return currentChunks(List.of(chunkId)).stream().findFirst();
+    }
+
+    List<CurrentKnowledgeChunk> currentChunks(List<Long> chunkIds) {
+        if (chunkIds.isEmpty()) return List.of();
+        String placeholders = String.join(",", java.util.Collections.nCopies(chunkIds.size(), "?"));
         List<CurrentKnowledgeChunk> rows = jdbc.query("""
                 SELECT kc.id, kc.document_id, kc.source_version, kd.course_id, kd.lesson_id, kd.title,
                        kc.chunk_order, kc.heading, kc.content
                 FROM knowledge_chunk kc
                 JOIN knowledge_document kd ON kd.id = kc.document_id
-                WHERE kc.id = ? AND kd.deleted = 0
+                WHERE kc.id IN (%s) AND kd.deleted = 0
                   AND kd.source_version = kc.source_version
                   AND kd.indexed_version = kd.source_version
-                """, (rs, rowNum) -> currentChunk(rs), chunkId);
-        return rows.stream().findFirst();
+                """.formatted(placeholders), (rs, rowNum) -> currentChunk(rs), chunkIds.toArray());
+        return rows;
     }
 
     private KnowledgeDocumentRecord document(ResultSet rs) throws SQLException {
