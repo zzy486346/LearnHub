@@ -1,0 +1,55 @@
+{
+  "_instructions": "2026-10-16 已通过本地 MySQL 事实表核验。reviewed=true 同时表示 catalog 讲解稿已逐场景审校，可由 prepare-documents.mjs 生成管理员导入请求。",
+  "verification": {
+    "verifiedAt": "2026-10-16",
+    "database": "learnhub",
+    "method": "course -> course_chapter -> course_lesson 唯一归属只读查询，并用 UTF-8 标题十六进制复核",
+    "documentCount": 6,
+    "sceneCount": 18
+  },
+  "reviewed": true,
+  "mappings": [
+    {
+      "courseSlug": "java-concurrency",
+      "lessonTitle": "库存为何会被重复扣减",
+      "courseId": "12002",
+      "lessonId": "32021",
+      "sourceKey": "catalog.java-concurrency.inventory-race"
+    },
+    {
+      "courseSlug": "java-concurrency",
+      "lessonTitle": "线程池如何承接异步任务",
+      "courseId": "12002",
+      "lessonId": "32022",
+      "sourceKey": "catalog.java-concurrency.thread-pool"
+    },
+    {
+      "courseSlug": "redis-cache",
+      "lessonTitle": "热点键过期时发生什么",
+      "courseId": "12007",
+      "lessonId": "32071",
+      "sourceKey": "catalog.redis-cache.hot-key-expiry"
+    },
+    {
+      "courseSlug": "redis-cache",
+      "lessonTitle": "更新商品如何保持一致",
+      "courseId": "12007",
+      "lessonId": "32072",
+      "sourceKey": "catalog.redis-cache.consistency"
+    },
+    {
+      "courseSlug": "elasticsearch",
+      "lessonTitle": "倒排索引怎样找到课程",
+      "courseId": "12015",
+      "lessonId": "32151",
+      "sourceKey": "catalog.elasticsearch.inverted-index"
+    },
+    {
+      "courseSlug": "elasticsearch",
+      "lessonTitle": "相关性为何不只看热度",
+      "courseId": "12015",
+      "lessonId": "32152",
+      "sourceKey": "catalog.elasticsearch.relevance-ranking"
+    }
+  ]
+}

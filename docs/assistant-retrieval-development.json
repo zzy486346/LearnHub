@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "description": "LearnHub 阶段 A 开发集。可用于调试召回和拒答规则，不得把结果冒充独立留出评测。",
+  "split": "DEVELOPMENT",
+  "sourceMappings": [
+    {"sourceKey":"catalog.java-concurrency.inventory-race","courseId":"12002","lessonId":"32021"},
+    {"sourceKey":"catalog.java-concurrency.thread-pool","courseId":"12002","lessonId":"32022"},
+    {"sourceKey":"catalog.redis-cache.hot-key-expiry","courseId":"12007","lessonId":"32071"},
+    {"sourceKey":"catalog.redis-cache.consistency","courseId":"12007","lessonId":"32072"},
+    {"sourceKey":"catalog.elasticsearch.inverted-index","courseId":"12015","lessonId":"32151"},
+    {"sourceKey":"catalog.elasticsearch.relevance-ranking","courseId":"12015","lessonId":"32152"}
+  ],
+  "cases": [
+    {"id":"DEV-001","category":"ANSWERABLE","query":"库存扣减为什么会发生竞态？","courseId":"12002","expectedSourceKeys":["catalog.java-concurrency.inventory-race"],"expectedTerms":["读取","临界区"],"status":"NOT_RUN"},
+    {"id":"DEV-002","category":"ANSWERABLE","query":"线程池队列为什么要限制容量？","courseId":"12002","expectedSourceKeys":["catalog.java-concurrency.thread-pool"],"expectedTerms":["队列","内存"],"status":"NOT_RUN"},
+    {"id":"DEV-003","category":"ANSWERABLE","query":"热点缓存失效后怎样避免请求同时打到数据库？","courseId":"12007","expectedSourceKeys":["catalog.redis-cache.hot-key-expiry"],"expectedTerms":["互斥","回填"],"status":"NOT_RUN"},
+    {"id":"DEV-004","category":"ANSWERABLE","query":"数据库更新后删除缓存失败怎么办？","courseId":"12007","expectedSourceKeys":["catalog.redis-cache.consistency"],"expectedTerms":["补偿","过期"],"status":"NOT_RUN"},
+    {"id":"DEV-005","category":"ANSWERABLE","query":"倒排索引为什么无需逐篇扫描课程？","courseId":"12015","expectedSourceKeys":["catalog.elasticsearch.inverted-index"],"expectedTerms":["词项","候选文档"],"status":"NOT_RUN"},
+    {"id":"DEV-006","category":"ANSWERABLE","query":"课程搜索为什么不能只按点赞量排序？","courseId":"12015","expectedSourceKeys":["catalog.elasticsearch.relevance-ranking"],"expectedTerms":["文本","热度"],"status":"NOT_RUN"},
+    {"id":"DEV-007","category":"INSUFFICIENT_EVIDENCE","query":"讲师在 2025 年发表了哪些论文？","courseId":"12015","expectedSourceKeys":[],"expectedTerms":[],"status":"NOT_RUN"},
+    {"id":"DEV-008","category":"CROSS_COURSE_ISOLATION","query":"请返回 Redis 课程的缓存一致性正文","courseId":"12002","expectedSourceKeys":[],"forbiddenSourceKeys":["catalog.redis-cache.consistency"],"status":"NOT_RUN"}
+  ]
+}
