@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.learnhub.common.exception.BusinessException;
+import java.time.Duration;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -41,6 +43,21 @@ class ChatModelClientTest {
     }
 
     @Test
+    void fakeModeReturnsExplicitStructuredRefusalWithoutPretendingToUseTokens() {
+        contextRunner.withPropertyValues("learnhub.ai.mode=FAKE").run(context -> {
+            ChatModelClient client = context.getBean(ChatModelClient.class);
+            ChatResponse response = client.generate(new ChatRequest(
+                    List.of(new ChatMessage("user", "请回答", null, List.of())),
+                    List.of(), 128, Duration.ofSeconds(1), true));
+
+            assertThat(response.text()).isEqualTo(FakeChatModelClient.JSON_RESPONSE);
+            assertThat(response.modelMode()).isEqualTo("FAKE");
+            assertThat(response.usage()).isEqualTo(new Usage(0, 0, 0));
+            assertThat(response.toolCalls()).isEmpty();
+        });
+    }
+
+    @Test
     void fakeModeRejectsBlankAndOversizedPrompts() {
         contextRunner.withPropertyValues("learnhub.ai.mode=FAKE").run(context -> {
             ChatModelClient client = context.getBean(ChatModelClient.class);
@@ -62,6 +79,17 @@ class ChatModelClientTest {
                     .hasRootCauseInstanceOf(IllegalArgumentException.class)
                     .rootCause()
                     .hasMessageContaining("Unsupported learnhub.ai.mode: REMOTE");
+        });
+    }
+
+    @Test
+    void deepSeekModeRequiresApiKeyBeforeCreatingTransport() {
+        contextRunner.withPropertyValues("learnhub.ai.mode=DEEPSEEK").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure())
+                    .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                    .rootCause()
+                    .hasMessageContaining("API key is required");
         });
     }
 }

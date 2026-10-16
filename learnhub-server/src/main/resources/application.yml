@@ -51,6 +51,14 @@ mybatis-plus:
 learnhub:
   ai:
     mode: ${LEARNHUB_AI_MODE:DISABLED}
+    api-key: ${LEARNHUB_DEEPSEEK_API_KEY:${DEEPSEEK_API_KEY:}}
+    model: ${LEARNHUB_AI_MODEL:deepseek-flash}
+    max-output-tokens: ${LEARNHUB_AI_MAX_OUTPUT_TOKENS:1024}
+    request-timeout: ${LEARNHUB_AI_REQUEST_TIMEOUT:PT20S}
+    connect-timeout: ${LEARNHUB_AI_CONNECT_TIMEOUT:PT5S}
+    max-input-bytes: ${LEARNHUB_AI_MAX_INPUT_BYTES:131072}
+    max-response-bytes: ${LEARNHUB_AI_MAX_RESPONSE_BYTES:262144}
+    transport-threads: ${LEARNHUB_AI_TRANSPORT_THREADS:4}
   knowledge:
     alias: ${LEARNHUB_KNOWLEDGE_ALIAS:learnhub-knowledge-search}
     sync-enabled: ${LEARNHUB_KNOWLEDGE_SYNC_ENABLED:false}
