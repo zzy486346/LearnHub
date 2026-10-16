@@ -12,7 +12,7 @@ class KnowledgeJdbcRepository {
     private final JdbcTemplate jdbc;
 
     KnowledgeJdbcRepository(JdbcTemplate jdbc) {
-        this.jdbc = jdbc;
+        this.jdbc = new com.learnhub.assistant.runtime.DeadlineJdbcTemplate(jdbc.getDataSource());
     }
 
     boolean validLessonBinding(long courseId, long lessonId) {

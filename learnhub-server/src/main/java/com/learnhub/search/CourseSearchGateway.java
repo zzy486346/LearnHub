@@ -148,7 +148,7 @@ public class CourseSearchGateway {
         try {
             Request request = new Request(method, path);
             if (body != null) request.setJsonEntity(mapper.writeValueAsString(body));
-            var response = client.performRequest(request);
+            var response = com.learnhub.assistant.runtime.AssistantSearchIo.perform(client, request);
             return mapper.readTree(EntityUtils.toString(response.getEntity()));
         } catch (ResponseException error) {
             if (allowMissing && error.getResponse().getStatusLine().getStatusCode() == 404) return null;

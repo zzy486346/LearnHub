@@ -127,7 +127,7 @@ public class KnowledgeSearchGateway {
             request.setOptions(RequestOptions.DEFAULT.toBuilder().setRequestConfig(RequestConfig.custom()
                     .setConnectTimeout(3000).setSocketTimeout(5000).setConnectionRequestTimeout(3000).build()).build());
             if (body != null) request.setJsonEntity(mapper.writeValueAsString(body));
-            var response = client.performRequest(request);
+            var response = com.learnhub.assistant.runtime.AssistantSearchIo.perform(client, request);
             return mapper.readTree(EntityUtils.toString(response.getEntity()));
         } catch (ResponseException error) {
             if (allowMissing && error.getResponse().getStatusLine().getStatusCode() == 404) return null;

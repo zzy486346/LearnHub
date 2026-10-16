@@ -49,6 +49,18 @@ mybatis-plus:
       logic-delete-field: deleted
 
 learnhub:
+  assistant:
+    timeout: ${LEARNHUB_ASSISTANT_TIMEOUT:PT45S}
+    max-model-calls: ${LEARNHUB_ASSISTANT_MAX_MODEL_CALLS:4}
+    max-tool-decision-rounds: ${LEARNHUB_ASSISTANT_MAX_TOOL_ROUNDS:3}
+    max-tool-calls: ${LEARNHUB_ASSISTANT_MAX_TOOL_CALLS:4}
+    max-run-tokens: ${LEARNHUB_ASSISTANT_MAX_RUN_TOKENS:24000}
+    max-output-tokens: ${LEARNHUB_ASSISTANT_MAX_OUTPUT_TOKENS:1200}
+    global-concurrency: ${LEARNHUB_ASSISTANT_GLOBAL_CONCURRENCY:4}
+    requests-per-minute: ${LEARNHUB_ASSISTANT_REQUESTS_PER_MINUTE:6}
+    daily-model-calls: ${LEARNHUB_ASSISTANT_DAILY_MODEL_CALLS:20}
+    daily-reserved-tokens: ${LEARNHUB_ASSISTANT_DAILY_RESERVED_TOKENS:120000}
+    max-input-bytes: ${LEARNHUB_ASSISTANT_MAX_INPUT_BYTES:16000}
   ai:
     mode: ${LEARNHUB_AI_MODE:DISABLED}
     api-key: ${LEARNHUB_DEEPSEEK_API_KEY:${DEEPSEEK_API_KEY:}}
