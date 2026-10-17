@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { assistantApi, type AssistantCitation, type CourseQaAnswer } from '@/api/assistant'
-import { isSessionExpired } from '@/api/session'
+import { isAssistantRetryRequired, isSessionExpired } from '@/api/session'
 import { AUTH_SESSION_CLEARED_EVENT, AUTH_SESSION_REPLACED_EVENT } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
 
@@ -92,7 +92,9 @@ async function submit() {
     answer.value = response.data.data
   } catch (error) {
     if (currentGeneration !== generation || controller.signal.aborted) return
-    errorMessage.value = isSessionExpired(error) ? '登录已失效，请重新登录。' : messageFor(error)
+    errorMessage.value = isAssistantRetryRequired(error)
+      ? '登录状态已更新，本次问题尚未重新提交，请再次点击“开始问答”。'
+      : isSessionExpired(error) ? '登录已失效，请重新登录。' : messageFor(error)
     void assistantApi.cancel(requestId).catch(() => undefined)
   } finally {
     if (currentGeneration === generation && activeRequestId === requestId) {

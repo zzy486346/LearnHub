@@ -77,16 +77,83 @@ test('并发401只刷新一次，刷新成功后重放操作，不跳登录', as
   assert.deepEqual(app.redirects, [])
 })
 
-test('助理生成401不刷新或重放，避免重复付费', async () => {
+test('助理生成401只刷新会话但不重放，保留登录并避免重复付费', async () => {
   const app = await setup()
   let refreshCalls = 0
   let generated = 0
-  axios.defaults.adapter = async config => { refreshCalls++; return response(config) }
+  axios.defaults.adapter = async config => {
+    refreshCalls++
+    return response(config, { data: { accessToken: 'new-access', refreshToken: 'new-refresh' } })
+  }
   app.http.defaults.adapter = async config => { generated++; throw failure(config, 401) }
-  await assert.rejects(app.http.post('/assistant/course-qa', { courseId: '1', question: 'Lua' }), session.isSessionExpired)
-  assert.equal(refreshCalls, 0)
+  await assert.rejects(app.http.post('/assistant/course-qa', { courseId: '1', question: 'Lua' }),
+    error => session.isAssistantRetryRequired(error))
+  assert.equal(refreshCalls, 1)
+  assert.equal(generated, 1)
+  assert.equal(app.storage.get(accessKey), 'new-access')
+  assert.equal(app.storage.get(refreshKey), 'new-refresh')
+  assert.deepEqual(app.redirects, [])
+  assert.equal(app.clears(), 0)
+})
+
+test('助理生成401后刷新被拒绝才清理会话并跳转登录', async () => {
+  const app = await setup()
+  let generated = 0
+  axios.defaults.adapter = async config => { throw failure(config, 409) }
+  app.http.defaults.adapter = async config => { generated++; throw failure(config, 401) }
+  await assert.rejects(app.http.post('/assistant/agent', { courseId: '1', goal: '学习建议' }), session.isSessionExpired)
   assert.equal(generated, 1)
   assert.equal(app.storage.size, 0)
+  assert.equal(app.clears(), 1)
+  assert.equal(app.redirects.length, 1)
+})
+
+test('助理生成401后刷新网络故障或500保留现有会话', async () => {
+  for (const refreshStatus of [undefined, 500]) {
+    const app = await setup()
+    axios.defaults.adapter = async config => {
+      throw refreshStatus ? failure(config, refreshStatus) : new Error('offline')
+    }
+    app.http.defaults.adapter = async config => { throw failure(config, 401) }
+    await assert.rejects(app.http.post('/assistant/course-qa', { courseId: '1', question: 'Lua' }),
+      error => !session.isSessionExpired(error) && !session.isAssistantRetryRequired(error))
+    assert.equal(app.storage.get(accessKey), 'expired-access')
+    assert.equal(app.storage.get(refreshKey), 'refresh-token')
+    assert.deepEqual(app.redirects, [])
+    assert.equal(app.clears(), 0)
+  }
+})
+
+test('助理与普通请求并发401只刷新一次，仅普通请求自动重放', async () => {
+  const app = await setup()
+  let refreshCalls = 0
+  let assistantCalls = 0
+  let ordinaryCalls = 0
+  axios.defaults.adapter = async config => {
+    refreshCalls++
+    await new Promise(resolve => setImmediate(resolve))
+    return response(config, { data: { accessToken: 'new-access', refreshToken: 'new-refresh' } })
+  }
+  app.http.defaults.adapter = async config => {
+    if (config.url.startsWith('/assistant/')) {
+      assistantCalls++
+      throw failure(config, 401)
+    }
+    ordinaryCalls++
+    if (config.headers.Authorization !== 'Bearer new-access') throw failure(config, 401)
+    return response(config)
+  }
+  const [assistant, ordinary] = await Promise.allSettled([
+    app.http.post('/assistant/course-qa', { courseId: '1', question: 'Lua' }),
+    app.http.get('/profile/overview'),
+  ])
+  assert.equal(assistant.status, 'rejected')
+  assert.ok(session.isAssistantRetryRequired(assistant.reason))
+  assert.equal(ordinary.status, 'fulfilled')
+  assert.equal(refreshCalls, 1)
+  assert.equal(assistantCalls, 1)
+  assert.equal(ordinaryCalls, 2)
+  assert.deepEqual(app.redirects, [])
 })
 
 test('刷新被拒绝时所有等待请求获得会话失效错误，不重复跳转', async () => {

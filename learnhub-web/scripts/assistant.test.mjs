@@ -31,7 +31,8 @@ async function mount(handler = async () => result(answer), cancel = async () => 
     .replace(/from ['"]vue['"]/g, `from ${JSON.stringify(vueUrl)}`)
     .replace(/import \{ useRoute, useRouter \} from ['"]vue-router['"]/, 'const { useRoute, useRouter } = globalThis.assistantHarness')
     .replace(/import \{[^}]*\} from ['"]@\/api\/assistant['"]/, 'const { assistantApi } = globalThis.assistantHarness')
-    .replace(/import \{ isSessionExpired \} from ['"]@\/api\/session['"]/, "const isSessionExpired = error => error?.code === 'AUTH_SESSION_EXPIRED'")
+    .replace(/import \{ isAssistantRetryRequired, isSessionExpired \} from ['"]@\/api\/session['"]/,
+      "const isAssistantRetryRequired = error => error?.code === 'ASSISTANT_AUTH_REFRESHED', isSessionExpired = error => error?.code === 'AUTH_SESSION_EXPIRED'")
     .replace(/import \{ AUTH_SESSION_CLEARED_EVENT, AUTH_SESSION_REPLACED_EVENT \} from ['"]@\/api\/http['"]/, "const AUTH_SESSION_CLEARED_EVENT='learnhub:auth-session-cleared', AUTH_SESSION_REPLACED_EVENT='learnhub:auth-session-replaced'")
     .replace(/import \{ useAuthStore \} from ['"]@\/stores\/auth['"]/, 'const { useAuthStore } = globalThis.assistantHarness')
   const code = ts.transpileModule(compiled, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
@@ -133,6 +134,21 @@ test('资料不足与模型禁用分别呈现且不自动重试', async () => {
     assert.match(failure.view.errorMessage, /尚未启用/)
     assert.equal(failure.calls.length, 1)
   } finally { failure.app.unmount() }
+})
+
+test('会话刷新后保留问题并提示手动重试，不自动重放生成', async () => {
+  const refreshed = Object.assign(new Error('refreshed'), { code: 'ASSISTANT_AUTH_REFRESHED' })
+  const app = await mount(async () => { throw refreshed })
+  try {
+    app.view.question = '为什么要用 Lua？'
+    await app.view.submit()
+    assert.equal(app.calls.length, 1)
+    assert.equal(app.view.question, '为什么要用 Lua？')
+    assert.match(app.view.errorMessage, /登录状态已更新/)
+    assert.match(app.view.errorMessage, /再次点击/)
+    assert.equal(app.cancellations.length, 1)
+    assert.equal(app.view.loading, false)
+  } finally { app.app.unmount() }
 })
 
 

@@ -1,6 +1,6 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import type { ApiResult, TokenPair } from '@/types'
-import { SessionExpiredError } from './session'
+import { AssistantRetryRequiredError, SessionExpiredError } from './session'
 
 const ACCESS_KEY = 'learnhub_access_token'
 const REFRESH_KEY = 'learnhub_refresh_token'
@@ -141,9 +141,27 @@ http.interceptors.response.use(
     if (original._sessionGeneration !== undefined && original._sessionGeneration !== sessionGeneration) {
       return Promise.reject(new SessionExpiredError())
     }
-    // 生成可能已产生费用，登录失效时不自动刷新并重放助理请求。
+    // 生成可能已产生费用：可以恢复会话，但绝不自动重放助理请求。
     if (original.method?.toLowerCase() === 'post' && original.url?.startsWith('/assistant/')) {
-      return Promise.reject(expireSession())
+      if (redirectingToLogin || loggingOut) return Promise.reject(expireSession())
+      const generation = sessionGeneration
+      try {
+        const currentToken = localStorage.getItem(ACCESS_KEY)
+        // 其他并发请求可能已刷新会话，此时不再消费旋转后的 Refresh Token。
+        if (!currentToken || original.headers.Authorization === `Bearer ${currentToken}`) {
+          await refreshCurrentSession()
+        }
+        if (generation !== sessionGeneration) return Promise.reject(new SessionExpiredError())
+        return Promise.reject(new AssistantRetryRequiredError())
+      } catch (refreshError) {
+        if (generation !== sessionGeneration) return Promise.reject(new SessionExpiredError())
+        const status = (refreshError as AxiosError).response?.status
+        if (refreshError instanceof SessionExpiredError || status === 401 || status === 403 || status === 409) {
+          return Promise.reject(expireSession())
+        }
+        // 刷新服务暂时不可用时保留凭据，不把网络故障当成退出登录。
+        return Promise.reject(refreshError)
+      }
     }
     // 退出失败交给调用方提示，退出期间的旧请求不能再创建新会话。
     if (original.url === '/auth/logout' || loggingOut) return Promise.reject(error)
