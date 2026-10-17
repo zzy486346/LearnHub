@@ -1,5 +1,7 @@
 # LearnHub 学习助理 DeepSeek 接入说明
 
+> 真实模型续验已完成，最新调用数、首次留出失败项与本地启用方式见 [DeepSeek 续验报告](ASSISTANT_DEEPSEEK_LIVE_ACCEPTANCE_20261017.md)。下文保留凭据到位前的阶段记录，原有“缺 Key / 调用 0”不代表最新状态。
+
 本文记录 2026-10-16 核验的官方契约、LearnHub 的本地保护，以及本阶段真实调用验收边界。实现使用轻量 HTTP 适配器，没有升级 Spring Boot，也没有引入 AI 框架或供应商 SDK。
 
 ## 1. 模型与接口选择

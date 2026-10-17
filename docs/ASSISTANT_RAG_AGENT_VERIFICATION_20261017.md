@@ -1,5 +1,7 @@
 # LearnHub RAG 与学习助理 Agent 实施验收（2026-10-17）
 
+> 真实模型续验已完成，最新调用数、首次留出失败项与本地启用方式见 [DeepSeek 续验报告](ASSISTANT_DEEPSEEK_LIVE_ACCEPTANCE_20261017.md)。下文保留凭据到位前的阶段记录，原有“缺 Key / 调用 0”不代表最新状态。
+
 ## 交付结论
 
 A～F 的代码闭环已经实现：真实材料、DeepSeek HTTP 薄适配器、带引用课程 RAG、课程页入口、四个只读工具、模型决定工具的受控循环及同步运行保护。保留 Disabled/Fake；未升级 Spring Boot、引入 AI 框架或增加运行依赖，未实施 G / pgvector、MCP、写工具或长期会话。
