@@ -46,6 +46,16 @@ class AssistantRunGuardTest {
         Thread.interrupted();
     }
 
+    @Test void providerReportedOverrunStopsRunAndKeepsActualUsage() {
+        try (var run = guard.open(7L, "actual-overrun", () -> {})) {
+            run.reserveModel(1, 1);
+            assertThatThrownBy(() -> run.recordUsage(24_000, 1, 24_001))
+                    .isInstanceOf(BusinessException.class).hasMessageContaining("实际用量");
+            assertThat(run.summary().actualTotalTokens()).isEqualTo(24_001);
+            assertThat(run.summary().usageComplete()).isTrue();
+        }
+    }
+
     @Test
     void successfulRunTracksOnlyCountersAndReleasesLease() {
         AtomicInteger identityChecks = new AtomicInteger();

@@ -78,6 +78,13 @@ public class AssistantRunGuard {
         }
     }
 
+    public boolean cancellationRequested(Long userId, String requestId) {
+        try {
+            String userHash = hash("user:" + userId, 24);
+            return store.isCancelled(userHash, owner(userHash, requestId));
+        } catch (RuntimeException exception) { throw unavailable(exception); }
+    }
+
     public final class Run implements AutoCloseable {
         private final String requestId;
         private final String userHash;
@@ -184,6 +191,10 @@ public class AssistantRunGuard {
             actualCompletionTokens = Math.addExact(actualCompletionTokens, completionTokens);
             actualTotalTokens = Math.addExact(actualTotalTokens, totalTokens);
             usageRecords++;
+            if (actualTotalTokens > limits.getMaxRunTokens()) {
+                status = "BUDGET_REJECTED";
+                throw new BusinessException("ASSISTANT_BUDGET_EXCEEDED", "模型报告的实际用量已超过本次运行上限");
+            }
         }
 
         public synchronized void toolDecisionRound() {
@@ -223,6 +234,10 @@ public class AssistantRunGuard {
         public synchronized void markSucceeded() {
             check();
             status = "SUCCEEDED";
+        }
+
+        public synchronized void markFailed(String code) {
+            if (!closed.get()) status = code != null && code.matches("[A-Z_]{1,64}") ? code : "FAILED";
         }
 
         @Override

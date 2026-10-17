@@ -24,7 +24,8 @@ public class AssistantExecutionManager {
         this.guard = guard; this.limits = limits;
         workers = new ThreadPoolExecutor(limits.getGlobalConcurrency(), limits.getGlobalConcurrency(),
                 0, TimeUnit.SECONDS, new SynchronousQueue<>(), runnable -> daemon(runnable, "assistant-run"));
-        deadlines = Executors.newScheduledThreadPool(2, runnable -> daemon(runnable, "assistant-deadline"));
+        deadlines = Executors.newScheduledThreadPool(limits.getGlobalConcurrency() + 1,
+                runnable -> daemon(runnable, "assistant-deadline"));
     }
 
     public DeferredResult<ResponseEntity<?>> submit(Long userId, String requestedId, Runnable identity,
@@ -39,15 +40,21 @@ public class AssistantExecutionManager {
             try (var io = entry.io) {
                 io.attach();
                 try (var run = guard.open(userId, requestId, identity)) {
+                    try {
                     Object answer = operation.apply(run);
                     run.markSucceeded();
                     result.setResult(ResponseEntity.ok().header("X-Assistant-Request-Id", requestId)
                             .body(ApiResponse.success(answer)));
+                    } catch (RuntimeException failure) {
+                        run.markFailed(failure instanceof BusinessException business ? business.getCode() : "ASSISTANT_UNAVAILABLE");
+                        throw failure;
+                    }
                 }
             } catch (RuntimeException error) { result.setResult(failure(error)); }
             finally {
                 active.remove(key, entry);
                 if (entry.timer != null) entry.timer.cancel(false);
+                if (entry.poll != null) entry.poll.cancel(false);
             }
             return null;
         }) {
@@ -62,12 +69,20 @@ public class AssistantExecutionManager {
         result.onError(error -> entry.cancel("ASSISTANT_CANCELLED", "本次助理请求已取消"));
         result.onCompletion(() -> {
             if (entry.timer != null) entry.timer.cancel(false);
+            if (entry.poll != null) entry.poll.cancel(false);
         });
         try {
             workers.execute(entry.task);
             entry.timer = deadlines.schedule(() -> entry.cancel("ASSISTANT_DEADLINE_EXCEEDED", "助理请求已超时"),
                     limits.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
-            if (entry.task.isDone()) entry.timer.cancel(false);
+            entry.poll = deadlines.scheduleWithFixedDelay(() -> {
+                try {
+                    if (guard.cancellationRequested(userId, requestId)) entry.cancel("ASSISTANT_CANCELLED", "本次助理请求已取消");
+                } catch (RuntimeException error) {
+                    entry.cancel("ASSISTANT_RUNTIME_UNAVAILABLE", "学习助理运行保护暂时不可用");
+                }
+            }, 250, 250, TimeUnit.MILLISECONDS);
+            if (entry.task.isDone()) { entry.timer.cancel(false); entry.poll.cancel(false); }
         } catch (RejectedExecutionException error) {
             active.remove(key, entry);
             entry.cancel("ASSISTANT_BUSY", "学习助理当前请求较多，请稍后重试");
@@ -76,7 +91,7 @@ public class AssistantExecutionManager {
     }
 
     public boolean cancel(Long userId, String requestId) {
-        // 本实例立即中断；其他实例通过同一 user+run 的 Redis 标记在下一个检查点停止。
+        // 本实例立即中断；其他实例以同一 user+run 的 Redis 标记中断在途 HTTP/查询。
         var entry = active.get(userId + ":" + requestId);
         boolean registered;
         try { registered = guard.cancel(userId, requestId); }
@@ -97,7 +112,7 @@ public class AssistantExecutionManager {
             case "ASSISTANT_DEADLINE_EXCEEDED", "AI_MODEL_TIMEOUT" -> 504;
             case "ASSISTANT_INPUT_INVALID", "ASSISTANT_BUDGET_EXCEEDED", "ASSISTANT_TOOL_LIMIT", "AI_MODEL_INPUT_TOO_LARGE" -> 400;
             case "ASSISTANT_UNAVAILABLE", "ASSISTANT_RUNTIME_UNAVAILABLE", "AI_MODEL_UNAVAILABLE",
-                    "AI_MODEL_AUTHENTICATION_FAILED", "AI_DISABLED", "SEARCH_UNAVAILABLE" -> 503;
+                    "AI_MODEL_AUTHENTICATION_FAILED", "AI_MODEL_REQUEST_INVALID", "AI_DISABLED", "SEARCH_UNAVAILABLE" -> 503;
             default -> 409;
         };
         return ResponseEntity.status(status).body(ApiResponse.failure(code, message));
@@ -117,9 +132,11 @@ public class AssistantExecutionManager {
         final DeferredResult<ResponseEntity<?>> result;
         volatile FutureTask<Void> task;
         volatile ScheduledFuture<?> timer;
+        volatile ScheduledFuture<?> poll;
         Entry(AssistantIoScope io, DeferredResult<ResponseEntity<?>> result) { this.io = io; this.result = result; }
         void cancel(String code, String message) {
             result.setResult(failure(new BusinessException(code, message)));
+            if (poll != null) poll.cancel(false);
             if (task != null) task.cancel(true);
             io.cancel();
         }

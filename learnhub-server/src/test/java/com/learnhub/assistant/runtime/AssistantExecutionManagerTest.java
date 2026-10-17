@@ -41,6 +41,52 @@ class AssistantExecutionManagerTest {
         }
     }
 
+    @Test void redisCancellationFromAnotherInstanceInterruptsInFlightWork() throws Exception {
+        var guard = mock(AssistantRunGuard.class);
+        var run = mock(AssistantRunGuard.Run.class);
+        when(guard.open(anyLong(), anyString(), any())).thenReturn(run);
+        var cancelled = new java.util.concurrent.atomic.AtomicBoolean();
+        when(guard.cancel(anyLong(), anyString())).thenAnswer(invocation -> { cancelled.set(true); return true; });
+        when(guard.cancellationRequested(anyLong(), anyString())).thenAnswer(invocation -> cancelled.get());
+        var started = new CountDownLatch(1); var stopped = new CountDownLatch(1);
+        String id = UUID.randomUUID().toString();
+        try (var first = new ManagerResource(new AssistantExecutionManager(guard, new AssistantLimits()));
+                var second = new ManagerResource(new AssistantExecutionManager(guard, new AssistantLimits()))) {
+            first.value.submit(7L, id, () -> {}, ignored -> {
+                started.countDown();
+                try { new CountDownLatch(1).await(); }
+                catch (InterruptedException error) { Thread.currentThread().interrupt(); }
+                finally { stopped.countDown(); }
+                return "unused";
+            });
+            assertThat(started.await(2, TimeUnit.SECONDS)).isTrue();
+            assertThat(second.value.cancel(7L, id)).isTrue();
+            assertThat(stopped.await(2, TimeUnit.SECONDS)).isTrue();
+            verify(run, timeout(1000)).close();
+        }
+    }
+
+    @Test void localCancellationStillStopsWorkWhenRedisFails() throws Exception {
+        var guard = mock(AssistantRunGuard.class);
+        var run = mock(AssistantRunGuard.Run.class);
+        when(guard.open(anyLong(), anyString(), any())).thenReturn(run);
+        when(guard.cancel(anyLong(), anyString())).thenThrow(new IllegalStateException("unavailable"));
+        var started = new CountDownLatch(1); var stopped = new CountDownLatch(1);
+        String id = UUID.randomUUID().toString();
+        try (var manager = new ManagerResource(new AssistantExecutionManager(guard, new AssistantLimits()))) {
+            manager.value.submit(7L, id, () -> {}, ignored -> {
+                started.countDown();
+                try { new CountDownLatch(1).await(); }
+                catch (InterruptedException error) { Thread.currentThread().interrupt(); }
+                finally { stopped.countDown(); }
+                return "unused";
+            });
+            assertThat(started.await(2, TimeUnit.SECONDS)).isTrue();
+            assertThatThrownBy(() -> manager.value.cancel(7L, id)).isInstanceOf(IllegalStateException.class);
+            assertThat(stopped.await(2, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
     private record ManagerResource(AssistantExecutionManager value) implements AutoCloseable {
         @Override public void close() { value.close(); }
     }
