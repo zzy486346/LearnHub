@@ -82,4 +82,39 @@ class CourseQaControllerTest {
                 .andExpect(request().asyncStarted());
         verify(executions).submit(eq(7L), isNull(), eq(identity), any());
     }
+    @Test void authenticatedRagResponseSurvivesAsyncDispatch() throws Exception {
+        assertAsyncResponse("/api/assistant/course-qa", "question");
+    }
+    @Test void authenticatedAgentResponseSurvivesAsyncDispatch() throws Exception {
+        assertAsyncResponse("/api/assistant/agent", "goal");
+    }
+    @Test void asynchronousServiceFailureKeepsItsStatusInsteadOfBecomingUnauthorized() throws Exception {
+        assertAsyncResponse("/api/assistant/course-qa", "question", () -> {}, 503, 503);
+    }
+    @Test void revokedIdentityBeforeAsyncResponseIsRejected() throws Exception {
+        assertAsyncResponse("/api/assistant/course-qa", "question", () -> when(users.selectById(7L)).thenReturn(null), 200, 401);
+    }
+    @Test void deniedTokenBeforeAsyncResponseIsRejected() throws Exception {
+        assertAsyncResponse("/api/assistant/agent", "goal", () -> when(tokens.isAccessDenied("test-jti")).thenReturn(true), 200, 401);
+    }
+    private void assertAsyncResponse(String path, String field) throws Exception {
+        assertAsyncResponse(path, field, () -> {}, 200, 200);
+    }
+    private void assertAsyncResponse(String path, String field, Runnable beforeDispatch,
+                                     int responseStatus, int expectedStatus) throws Exception {
+        Runnable identity = () -> {};
+        var pending = new DeferredResult<org.springframework.http.ResponseEntity<?>>();
+        when(sessions.checkpoint(7L, "Bearer local")).thenReturn(identity);
+        when(executions.submit(eq(7L), isNull(), eq(identity), any())).thenReturn(pending);
+        var initial = mvc.perform(post(path).header("Authorization", "Bearer local")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"courseId\":1,\"" + field + "\":\"fixture question\"}"))
+                .andExpect(request().asyncStarted()).andReturn();
+        beforeDispatch.run();
+        pending.setResult(org.springframework.http.ResponseEntity.status(responseStatus).body(java.util.Map.of("status", "completed")));
+        var dispatched = mvc.perform(asyncDispatch(initial)).andExpect(status().is(expectedStatus));
+        if (expectedStatus != 401) dispatched.andExpect(jsonPath("$.status").value("completed"));
+        verify(executions, times(1)).submit(eq(7L), isNull(), eq(identity), any());
+        verify(tokens, times(2)).require("local", "access");
+    }
 }
