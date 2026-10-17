@@ -23,10 +23,11 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.context.request.async.DeferredResult;
 
-@WebMvcTest(CourseQaController.class) @Import(SecurityConfig.class)
+@WebMvcTest({CourseQaController.class, com.learnhub.assistant.api.CourseAgentController.class}) @Import(SecurityConfig.class)
 class CourseQaControllerTest {
     @Autowired MockMvc mvc;
     @MockBean CourseQaService qa;
+    @MockBean com.learnhub.assistant.agent.CourseAgentService agent;
     @MockBean AssistantExecutionManager executions;
     @MockBean AssistantSessionVerifier sessions;
     @MockBean JwtTokenService tokens;
@@ -71,5 +72,14 @@ class CourseQaControllerTest {
     @Test void cancelUsesOnlyCurrentPrincipal() throws Exception {
         mvc.perform(delete("/api/assistant/runs/test-id").with(authentication(user))).andExpect(status().isOk());
         verify(executions).cancel(7L, "test-id");
+    }
+    @Test void agentUsesLoginIdentity() throws Exception {
+        Runnable identity = () -> {};
+        when(sessions.checkpoint(7L, "Bearer local")).thenReturn(identity);
+        when(executions.submit(eq(7L), isNull(), eq(identity), any())).thenReturn(new DeferredResult<>());
+        mvc.perform(post("/api/assistant/agent").with(authentication(user)).header("Authorization", "Bearer local")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"courseId\":1,\"goal\":\"建议下一步\",\"userId\":999}"))
+                .andExpect(request().asyncStarted());
+        verify(executions).submit(eq(7L), isNull(), eq(identity), any());
     }
 }
