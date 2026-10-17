@@ -11,12 +11,15 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const question = ref('')
+const mode = ref<'qa' | 'agent'>('qa')
 const loading = ref(false)
 const answer = ref<CourseQaAnswer | null>(null)
 const errorMessage = ref('')
 let activeRequestId = ''
 let activeController: AbortController | null = null
 let generation = 0
+
+const toolLabels: Record<string, string> = { search_courses: '课程搜索', get_course_outline: '课程目录', search_course_materials: '讲解稿检索', get_my_learning_progress: '本人学习进度' }
 
 const remaining = computed(() => 500 - question.value.length)
 
@@ -84,7 +87,7 @@ async function submit() {
   loading.value = true
   clearResult()
   try {
-    const response = await assistantApi.answer(props.courseId, normalized, requestId, controller.signal)
+    const response = await (mode.value === 'agent' ? assistantApi.agent : assistantApi.answer)(props.courseId, normalized, requestId, controller.signal)
     if (currentGeneration !== generation || activeRequestId !== requestId) return
     answer.value = response.data.data
   } catch (error) {
@@ -105,6 +108,7 @@ function resetPanel() {
   clearResult()
   void cancelCurrent()
 }
+watch(mode, resetPanel, { flush: 'sync' })
 watch(() => String(props.courseId), resetPanel, { flush: 'sync' })
 watch(() => [auth.authenticated, auth.user?.id], resetPanel, { flush: 'sync' })
 window.addEventListener(AUTH_SESSION_CLEARED_EVENT, resetPanel)
@@ -124,6 +128,11 @@ onBeforeUnmount(() => {
     </div>
     <p class="assistant-intro">基于你有权查看的课程讲解稿回答，并附上可核对的课时来源。</p>
 
+    <el-radio-group v-model="mode" aria-label="助理模式" :disabled="loading">
+      <el-radio-button value="qa">课程问答</el-radio-button>
+      <el-radio-button value="agent">学习建议</el-radio-button>
+    </el-radio-group>
+    <p v-if="mode === 'agent'" class="assistant-intro">助理会按需查询课程目录、讲解稿和你本人的学习进度，给出有依据的下一步建议。</p>
     <form class="assistant-form" @submit.prevent="submit">
       <label for="course-assistant-question">你的问题</label>
       <el-input id="course-assistant-question" v-model="question" type="textarea" :rows="3" maxlength="500"
@@ -161,7 +170,7 @@ onBeforeUnmount(() => {
       </div>
       <details class="assistant-meta"><summary>查看执行记录</summary>
         <span>{{ answer.retrievalMode }}</span>
-        <span v-if="answer.trace?.length">步骤：{{ answer.trace.join(' → ') }}</span>
+        <span v-if="answer.trace?.length">步骤：{{ answer.trace.map(step => toolLabels[step] || step).join(' → ') }}</span>
         <span v-if="answer.usage?.usageComplete">Token：{{ answer.usage.actualTotalTokens }}</span>
       </details>
     </div>

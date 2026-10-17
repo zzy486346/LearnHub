@@ -21,12 +21,12 @@ async function mount(handler = async () => result(answer), cancel = async () => 
   const calls = []
   const cancellations = []
   globalThis.assistantHarness = {
-    assistantApi: { answer: (...args) => { calls.push(args); return handler(...args) }, cancel: id => { cancellations.push(id); return cancel(id) } },
+    assistantApi: { agent: (...args) => { calls.push(['agent', ...args]); return handler(...args) }, answer: (...args) => { calls.push(args); return handler(...args) }, cancel: id => { cancellations.push(id); return cancel(id) } },
     useAuthStore: () => auth,
     useRoute: () => ({ fullPath: '/courses/1' }), useRouter: () => ({ push() {} }),
   }
   const source = (await readFile(new URL('../src/components/CourseAssistantPanel.vue', import.meta.url), 'utf8'))
-    .replace('</script>', 'defineExpose({ question, submit, answer, loading, errorMessage, cancelCurrent, citationRoute })\n</script>')
+    .replace('</script>', 'defineExpose({ mode, question, submit, answer, loading, errorMessage, cancelCurrent, citationRoute })\n</script>')
   const compiled = compileScript(parse(source).descriptor, { id: 'assistant-test' }).content
     .replace(/from ['"]vue['"]/g, `from ${JSON.stringify(vueUrl)}`)
     .replace(/import \{ useRoute, useRouter \} from ['"]vue-router['"]/, 'const { useRoute, useRouter } = globalThis.assistantHarness')
@@ -133,4 +133,18 @@ test('资料不足与模型禁用分别呈现且不自动重试', async () => {
     assert.match(failure.view.errorMessage, /尚未启用/)
     assert.equal(failure.calls.length, 1)
   } finally { failure.app.unmount() }
+})
+
+
+test('学习建议使用Agent接口且切换模式清除旧答案', async () => {
+  const app = await mount()
+  try {
+    app.view.question = 'Lua'; await app.view.submit()
+    app.view.mode = 'agent'; await nextTick()
+    assert.equal(app.view.answer, null)
+    app.view.question = '结合我的进度建议下一步'; await app.view.submit()
+    assert.equal(app.calls[1][0], 'agent')
+    assert.equal(app.calls[1][1], '1')
+    assert.equal(app.calls[1][2], '结合我的进度建议下一步')
+  } finally { app.app.unmount() }
 })

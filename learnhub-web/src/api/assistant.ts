@@ -55,5 +55,9 @@ export const assistantApi = {
       signal,
       timeout: 60_000,
     } satisfies AxiosRequestConfig),
+  agent: (courseId: string | number, goal: string, requestId: string, signal?: AbortSignal) =>
+    http.post<ApiResult<CourseQaAnswer>>('/assistant/agent', { courseId: String(courseId), goal }, {
+      headers: { 'X-Assistant-Request-Id': requestId }, signal, timeout: 60_000,
+    } satisfies AxiosRequestConfig),
   cancel: (requestId: string) => http.delete<ApiResult<boolean>>(`/assistant/runs/${encodeURIComponent(requestId)}`),
 }
