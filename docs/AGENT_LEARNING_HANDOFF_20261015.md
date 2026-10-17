@@ -1,5 +1,7 @@
 # LearnHub：Agent、RAG、MCP 学习路线与开发交接
 
+> 历史基线文档。2026-10-17 的 RAG、Agent 实现与验收状态见 [本轮验收报告](ASSISTANT_RAG_AGENT_VERIFICATION_20261017.md)，下文“尚未实现”描述仅对应原编写日期。
+
 - 编写日期：2026-10-15。
 - 项目基线：`master`，`b82560e`；本文件位于 `feature/agent-learning-handoff`。
 - 读者：已经通过 LearnHub 熟悉 Java Web，准备通过实际开发学习 AI 应用与 Agent 的初学者。
