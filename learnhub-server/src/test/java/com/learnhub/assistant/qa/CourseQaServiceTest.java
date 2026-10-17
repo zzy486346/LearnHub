@@ -81,6 +81,13 @@ class CourseQaServiceTest {
         });
         assertThatThrownBy(() -> qa.answer(7L, 1, "Lua", run)).hasMessageContaining("登录状态");
     }
+    @Test void knownUsageFromFailedGenerationIsStillRecorded() {
+        var failure = mock(ModelClientException.class);
+        when(failure.usage()).thenReturn(new Usage(10, 10, 20));
+        when(client.generate(any(ChatRequest.class))).thenThrow(failure);
+        assertThatThrownBy(() -> qa.answer(7L, 1, "Lua", run)).isSameAs(failure);
+        verify(run).recordUsage(10, 10, 20);
+    }
     @ParameterizedTest @ValueSource(strings = {
             "{}", "{\"insufficientEvidence\":false,\"answerSegments\":[]}",
             "{\"insufficientEvidence\":true,\"answerSegments\":[],\"url\":\"https://evil.invalid\"}",

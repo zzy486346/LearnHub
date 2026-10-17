@@ -320,6 +320,7 @@ final class DeepSeekChatModelClient implements ChatModelClient, AutoCloseable {
         }
         if (root == null || !root.isObject()) throw malformed(null);
         Usage usage = parseUsage(root.get("usage"));
+        try {
         JsonNode choices = root.get("choices");
         if (choices == null || !choices.isArray() || choices.isEmpty() || !choices.get(0).isObject()) {
             throw malformed(null);
@@ -349,6 +350,10 @@ final class DeepSeekChatModelClient implements ChatModelClient, AutoCloseable {
             default -> throw new ModelClientException("AI_MODEL_UNKNOWN_FINISH_REASON", "模型返回未知结束原因");
         }
         return new ChatResponse(text, toolCalls, usage, finishReason, "DEEPSEEK");
+        } catch (ModelClientException failure) {
+            // 已收到 usage 的截断/策略拒绝等失败也有消耗，不能丢失已知计费事实。
+            throw failure.withUsage(usage);
+        }
     }
 
     private Usage parseUsage(JsonNode node) {

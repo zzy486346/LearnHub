@@ -104,6 +104,15 @@ class DeepSeekChatModelClientTest {
         assertCode(() -> client.generate(request(Duration.ofSeconds(2))), "AI_MODEL_MALFORMED_RESPONSE");
     }
 
+    @Test void retainsKnownUsageWhenProviderTruncatesOutput() {
+        handler.set(exchange -> respond(exchange, 200, responseWith("length", "partial")));
+        assertThatThrownBy(() -> client(properties()).generate(request(Duration.ofSeconds(2))))
+                .isInstanceOfSatisfying(ModelClientException.class, failure -> {
+                    assertThat(failure.getCode()).isEqualTo("AI_MODEL_TRUNCATED");
+                    assertThat(failure.usage()).isEqualTo(new Usage(1, 1, 2));
+                });
+    }
+
     @Test
     void mapsProviderAndContractFailuresWithoutLeakingProviderBody() {
         DeepSeekChatModelClient client = client(properties());

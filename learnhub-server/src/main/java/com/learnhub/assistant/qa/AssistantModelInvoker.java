@@ -22,6 +22,8 @@ public class AssistantModelInvoker {
     public String configuredMode() { return properties.resolvedMode().name(); }
 
     public ChatResponse call(List<ChatMessage> messages, List<Map<String, Object>> tools, EvidenceBook book, AssistantRunGuard.Run run) {
+        if (properties.resolvedMode() == AiProperties.Mode.DISABLED)
+            throw new BusinessException("AI_DISABLED", "AI 模型功能尚未启用");
         run.check(); book.check(); run.check();
         int bytes;
         try {
@@ -34,13 +36,20 @@ public class AssistantModelInvoker {
         run.reserveModel(bytes, output);
         // 预留可能访问 Redis；等待期间发生撤权时，不能把刚才的旧证据发出。
         book.check(); run.check();
-        var response = model.generate(new ChatRequest(messages, tools, output, run.remaining(), true));
+        final ChatResponse response;
+        try { response = model.generate(new ChatRequest(messages, tools, output, run.remaining(), true)); }
+        catch (ModelClientException failure) {
+            if (failure.usage() != null) {
+                var known = failure.usage(); run.recordUsage(known.promptTokens(), known.completionTokens(), known.totalTokens());
+            }
+            throw failure;
+        }
         var usage = response.usage();
         run.recordUsage(usage.promptTokens(), usage.completionTokens(), usage.totalTokens());
         run.check();
-        log.info("Assistant model completed requestId={} promptVersion={} model={} mode={} usage={} reserved={}",
+        log.info("Assistant model completed requestId={} promptVersion={} model={} mode={} usage={} reserved={} finish={} retrieval=BM25 evidence={}",
                 run.requestId(), GroundedAnswers.PROMPT_VERSION, properties.getModel(), response.modelMode(),
-                usage.totalTokens(), run.summary().reservedTokens());
+                usage.totalTokens(), run.summary().reservedTokens(), response.finishReason(), book.references());
         return response;
     }
 }

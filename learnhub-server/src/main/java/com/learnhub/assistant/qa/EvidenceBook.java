@@ -73,6 +73,15 @@ public final class EvidenceBook {
     public List<Map<String, Object>> context() {
         return entries.values().stream().map(this::observation).toList();
     }
+    public List<Map<String, Object>> references() {
+        return entries.values().stream().map(entry -> {
+            Map<String, Object> reference = new LinkedHashMap<>();
+            reference.put("evidenceId", entry.id()); reference.put("kind", entry.kind());
+            for (String key : List.of("documentId", "sourceVersion", "chunkId", "courseId", "lessonId"))
+                if (entry.data().hasNonNull(key)) reference.put(key, entry.data().get(key).asText());
+            return reference;
+        }).toList();
+    }
 
     public Map<String, Object> observation(String id) { return observation(require(id)); }
     private Map<String, Object> observation(Entry entry) {
