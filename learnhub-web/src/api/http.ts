@@ -141,6 +141,10 @@ http.interceptors.response.use(
     if (original._sessionGeneration !== undefined && original._sessionGeneration !== sessionGeneration) {
       return Promise.reject(new SessionExpiredError())
     }
+    // 生成可能已产生费用，登录失效时不自动刷新并重放助理请求。
+    if (original.method?.toLowerCase() === 'post' && original.url?.startsWith('/assistant/')) {
+      return Promise.reject(expireSession())
+    }
     // 退出失败交给调用方提示，退出期间的旧请求不能再创建新会话。
     if (original.url === '/auth/logout' || loggingOut) return Promise.reject(error)
     if (redirectingToLogin || original._retry) return Promise.reject(expireSession())

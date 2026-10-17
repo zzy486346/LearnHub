@@ -6,6 +6,7 @@ import { couponApi, courseApi, orderApi } from '@/api'
 import { isSessionExpired } from '@/api/session'
 import { useAuthStore } from '@/stores/auth'
 import type { Course, CourseOrder, Lesson, MyCoupon } from '@/types'
+import CourseAssistantPanel from '@/components/CourseAssistantPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -209,6 +210,7 @@ watch(() => route.params.id, loadCourse, { immediate: true })
         </div>
         <div class="detail-art">LEARN<br />WITHOUT<br />LIMITS</div>
       </div>
+      <CourseAssistantPanel :key="String(course.id)" :course-id="course.id" />
       <div class="detail-grid">
         <article class="content-card course-content-card">
           <h2>课程介绍</h2><p class="course-description">{{ course.description || '讲师正在完善课程介绍。' }}</p>

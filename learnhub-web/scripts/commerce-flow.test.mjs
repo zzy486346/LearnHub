@@ -27,6 +27,7 @@ async function mountPurchase(wallet, createOrder, pay = () => result(null), mess
   const source = (await readFile(new URL('../src/views/CourseDetailView.vue', import.meta.url), 'utf8'))
     .replace('</script>', 'defineExpose({ openPurchase, createOrder, payOrder, usableCoupons, selectedCouponClaimId, estimatedDiscount, estimatedPayable, activeOrder })\n</script>')
   const compiled = compileScript(parse(source).descriptor, { id: 'commerce-flow-test' }).content
+    .replace(/import CourseAssistantPanel from ['"]@\/components\/CourseAssistantPanel.vue['"]/, 'const CourseAssistantPanel = {}')
     .replace(/from ['"]vue['"]/g, `from ${JSON.stringify(vueUrl)}`)
     .replace(/import \{ useRoute, useRouter \} from ['"]vue-router['"]/, 'const { useRoute, useRouter } = globalThis.commerceHarness')
     .replace(/import \{ ElMessage \} from ['"]element-plus['"]/, 'const { ElMessage } = globalThis.commerceHarness')

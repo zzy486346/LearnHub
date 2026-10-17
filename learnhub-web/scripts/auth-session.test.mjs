@@ -77,6 +77,18 @@ test('并发401只刷新一次，刷新成功后重放操作，不跳登录', as
   assert.deepEqual(app.redirects, [])
 })
 
+test('助理生成401不刷新或重放，避免重复付费', async () => {
+  const app = await setup()
+  let refreshCalls = 0
+  let generated = 0
+  axios.defaults.adapter = async config => { refreshCalls++; return response(config) }
+  app.http.defaults.adapter = async config => { generated++; throw failure(config, 401) }
+  await assert.rejects(app.http.post('/assistant/course-qa', { courseId: '1', question: 'Lua' }), session.isSessionExpired)
+  assert.equal(refreshCalls, 0)
+  assert.equal(generated, 1)
+  assert.equal(app.storage.size, 0)
+})
+
 test('刷新被拒绝时所有等待请求获得会话失效错误，不重复跳转', async () => {
   const app = await setup()
   let refreshCalls = 0

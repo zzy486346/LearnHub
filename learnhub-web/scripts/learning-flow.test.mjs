@@ -80,6 +80,7 @@ async function mountCourseDetail(detail) {
   const source = (await readFile(new URL('../src/views/CourseDetailView.vue', import.meta.url), 'utf8'))
     .replace('</script>', 'defineExpose({ loadCourse, course, loading, errorMessage })\n</script>')
   const compiled = compileScript(parse(source).descriptor, { id: 'course-route-race-test' }).content
+    .replace(/import CourseAssistantPanel from ['"]@\/components\/CourseAssistantPanel.vue['"]/, 'const CourseAssistantPanel = {}')
     .replace(/from ['"]vue['"]/g, `from ${JSON.stringify(vueUrl)}`)
     .replace(/import \{ useRoute, useRouter \} from ['"]vue-router['"]/, 'const { useRoute, useRouter } = globalThis.courseDetailHarness')
     .replace(/import \{ ElMessage \} from ['"]element-plus['"]/, 'const { ElMessage } = globalThis.courseDetailHarness')
