@@ -92,4 +92,14 @@ class ChatModelClientTest {
                     .hasMessageContaining("API key is required");
         });
     }
+    @Test
+    void malformedCredentialIsRejectedWithoutEchoingHeaderValue() {
+        for (String value : List.of("ds：sk-test-private", "sk-test\r\nprivate", "sk-test private", "sk-test\tprivate")) {
+            var properties = new AiProperties(); properties.setApiKey(value);
+            assertThatThrownBy(properties::validateForDeepSeek)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("DeepSeek API key format is invalid; use the credential value only")
+                    .hasNoCause();
+        }
+    }
 }

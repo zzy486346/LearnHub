@@ -33,6 +33,9 @@ public class AiProperties {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalArgumentException("DeepSeek API key is required when learnhub.ai.mode=DEEPSEEK");
         }
+        if (!apiKey.trim().matches("[A-Za-z0-9_-]{8,256}")) {
+            throw new IllegalArgumentException("DeepSeek API key format is invalid; use the credential value only");
+        }
         if (!SUPPORTED_MODELS.contains(model)) {
             throw new IllegalArgumentException("Unsupported DeepSeek model: " + model);
         }

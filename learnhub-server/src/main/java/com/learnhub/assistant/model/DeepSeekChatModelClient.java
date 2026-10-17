@@ -87,6 +87,7 @@ final class DeepSeekChatModelClient implements ChatModelClient, AutoCloseable {
 
     @Override
     public ChatResponse generate(ChatRequest request) {
+        properties.validateForDeepSeek();
         byte[] requestBody = serializeRequest(request);
         if (requestBody.length > properties.getMaxInputBytes()) {
             throw new ModelClientException(
