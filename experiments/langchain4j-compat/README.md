@@ -25,7 +25,7 @@ D:\Android\apache-maven-3.9.10\bin\mvn.cmd dependency:tree
 
 ## 2026-10-18 实测结果
 
-`mvn clean test` 和 `mvn verify` 均通过，共 8 个测试，0 失败、0 错误、0 跳过：
+`mvn clean test` 和 `mvn verify` 均通过，共 14 个测试，0 失败、0 错误、0 跳过：
 
 | 能力 | 结果 |
 | --- | --- |
@@ -39,6 +39,9 @@ D:\Android\apache-maven-3.9.10\bin\mvn.cmd dependency:tree
 | 每轮保护 | 包装 `StreamingChatModel.doChat` 后，初始调用和工具后的自动模型回合都会先进入 guard；第二轮可被预算拒绝且不会发出 HTTP 请求 |
 | Spring 手工 Bean | Boot 3.3.5 管理的 Spring 6.1.14 上下文可创建同步和流式模型 Bean |
 | 请求日志 | 模型显式关闭 `logRequests`/`logResponses`；测试请求体不含 Mock key |
+| 首字前与首字后取消 | 自定义 `HttpClient` 在 `execute` 返回前登记取消动作；同步响应头后的停顿读取、SSE 首事件前及首事件后均可由外部取消，取消返回后没有迟到回调 |
+| 响应资源上限 | 同步响应、流式成功响应和供应商错误体统一限制为 262144 字节，超限立即失败 |
+| 传输线程生命周期 | 固定大小线程池和有界队列由 builder 持有，显式 `close()` 后线程退出且每次 operation 的取消注册被清理 |
 
 依赖树锁定结果：LangChain4j `1.22.0`，OpenAI 模块同时带入 `langchain4j-reactive-streaming:1.22.0-beta32`，默认 HTTP 实现为 `langchain4j-http-client-jdk:1.22.0`；Jackson 最终为 Boot 3.3.5 管理的 `2.17.2`，未发现 Jackson 版本分叉。
 
@@ -48,5 +51,6 @@ D:\Android\apache-maven-3.9.10\bin\mvn.cmd dependency:tree
 - DeepSeek 类接口应同时为同步和流式模型关闭原始日志，流式模型设置 `accumulateToolCallId(false)`。该选项只改变工具 ID 合并方式；工具名和参数仍按增量协议拼接。
 - 业务 guard 应包装最底层 `ChatModel` / `StreamingChatModel` 的每次 `doChat`，只包 AI Service 外层方法会漏掉工具后的自动模型回合。
 - 模型对象没有 `close()` / `AutoCloseable` 生命周期。默认 JDK HTTP 实现由 SDK 管理；本次 Surefire JVM 在所有 Mock 服务关闭后正常退出，没有遗留测试进程。生产若改用自定义 Executor/HTTP 客户端，必须由 Spring Bean 显式管理其关闭。
-- SDK 取消句柄只在流式回调上下文中提供。高层 `TokenStream.onPartialResponseWithContext` 也能取得该句柄，但在首个回调到达前没有可由外部直接持有的请求句柄；生产适配需要在首个上下文到达后保存 `StreamingHandle`，并在取消接口和权限撤销检查点调用它。Mock 已证明取消后回调停止，但真实 DeepSeek 是否立即停止服务端计算和计费仍未验收，不能宣称取消必然免计费。
+- SDK 原生 `HttpClient.execute(request, parser, listener)` 返回 `void`，高层 `StreamingHandle` 只在流式回调上下文中提供，因此默认路径在首个 delta 前没有业务层可持有的取消句柄。本实验的自定义 SPI 改用 JDK 17 `sendAsync(..., BodyHandlers.ofInputStream())`，在发起网络请求前把 `future.cancel(true)` 与 `InputStream.close()` 组合动作登记到当前 run，覆盖首字前、首字后和同步响应体读取取消。Mock 已证明取消后本地回调停止，但真实 DeepSeek 是否立即停止服务端计算和计费仍未验收，不能宣称取消必然免计费。
+- JDK `HttpRequest.timeout` 不能作为响应头到达后的流式 body 空闲超时；同步和异步路径都必须由生产 `AssistantIoScope` 的硬截止定时触发同一取消动作。构造器的 `Consumer<Runnable>` 与 `Supplier<AutoCloseable>` 是有序的单 run 实验接口：生产应让 `scope.onCancel(...)` 返回该 operation 独立持有的 registration，终态关闭 registration，不能用跨 run 共享的 `AtomicReference`。
 - 本阶段未读取或使用真实凭据，因此真实 DeepSeek 首字延迟、usage 缺失、网络中断后的服务端状态和取消计费均保留为阶段 3 的真实烟测缺口；这不代表已检查本机缺少凭据。
