@@ -20,6 +20,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 @EnableConfigurationProperties(JwtProperties.class)
 public class SecurityConfig {
+    public static final String ASSISTANT_SSE_ATTRIBUTE = SecurityConfig.class.getName() + ".assistantSse";
     @Bean
     PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
 
@@ -44,6 +45,12 @@ public class SecurityConfig {
                                     ApiResponse.failure("FORBIDDEN", "没有权限执行此操作"));
                         }))
                 .authorizeHttpRequests(auth -> auth
+                        // 已认证SSE的ASYNC仅完成已建立的响应；运行中的撤权由RunGuard发送结构化错误。
+                        // 标记只能由成功返回SseEmitter的控制器设置，普通DeferredResult仍重新鉴权。
+                        .requestMatchers(request -> request.getDispatcherType() == jakarta.servlet.DispatcherType.ASYNC
+                                && "POST".equals(request.getMethod())
+                                && request.getServletPath().matches("/api/assistant/conversations/[^/]+/runs")
+                                && Boolean.TRUE.equals(request.getAttribute(ASSISTANT_SSE_ATTRIBUTE))).permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/coupons").hasRole("ADMIN")
                         .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout",

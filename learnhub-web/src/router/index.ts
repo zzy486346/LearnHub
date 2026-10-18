@@ -13,6 +13,8 @@ const router = createRouter({
     { path: '/questions', component: () => import('@/views/QuestionView.vue') },
     { path: '/questions/:id', component: () => import('@/views/QuestionDetailView.vue') },
     { path: '/coupons', component: () => import('@/views/CouponView.vue') },
+    { path: '/assistant', component: () => import('@/views/AssistantChatView.vue'), meta: { requiresAuth: true } },
+    { path: '/assistant/:conversationId', component: () => import('@/views/AssistantChatView.vue'), meta: { requiresAuth: true } },
     { path: '/profile', component: () => import('@/views/ProfileView.vue'), meta: { requiresAuth: true } },
     { path: '/admin', component: () => import('@/views/AdminView.vue'), meta: { requiresAuth: true, requiresAdmin: true } },
     { path: '/:pathMatch(.*)*', redirect: '/courses' },

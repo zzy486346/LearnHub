@@ -526,6 +526,13 @@ test('其他标签页替换账号后清空旧用户并加载新账号资料', as
   const app = await setup()
   const store = await authStore(app)
   store.user = { id: 1, username: 'old-user' }
+  let replaced = 0
+  const nativeStream = new AbortController()
+  window.addEventListener(app.AUTH_SESSION_REPLACED_EVENT, () => {
+    replaced++
+    assert.equal(store.user, null)
+    nativeStream.abort()
+  })
   let meCalls = 0
   globalThis.storeHarness.authApi.me = async () => {
     meCalls++
@@ -538,6 +545,9 @@ test('其他标签页替换账号后清空旧用户并加载新账号资料', as
     oldValue: 'expired-access',
     newValue: 'other-user-access',
   }))
+  assert.equal(replaced, 1)
+  assert.equal(nativeStream.signal.aborted, true)
+  assert.equal(store.user, null)
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(meCalls, 1)
   assert.equal(store.user.username, 'new-user')

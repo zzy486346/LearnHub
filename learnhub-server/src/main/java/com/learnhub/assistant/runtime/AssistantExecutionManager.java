@@ -49,6 +49,7 @@ public class AssistantExecutionManager {
                 try (var run = guard.open(userId, requestId, identity)) {
                     try {
                     T prepared = operation.apply(run);
+                    ResponseEntity<?> success;
                     synchronized (entry) {
                     if (entry.cancelled) throw new BusinessException("ASSISTANT_CANCELLED", "本次助理请求已取消");
                     run.check();
@@ -56,9 +57,10 @@ public class AssistantExecutionManager {
                     if (commit == null) run.markSucceeded();
                     else run.markCommittedSucceeded();
                     entry.committed = true;
-                    result.setResult(ResponseEntity.ok().header("X-Assistant-Request-Id", requestId)
-                            .body(ApiResponse.success(answer)));
+                    success = ResponseEntity.ok().header("X-Assistant-Request-Id", requestId)
+                            .body(ApiResponse.success(answer));
                     }
+                    result.setResult(success);
                     } catch (RuntimeException failure) {
                         if (!entry.committed)
                             run.markFailed(failure instanceof BusinessException business ? business.getCode() : "ASSISTANT_UNAVAILABLE");
@@ -108,9 +110,8 @@ public class AssistantExecutionManager {
     public boolean cancel(Long userId, String requestId) {
         // 本实例立即中断；其他实例以同一 user+run 的 Redis 标记中断在途 HTTP/查询。
         var entry = active.get(userId + ":" + requestId);
-        boolean registered;
-        try { registered = guard.cancel(userId, requestId); }
-        finally { if (entry != null) entry.cancel("ASSISTANT_CANCELLED", "本次助理请求已取消"); }
+        if (entry != null) entry.cancel("ASSISTANT_CANCELLED", "本次助理请求已取消");
+        boolean registered = guard.cancel(userId, requestId);
         return entry != null || registered;
     }
 

@@ -126,7 +126,10 @@ onBeforeUnmount(() => {
   <section class="content-card course-assistant-panel" aria-labelledby="course-assistant-title">
     <div class="assistant-heading">
       <div><p class="eyebrow">COURSE ASSISTANT</p><h2 id="course-assistant-title">问课程学习助理</h2></div>
-      <el-tag v-if="answer?.modelMode === 'FAKE'" type="warning" effect="dark">模拟回答</el-tag>
+      <div class="assistant-heading-actions">
+        <el-tag v-if="answer?.modelMode === 'FAKE'" type="warning" effect="dark">模拟回答</el-tag>
+        <el-button type="primary" @click="router.push({ path: '/assistant', query: { courseId: String(props.courseId) } })">进入完整学习助理</el-button>
+      </div>
     </div>
     <p class="assistant-intro">基于你有权查看的课程讲解稿回答，并附上可核对的课时来源。</p>
 
@@ -181,7 +184,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .course-assistant-panel { margin: 24px 0; }
-.assistant-heading, .assistant-form-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.assistant-heading, .assistant-heading-actions, .assistant-form-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .assistant-heading h2 { margin: 4px 0 12px; }
 .assistant-intro, .assistant-character-count, .assistant-evidence-ids, .assistant-meta { color: var(--text-secondary, #566477); }
 .assistant-form label { display: block; font-weight: 600; margin-bottom: 10px; }

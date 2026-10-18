@@ -42,6 +42,8 @@ export function replaceSessionFromStorage() {
   refreshing = null
   redirectingToLogin = false
   loggingOut = false
+  // 原生 fetch SSE 不经过 Axios 响应拦截器，跨标签替换身份必须立即通知所有私有视图。
+  window.dispatchEvent(new Event(AUTH_SESSION_REPLACED_EVENT))
 }
 
 export function clearTokens() {

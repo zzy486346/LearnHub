@@ -9,6 +9,7 @@ target/
 # Frontend
 node_modules/
 dist/
+.playwright-cli/
 
 # Local configuration and secrets
 .local/

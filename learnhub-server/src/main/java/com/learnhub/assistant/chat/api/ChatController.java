@@ -2,17 +2,17 @@ package com.learnhub.assistant.chat.api;
 
 import com.learnhub.assistant.chat.application.*;
 import com.learnhub.assistant.runtime.*;
+import com.learnhub.assistant.chat.stream.ChatStreamService;
 import com.learnhub.auth.security.LearnHubPrincipal;
 import com.learnhub.common.api.ApiResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.util.List;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseEntity;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.context.request.async.DeferredResult;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
 @ConditionalOnProperty(prefix = "learnhub.assistant", name = "chat-enabled", havingValue = "true")
@@ -23,13 +23,14 @@ public class ChatController {
     private final ChatHistoryService history;
     private final AssistantExecutionManager executions;
     private final AssistantSessionVerifier sessions;
-    private final AssistantLimits limits;
+    private final ChatStreamService streams;
 
     public ChatController(ChatConversationService conversations, ChatPersistenceService persistence,
                           ChatHistoryService history, AssistantExecutionManager executions,
-                          AssistantSessionVerifier sessions, AssistantLimits limits) {
+                          AssistantSessionVerifier sessions, ChatStreamService streams) {
         this.conversations = conversations; this.persistence = persistence; this.history = history;
-        this.executions = executions; this.sessions = sessions; this.limits = limits;
+        this.executions = executions; this.sessions = sessions;
+        this.streams = streams;
     }
 
     @PostMapping("/conversations")
@@ -70,38 +71,17 @@ public class ChatController {
         return ApiResponse.success(null);
     }
 
-    @PostMapping("/conversations/{id}/runs")
-    public DeferredResult<ResponseEntity<?>> send(@AuthenticationPrincipal LearnHubPrincipal user,
+    @PostMapping(value = "/conversations/{id}/runs", produces = "text/event-stream")
+    public SseEmitter send(@AuthenticationPrincipal LearnHubPrincipal user,
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization, @PathVariable String id,
-            @Valid @RequestBody Send body) {
-        var identity = sessions.checkpoint(user.userId(), authorization);
-        identity.run();
-        var started = conversations.start(user.userId(), id, body.clientRequestId(), body.message(), limits.getTimeout());
-        if (!started.created()) {
-            var response = new DeferredResult<ResponseEntity<?>>();
-            var stored = started.run();
-            response.setResult(ResponseEntity.ok(ApiResponse.success(new RunStatus(stored.id(), stored.conversationId(), stored.status()))));
-            return response;
-        }
-        try {
-            Runnable checkpoint = () -> {
-                identity.run();
-                String state = persistence.run(user.userId(), started.run().id()).status();
-                if (!"RUNNING".equals(state)) throw new com.learnhub.common.exception.BusinessException(
-                        "ASSISTANT_CANCELLED", "本次会话运行已终止");
-            };
-            var response = executions.submitCommitting(user.userId(), started.run().id(), checkpoint,
-                    run -> conversations.prepareFake(user.userId(), started.run(), run),
-                    (run, prepared) -> {
-                        var stored = conversations.commitFake(user.userId(), started.run(), prepared);
-                        return new RunStatus(stored.id(), stored.conversationId(), stored.status());
-                    });
-            response.onCompletion(() -> persistence.fail(user.userId(), started.run().id(), "FAILED", "ASSISTANT_INTERRUPTED"));
-            return response;
-        } catch (RuntimeException failure) {
-            persistence.fail(user.userId(), started.run().id(), "FAILED", "ASSISTANT_UNAVAILABLE");
-            throw failure;
-        }
+            @Valid @RequestBody Send body, jakarta.servlet.http.HttpServletRequest servletRequest,
+            jakarta.servlet.http.HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-cache, no-transform");
+        response.setHeader("X-Accel-Buffering", "no");
+        var emitter = streams.open(user.userId(), id, body.clientRequestId(), body.message(),
+                sessions.checkpoint(user.userId(), authorization));
+        servletRequest.setAttribute(com.learnhub.config.SecurityConfig.ASSISTANT_SSE_ATTRIBUTE, true);
+        return emitter;
     }
 
     @GetMapping("/runs/{id}")

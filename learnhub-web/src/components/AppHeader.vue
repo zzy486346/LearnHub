@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessage } from 'element-plus'
@@ -11,6 +11,7 @@ const mobileOpen = ref(false)
 const loginDialogOpen = ref(false)
 const loggingOut = ref(false)
 let lastLoginTrigger: HTMLElement | null = null
+const mobileNavCount = computed(() => auth.isAdmin ? 6 : auth.authenticated ? 5 : 4)
 onMounted(() => auth.fetchMe().catch(() => undefined))
 
 async function logout() {
@@ -56,6 +57,7 @@ function handleAvatarError(event: Event) {
       <nav class="desktop-nav" aria-label="主导航">
         <RouterLink to="/courses">课程</RouterLink>
         <RouterLink to="/questions">问答</RouterLink>
+        <RouterLink v-if="auth.authenticated" to="/assistant">学习助理</RouterLink>
         <RouterLink to="/coupons">学习权益</RouterLink>
         <RouterLink v-if="auth.authenticated" to="/profile">个人中心</RouterLink>
         <RouterLink v-if="auth.isAdmin" to="/admin">管理后台</RouterLink>
@@ -83,9 +85,10 @@ function handleAvatarError(event: Event) {
         <svg viewBox="0 0 24 24" aria-hidden="true"><path v-if="!mobileOpen" d="M4 7h16M4 12h16M4 17h16"/><path v-else d="m6 6 12 12M18 6 6 18"/></svg>
       </button>
     </div>
-    <nav id="mobile-navigation" class="mobile-nav" aria-label="移动端导航">
+    <nav id="mobile-navigation" class="mobile-nav" aria-label="移动端导航" :style="{ '--mobile-nav-count': mobileNavCount }">
       <RouterLink to="/courses" @click="closeMenu">课程</RouterLink>
       <RouterLink to="/questions" @click="closeMenu">问答</RouterLink>
+      <RouterLink v-if="auth.authenticated" to="/assistant" @click="closeMenu">学习助理</RouterLink>
       <RouterLink to="/coupons" @click="closeMenu">学习权益</RouterLink>
       <RouterLink v-if="auth.authenticated" to="/profile" @click="closeMenu">个人中心</RouterLink>
       <RouterLink v-if="auth.isAdmin" to="/admin" @click="closeMenu">管理后台</RouterLink>
@@ -94,3 +97,9 @@ function handleAvatarError(event: Event) {
     <LoginDialog v-model="loginDialogOpen" @closed="restoreLoginFocus" />
   </header>
 </template>
+
+<style scoped>
+@media (max-width: 800px) {
+  .menu-open .mobile-nav { grid-template-rows: repeat(var(--mobile-nav-count), 46px); }
+}
+</style>
