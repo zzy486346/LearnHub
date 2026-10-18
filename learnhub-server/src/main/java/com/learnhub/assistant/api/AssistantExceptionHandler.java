@@ -10,7 +10,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
 @Order(Ordered.HIGHEST_PRECEDENCE)
-@RestControllerAdvice(basePackages = "com.learnhub.assistant.api")
+@RestControllerAdvice(basePackages = {"com.learnhub.assistant.api", "com.learnhub.assistant.chat.api"})
 public class AssistantExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<?> business(BusinessException error) { return AssistantExecutionManager.failure(error); }

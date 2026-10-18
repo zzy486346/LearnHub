@@ -236,6 +236,12 @@ public class AssistantRunGuard {
             status = "SUCCEEDED";
         }
 
+        /** 仅供执行管理器在最终checkpoint和持久化提交成功后使用，提交后不再做可失败的远程复核。 */
+        public synchronized void markCommittedSucceeded() {
+            requireOpen();
+            status = "SUCCEEDED";
+        }
+
         public synchronized void markFailed(String code) {
             if (!closed.get()) status = code != null && code.matches("[A-Z_]{1,64}") ? code : "FAILED";
         }

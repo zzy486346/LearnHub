@@ -9,6 +9,48 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 class AssistantExecutionManagerTest {
+    @Test void cancellationCannotReplaceCommittedSuccess() throws Exception {
+        var guard = mock(AssistantRunGuard.class);
+        var run = mock(AssistantRunGuard.Run.class);
+        when(guard.open(anyLong(), anyString(), any())).thenReturn(run);
+        var committing = new CountDownLatch(1);
+        var releaseCommit = new CountDownLatch(1);
+        var id = UUID.randomUUID().toString();
+        var cancellation = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try (var manager = new ManagerResource(new AssistantExecutionManager(guard, new AssistantLimits()))) {
+            var result = manager.value.submitCommitting(7L, id, () -> {}, ignored -> "prepared", (ignored, prepared) -> {
+                committing.countDown();
+                try { assertThat(releaseCommit.await(2, TimeUnit.SECONDS)).isTrue(); }
+                catch (InterruptedException failure) { throw new IllegalStateException(failure); }
+                return "committed";
+            });
+            assertThat(committing.await(2, TimeUnit.SECONDS)).isTrue();
+            var cancelled = cancellation.submit(() -> manager.value.cancel(7L, id));
+            releaseCommit.countDown();
+            cancelled.get(2, TimeUnit.SECONDS);
+            assertThat(((org.springframework.http.ResponseEntity<?>) result.getResult()).getStatusCode().value()).isEqualTo(200);
+            verify(run, timeout(1000)).markCommittedSucceeded();
+            verify(run, times(1)).check();
+        } finally { releaseCommit.countDown(); cancellation.shutdownNow(); }
+    }
+
+    @Test void finalCheckpointRejectionDoesNotCommit() throws Exception {
+        var guard = mock(AssistantRunGuard.class);
+        var run = mock(AssistantRunGuard.Run.class);
+        when(guard.open(anyLong(), anyString(), any())).thenReturn(run);
+        doThrow(new com.learnhub.common.exception.BusinessException("ASSISTANT_CANCELLED", "已取消")).when(run).check();
+        var committed = new java.util.concurrent.atomic.AtomicBoolean();
+        try (var manager = new ManagerResource(new AssistantExecutionManager(guard, new AssistantLimits()))) {
+            var result = manager.value.submitCommitting(7L, UUID.randomUUID().toString(), () -> {}, ignored -> "prepared",
+                    (ignored, prepared) -> { committed.set(true); return prepared; });
+            var complete = new CountDownLatch(1);
+            result.setResultHandler(value -> complete.countDown());
+            assertThat(complete.await(2, TimeUnit.SECONDS)).isTrue();
+            assertThat(committed).isFalse();
+            verify(run, never()).markCommittedSucceeded();
+        }
+    }
+
     @Test void explicitCancellationInterruptsOnlyOwnedRunAndReleasesIt() throws Exception {
         var guard = mock(AssistantRunGuard.class);
         var run = mock(AssistantRunGuard.Run.class);

@@ -7,6 +7,7 @@ import jakarta.annotation.PreDestroy;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.function.Function;
+import java.util.function.BiFunction;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.async.DeferredResult;
@@ -30,6 +31,12 @@ public class AssistantExecutionManager {
 
     public DeferredResult<ResponseEntity<?>> submit(Long userId, String requestedId, Runnable identity,
             Function<AssistantRunGuard.Run, ?> operation) {
+        return submitCommitting(userId, requestedId, identity, operation, null);
+    }
+
+    /** 最终checkpoint、数据库终态提交与HTTP成功结果共享取消锁，提交成功后取消成为幂等空操作。 */
+    public <T> DeferredResult<ResponseEntity<?>> submitCommitting(Long userId, String requestedId, Runnable identity,
+            Function<AssistantRunGuard.Run, T> operation, BiFunction<AssistantRunGuard.Run, T, ?> commit) {
         String requestId = requestedId == null ? UUID.randomUUID().toString() : requestedId;
         try { if (!UUID.fromString(requestId).toString().equals(requestId)) throw new IllegalArgumentException(); }
         catch (IllegalArgumentException error) { throw new BusinessException("ASSISTANT_INPUT_INVALID", "请求编号须为小写 UUID"); }
@@ -41,12 +48,20 @@ public class AssistantExecutionManager {
                 io.attach();
                 try (var run = guard.open(userId, requestId, identity)) {
                     try {
-                    Object answer = operation.apply(run);
-                    run.markSucceeded();
+                    T prepared = operation.apply(run);
+                    synchronized (entry) {
+                    if (entry.cancelled) throw new BusinessException("ASSISTANT_CANCELLED", "本次助理请求已取消");
+                    run.check();
+                    Object answer = commit == null ? prepared : commit.apply(run, prepared);
+                    if (commit == null) run.markSucceeded();
+                    else run.markCommittedSucceeded();
+                    entry.committed = true;
                     result.setResult(ResponseEntity.ok().header("X-Assistant-Request-Id", requestId)
                             .body(ApiResponse.success(answer)));
+                    }
                     } catch (RuntimeException failure) {
-                        run.markFailed(failure instanceof BusinessException business ? business.getCode() : "ASSISTANT_UNAVAILABLE");
+                        if (!entry.committed)
+                            run.markFailed(failure instanceof BusinessException business ? business.getCode() : "ASSISTANT_UNAVAILABLE");
                         throw failure;
                     }
                 }
@@ -104,6 +119,8 @@ public class AssistantExecutionManager {
                 : error instanceof SearchUnavailableException ? "SEARCH_UNAVAILABLE" : "ASSISTANT_UNAVAILABLE";
         String message = error instanceof BusinessException business ? business.getMessage() : "学习助理暂时不可用";
         int status = switch (code) {
+            case "CHAT_NOT_FOUND" -> 404;
+            case "CHAT_INPUT_INVALID" -> 400;
             case "ASSISTANT_SESSION_EXPIRED" -> 401;
             case "ASSISTANT_OUTPUT_INVALID", "AI_MODEL_PROVIDER_ERROR", "AI_MODEL_MALFORMED_RESPONSE",
                     "AI_MODEL_EMPTY_RESPONSE", "AI_MODEL_MISSING_USAGE", "AI_MODEL_UNKNOWN_FINISH_REASON",
@@ -133,8 +150,12 @@ public class AssistantExecutionManager {
         volatile FutureTask<Void> task;
         volatile ScheduledFuture<?> timer;
         volatile ScheduledFuture<?> poll;
+        boolean cancelled;
+        boolean committed;
         Entry(AssistantIoScope io, DeferredResult<ResponseEntity<?>> result) { this.io = io; this.result = result; }
-        void cancel(String code, String message) {
+        synchronized void cancel(String code, String message) {
+            if (committed) return;
+            cancelled = true;
             result.setResult(failure(new BusinessException(code, message)));
             if (poll != null) poll.cancel(false);
             if (task != null) task.cancel(true);
