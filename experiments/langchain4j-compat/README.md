@@ -49,4 +49,4 @@ D:\Android\apache-maven-3.9.10\bin\mvn.cmd dependency:tree
 - 业务 guard 应包装最底层 `ChatModel` / `StreamingChatModel` 的每次 `doChat`，只包 AI Service 外层方法会漏掉工具后的自动模型回合。
 - 模型对象没有 `close()` / `AutoCloseable` 生命周期。默认 JDK HTTP 实现由 SDK 管理；本次 Surefire JVM 在所有 Mock 服务关闭后正常退出，没有遗留测试进程。生产若改用自定义 Executor/HTTP 客户端，必须由 Spring Bean 显式管理其关闭。
 - SDK 取消句柄只在流式回调上下文中提供。高层 `TokenStream.onPartialResponseWithContext` 也能取得该句柄，但在首个回调到达前没有可由外部直接持有的请求句柄；生产适配需要在首个上下文到达后保存 `StreamingHandle`，并在取消接口和权限撤销检查点调用它。Mock 已证明取消后回调停止，但真实 DeepSeek 是否立即停止服务端计算和计费仍未验收，不能宣称取消必然免计费。
-- 本阶段没有真实凭据，因此真实 DeepSeek 首字延迟、usage 缺失、网络中断后的服务端状态和取消计费均保留为阶段 3 的真实烟测缺口。
+- 本阶段未读取或使用真实凭据，因此真实 DeepSeek 首字延迟、usage 缺失、网络中断后的服务端状态和取消计费均保留为阶段 3 的真实烟测缺口；这不代表已检查本机缺少凭据。
