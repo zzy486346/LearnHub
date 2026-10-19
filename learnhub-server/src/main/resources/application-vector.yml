@@ -1,0 +1,9 @@
+# 独立 PostgreSQL profile；不声明 spring.datasource，保留 MySQL 自动配置。
+learnhub:
+  vector:
+    enabled: ${LEARNHUB_VECTOR_ENABLED:false}
+    hybrid-enabled: ${LEARNHUB_VECTOR_HYBRID_ENABLED:false}
+    sync-enabled: ${LEARNHUB_VECTOR_SYNC_ENABLED:false}
+    jdbc-url: ${LEARNHUB_VECTOR_JDBC_URL:jdbc:postgresql://127.0.0.1:15432/learnhub_vector}
+    username: ${LEARNHUB_VECTOR_USERNAME:learnhub_vector_app}
+    password: ${LEARNHUB_VECTOR_PASSWORD:}

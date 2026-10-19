@@ -30,14 +30,14 @@ public class CourseQaService {
         var book = evidenceBook(userId, courseId);
         var retrieved = retrieval.retrieve(userId, courseId, question, 5);
         retrieved.sources().forEach(book::material);
-        if (retrieved.sources().isEmpty()) return answers.insufficient(model.configuredMode(), book, run);
+        if (retrieved.sources().isEmpty()) return answers.insufficient(model.configuredMode(), retrieved.retrievalMode(), book, run);
         String input;
         try { input = mapper.writeValueAsString(Map.of("question", question, "evidence", book.context())); }
         catch (Exception error) { throw GroundedAnswers.invalid(); }
         var response = model.call(List.of(new ChatMessage("system", GroundedAnswers.SYSTEM, null, List.of()),
                 new ChatMessage("user", input, null, List.of())), List.of(), book, run);
         if (!response.toolCalls().isEmpty() || !"stop".equals(response.finishReason())) throw GroundedAnswers.invalid();
-        return answers.finish(response.text(), response.modelMode(), book, run, List.of());
+        return answers.finish(response.text(), response.modelMode(), retrieved.retrievalMode(), book, run, List.of());
     }
 
     public static void validate(long courseId, String text) {

@@ -45,7 +45,7 @@ public class CourseAgentService {
             var response = model.call(messages, tools.definitions(), book, run);
             if (response.toolCalls().isEmpty()) {
                 if (!"stop".equals(response.finishReason())) throw GroundedAnswers.invalid();
-                return answers.finish(response.text(), response.modelMode(), book, run, trace);
+                return answers.finish(response.text(), response.modelMode(), "TOOLS", book, run, trace);
             }
             if (!"tool_calls".equals(response.finishReason())) throw GroundedAnswers.invalid();
             run.toolDecisionRound();

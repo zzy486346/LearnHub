@@ -55,6 +55,41 @@ class CourseQaServiceTest {
         assertThat(qa.answer(7L, 1, "Lua", run).insufficientEvidence()).isTrue();
         verifyNoInteractions(client);
     }
+    @ParameterizedTest @ValueSource(strings = {"BM25", "HYBRID", "BM25_FALLBACK"})
+    void answerPreservesTheActualRetrievalMode(String retrievalMode) {
+        when(retrieval.retrieve(7L, 1, "Lua", 5)).thenReturn(
+                new KnowledgeRetrievalService.Result("r", List.of(source), false, false, retrievalMode));
+
+        var answer = qa.answer(7L, 1, "Lua", run);
+
+        assertThat(answer.insufficientEvidence()).isFalse();
+        assertThat(answer.retrievalMode()).isEqualTo(retrievalMode);
+        assertThat(answer.citations()).hasSize(1);
+    }
+    @ParameterizedTest @ValueSource(strings = {"BM25", "HYBRID", "BM25_FALLBACK", "NONE"})
+    void noMaterialsPreservesRetrievalModeWithoutCallingModel(String retrievalMode) {
+        when(retrieval.retrieve(7L, 1, "Lua", 5)).thenReturn(
+                new KnowledgeRetrievalService.Result("r", List.of(), true, false, retrievalMode));
+
+        var answer = qa.answer(7L, 1, "Lua", run);
+
+        assertThat(answer.insufficientEvidence()).isTrue();
+        assertThat(answer.retrievalMode()).isEqualTo(retrievalMode);
+        verifyNoInteractions(client);
+    }
+    @ParameterizedTest @ValueSource(strings = {"BM25", "HYBRID", "BM25_FALLBACK"})
+    void modelRefusalPreservesRetrievalModeAfterRetrievingMaterials(String retrievalMode) {
+        when(retrieval.retrieve(7L, 1, "Lua", 5)).thenReturn(
+                new KnowledgeRetrievalService.Result("r", List.of(source), false, false, retrievalMode));
+        when(client.generate(any(ChatRequest.class))).thenReturn(
+                response("{\"insufficientEvidence\":true,\"answerSegments\":[]}"));
+
+        var answer = qa.answer(7L, 1, "Lua", run);
+
+        assertThat(answer.insufficientEvidence()).isTrue();
+        assertThat(answer.retrievalMode()).isEqualTo(retrievalMode);
+        verify(client).generate(any(ChatRequest.class));
+    }
     @Test void revocationBeforeSendDoesNotLeakIntoModel() {
         when(courses.readableLessonIds(7L, 1L)).thenReturn(List.of());
         assertThatThrownBy(() -> qa.answer(7L, 1, "Lua", run)).hasMessageContaining("已废弃");

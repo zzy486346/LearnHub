@@ -61,16 +61,23 @@ public final class CourseVectorIndex {
         if (courseId <= 0 || limit < 1 || limit > 100) throw new IllegalArgumentException("Invalid vector search");
         if (readableLessonIds.isEmpty() || currentDocumentVersions.isEmpty()) return List.of();
         if (currentDocumentVersions.size() > 1000) throw new IllegalArgumentException("Vector scope too large");
-        dev.langchain4j.store.embedding.filter.Filter versions = null;
+        List<dev.langchain4j.store.embedding.filter.Filter> generations = new ArrayList<>();
         for (var entry : currentDocumentVersions.entrySet()) {
             if (entry.getKey() <= 0 || entry.getValue() <= 0) throw new IllegalArgumentException("Invalid document scope");
             var version = metadataKey("documentId").isEqualTo(entry.getKey().longValue())
                     .and(metadataKey("sourceVersion").isEqualTo(entry.getValue().longValue()));
-            versions = versions == null ? version : versions.or(version);
+            generations.add(version);
+        }
+        // SDK 递归渲染 Filter；平衡树避免 1000 个版本形成线性调用栈。
+        while (generations.size() > 1) {
+            List<dev.langchain4j.store.embedding.filter.Filter> next = new ArrayList<>();
+            for (int i = 0; i < generations.size(); i += 2)
+                next.add(i + 1 < generations.size() ? generations.get(i).or(generations.get(i + 1)) : generations.get(i));
+            generations = next;
         }
         var filter = metadataKey("modelId").isEqualTo(BgeChineseEmbedding.MODEL_ID)
                 .and(metadataKey("courseId").isEqualTo(courseId))
-                .and(metadataKey("lessonId").isIn(readableLessonIds)).and(versions);
+                .and(metadataKey("lessonId").isIn(readableLessonIds)).and(generations.get(0));
         var response = store.search(EmbeddingSearchRequest.builder().queryEmbedding(embedding.embedQuery(question))
                 .filter(filter).maxResults(limit * BgeChineseEmbedding.MAX_PARTS_PER_CHUNK).minScore(0.0).build());
         List<KnowledgeSearchGateway.Hit> hits = new ArrayList<>();

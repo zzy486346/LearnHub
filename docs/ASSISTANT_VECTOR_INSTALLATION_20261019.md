@@ -28,4 +28,29 @@
 
 复现：在仓库根运行 `powershell -File scripts/assistant/verify-vector.ps1`。脚本只使用已拉取的固定镜像，在回环动态端口创建带随机所有权标记的容器和临时卷，随机测试凭据仅注入子进程；结束清理容器和卷，不启动后端。PG 运行账号只有指定表 DML 和 schema USAGE；扩展、表、注释、更新时间触发器由迁移身份执行 `sql/postgres/001_course_embeddings.sql`。PG 数据源没有注册到 Spring，尚未接入生产召回。
 
-当前仅完成阶段 5 的本地模型和 PG 投影底座。MySQL 投影状态/补偿、生产开关与独立连接池、RRF 接入、删除同步及冻结集对比仍待完成，不能称为混合检索已交付。
+底座提交为 `f460ed2`。后续已实现 MySQL 投影状态/补偿、生产开关与私有 Hikari 池、RRF、删除同步；最终根回归结果见实施记录。
+
+## 生产接入和回滚
+
+1. 对目标 MySQL 执行 `sql/migrations/V20261019__knowledge_vector_projection.sql`；PG 迁移仍单独执行，运行账号只授指定表 DML。同步使用一个专用 MySQL 连接，读取材料还需要一个连接，MySQL 池至少两个可用连接。
+2. 正常启动时包含独立 `vector` profile（例如 `--spring.profiles.include=vector`，保留原有 profile），本地填 `LEARNHUB_VECTOR_JDBC_URL`、`LEARNHUB_VECTOR_USERNAME`、`LEARNHUB_VECTOR_PASSWORD`，然后 `LEARNHUB_VECTOR_ENABLED=true`、`LEARNHUB_VECTOR_SYNC_ENABLED=true`，先保持 `LEARNHUB_VECTOR_HYBRID_ENABLED=false`。同步每十秒至多十份文档；材料 ES 投影完成后才进入向量投影。未包含该 profile 时，即使误开 enabled 也不注册向量组件。
+3. 仅在本地对比后按需开启 `LEARNHUB_VECTOR_HYBRID_ENABLED=true`。关闭该值立即恢复 BM25；停用 `LEARNHUB_VECTOR_ENABLED` 会在下次正常启动时不注册向量组件。代理没有修改 `.env` 开关或重启用户服务。
+4. PG 连接池不是 Spring `DataSource` Bean，最多三连接、最小零连接，连接超时两秒、socket 超时五秒，按需初始化；组件销毁时关闭自有池和 tokenizer。关闭功能不能在运行中的 JVM 卸载 SDK 静态 ONNX。
+5. 投影重建入口为 `VectorProjectionSync.requeueAll()`，由受控维护调用触发，没有开放无鉴权 HTTP 接口。PG 表/数据丢失后需先以迁移身份恢复表，再重新排队。当前不自动检测人工清空；不能把空 PG 当作已完成重建。
+
+MySQL `GET_LOCK` 在实例间串行化同库/模型同步；逐知识块前、全量完成前及 CAS 更新中复核当前版本。已标完成而尚未清理旧代次时保留 `cleanup_pending`，进程重启后可补偿；失败按 30 秒至一小时退避。逻辑删除在短 MySQL 行锁内删除 PG，再更新 REMOVED，失败可幂等重试，不宣称跨库原子事务。
+
+搜索只接受服务端课程/课时与 MySQL 当前已完成投影版本快照，版本条件在 PG 排序前生效；最多一千文档，超过整体回退 BM25。版本 OR 使用平衡树，已实际验证一千版本过滤。分片候选窗口扩大后按知识块去重，RRF k=60、稳定排序、身份冲突丢弃；最后仍统一回 MySQL 复核正文/版本并再次计算权限。PG 故障回退 BM25；ES 故障直接返回检索不可用，不能用未完成回填的向量证明资料不足。
+
+## 首次冻结开发集结果
+
+原始结果原样保留于 [首次开发集记录](assistant-vector-development-first-20261019.json)。使用既有已见 8 条开发题、6 讲义/18 场景；不是独立留出。真实隔离 MySQL/ES/PG，零供应商调用。
+
+| 来源代理指标 | BM25 | HYBRID |
+| --- | ---: | ---: |
+| 可回答题来源 Recall@5 | 6/6 | 6/6 |
+| 2 条无证据题错误召回来源总数 | 4 | 4 |
+| 平均检索耗时（毫秒） | 36.303875 | 97.7088875 |
+| 查询本地 Embedding 数 | 0 | 8 |
+
+投影本地 Embedding 共 18 条，跨课程/课时越权和禁止来源均为零。无证据题两种模式都存在弱召回；这不是生成答案错误率，也不能证明正确拒答。混合没有显示来源质量收益且更慢，默认保持关闭，未调整该冻结集或阈值掩盖首次成绩。答案支持度、错误拒答和新的独立留出仍属阶段 8 验收缺口。

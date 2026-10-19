@@ -4,11 +4,14 @@ $ErrorActionPreference = 'Stop'
 $taskRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $taskRun = 'vector-it-' + [Guid]::NewGuid().ToString('N')
 $taskContainer = 'learnhub-' + $taskRun
+$taskMysqlContainer = 'learnhub-' + $taskRun + '-mysql'
 $taskVolume = 'learnhub-' + $taskRun + '-data'
 $taskImage = 'pgvector/pgvector:0.8.7-pg16-bookworm@sha256:a97d77306ff47cc1d8add4d000cec2207da2e110746318df3137ce53c337ca30'
 $taskPassword = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N')
 $taskOriginalPort = $env:LEARNHUB_VECTOR_IT_PORT
 $taskOriginalPassword = $env:LEARNHUB_VECTOR_IT_PASSWORD
+$taskOriginalMysqlPort = $env:LEARNHUB_VECTOR_IT_MYSQL_PORT
+$taskOriginalMysqlPassword = $env:LEARNHUB_VECTOR_IT_MYSQL_PASSWORD
 $taskExitCode = 1
 function Invoke-VectorDocker([string[]]$Arguments) {
     $taskOutput = & docker @Arguments 2>&1
@@ -21,6 +24,10 @@ try {
     Invoke-VectorDocker @('run','--detach','--pull','never','--name',$taskContainer,'--label',"learnhub.vector-it=$taskRun",
         '--publish','127.0.0.1::5432','--mount',"type=volume,source=$taskVolume,target=/var/lib/postgresql/data",
         '--env',"POSTGRES_PASSWORD=$taskPassword",'--env','POSTGRES_DB=learnhub_vector_it',$taskImage) | Out-Null
+    Invoke-VectorDocker @('run','--detach','--pull','never','--name',$taskMysqlContainer,'--label',"learnhub.vector-it=$taskRun",
+        '--publish','127.0.0.1::3306','--tmpfs','/var/lib/mysql:rw,nosuid,size=512m',
+        '--env',"MYSQL_ROOT_PASSWORD=$taskPassword",'--env','MYSQL_ROOT_HOST=%',
+        '--env','MYSQL_DATABASE=learnhub_vector_it','mysql:8.4') | Out-Null
     $taskDeadline = (Get-Date).AddSeconds(90)
     do {
         & docker exec $taskContainer pg_isready -U postgres -d learnhub_vector_it *> $null
@@ -32,16 +39,27 @@ try {
     if ($taskBinding -notmatch '^127\.0\.0\.1:(\d+)$') { throw 'Owned PostgreSQL must bind loopback only' }
     $env:LEARNHUB_VECTOR_IT_PORT = $Matches[1]
     $env:LEARNHUB_VECTOR_IT_PASSWORD = $taskPassword
+    $taskDeadline = (Get-Date).AddSeconds(120)
+    do {
+        & docker exec $taskMysqlContainer mysqladmin --host=127.0.0.1 --user=root "--password=$taskPassword" ping --silent *> $null
+        if ($LASTEXITCODE -eq 0) { break }
+        if ((Get-Date) -gt $taskDeadline) { throw 'Owned MySQL startup timed out' }
+        Start-Sleep -Seconds 1
+    } while ($true)
+    $taskMysqlBinding = (Invoke-VectorDocker @('port',$taskMysqlContainer,'3306/tcp')) -join ''
+    if ($taskMysqlBinding -notmatch '^127\.0\.0\.1:(\d+)$') { throw 'Owned MySQL must bind loopback only' }
+    $env:LEARNHUB_VECTOR_IT_MYSQL_PORT = $Matches[1]
+    $env:LEARNHUB_VECTOR_IT_MYSQL_PASSWORD = $taskPassword
     Write-Host "Owned pgvector ready on loopback port $env:LEARNHUB_VECTOR_IT_PORT"
     Push-Location -LiteralPath $taskRoot
     try {
         $taskStarted = [DateTime]::UtcNow
-        & $MavenPath '-pl' 'learnhub-server' '-am' '-Dtest=CourseVectorInfrastructureIntegrationTest,BgeChineseEmbeddingTest' `
+        & $MavenPath '-pl' 'learnhub-server' '-am' '-Dtest=CourseVectorInfrastructureIntegrationTest,VectorProjectionInfrastructureIntegrationTest,BgeChineseEmbeddingTest' `
             '-Dsurefire.failIfNoSpecifiedTests=false' '-Dlearnhub.vector.it.enabled=true' `
             '-DargLine=-Djdk.net.URLClassPath.disableClassPathURLCheck=true' test
         $taskExitCode = $LASTEXITCODE
         if ($taskExitCode -eq 0) {
-            $taskRequired = @{ CourseVectorInfrastructureIntegrationTest = 4; BgeChineseEmbeddingTest = 3 }
+            $taskRequired = @{ CourseVectorInfrastructureIntegrationTest = 4; BgeChineseEmbeddingTest = 3; VectorProjectionInfrastructureIntegrationTest = 7 }
             foreach ($taskClass in $taskRequired.Keys) {
                 $taskReport = Get-Item -LiteralPath (Join-Path $taskRoot "learnhub-server/target/surefire-reports/TEST-com.learnhub.assistant.knowledge.vector.$taskClass.xml")
                 [xml]$taskSuite = Get-Content -LiteralPath $taskReport.FullName -Raw
@@ -54,9 +72,15 @@ try {
 } finally {
     $env:LEARNHUB_VECTOR_IT_PORT = $taskOriginalPort
     $env:LEARNHUB_VECTOR_IT_PASSWORD = $taskOriginalPassword
+    $env:LEARNHUB_VECTOR_IT_MYSQL_PORT = $taskOriginalMysqlPort
+    $env:LEARNHUB_VECTOR_IT_MYSQL_PASSWORD = $taskOriginalMysqlPassword
     $taskCleanupErrors = @()
-    foreach ($taskKind in @('container','volume')) {
-        $taskName = if ($taskKind -eq 'container') { $taskContainer } else { $taskVolume }
+    foreach ($taskOwned in @(
+        [pscustomobject]@{Kind='container';Name=$taskContainer},
+        [pscustomobject]@{Kind='container';Name=$taskMysqlContainer},
+        [pscustomobject]@{Kind='volume';Name=$taskVolume})) {
+        $taskKind = $taskOwned.Kind
+        $taskName = $taskOwned.Name
         if ($taskKind -eq 'container') { $taskPresent = & docker container inspect --format '{{ index .Config.Labels "learnhub.vector-it" }}' $taskName 2>$null }
         else { $taskPresent = & docker volume inspect --format '{{ index .Labels "learnhub.vector-it" }}' $taskName 2>$null }
         if ($LASTEXITCODE -eq 0) {
@@ -68,6 +92,6 @@ try {
     }
     $taskPassword = $null
     if ($taskCleanupErrors.Count -gt 0) { throw ($taskCleanupErrors -join ', ') }
-    Write-Host 'Owned pgvector container and temporary volume removed.'
+    Write-Host 'Owned PostgreSQL/MySQL containers and temporary volume removed.'
 }
 exit $taskExitCode

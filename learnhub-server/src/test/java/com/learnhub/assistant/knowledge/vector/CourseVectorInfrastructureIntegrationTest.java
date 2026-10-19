@@ -63,6 +63,9 @@ class CourseVectorInfrastructureIntegrationTest {
         assertThat(index.search(10, List.of(), Map.of(1L, 1L), "课程", 10)).isEmpty();
         assertThat(index.search(30, List.of(301L), Map.of(1L, 1L), "课程", 10)).isEmpty();
         assertThat(index.search(10, List.of(101L), Map.of(), "课程", 10)).isEmpty();
+        var thousandVersions = java.util.stream.LongStream.rangeClosed(1, 1000).boxed()
+                .collect(java.util.stream.Collectors.toMap(id -> id, id -> 1L));
+        assertThat(index.search(10, List.of(101L), thousandVersions, "课程", 10)).hasSize(2);
     }
 
     @Test void olderJobCannotDeleteNewerVersionAndProjectionCanBeRebuilt() {

@@ -26,6 +26,11 @@ public class GroundedAnswers {
     public GroundedAnswers(ObjectMapper mapper) { this.mapper = mapper; }
 
     public GroundedAnswer finish(String text, String mode, EvidenceBook book, AssistantRunGuard.Run run, List<String> trace) {
+        return finish(text, mode, "BM25", book, run, trace);
+    }
+
+    public GroundedAnswer finish(String text, String mode, String retrievalMode, EvidenceBook book,
+                                 AssistantRunGuard.Run run, List<String> trace) {
         try {
             JsonNode root = mapper.reader().with(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
                     .with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
@@ -60,13 +65,17 @@ public class GroundedAnswers {
             // 即使模型声称资料不足，也检查旧证据，不让失效上下文继续运行。
             book.check(); run.check(); run.markSucceeded();
             return new GroundedAnswer(run.requestId(), List.copyOf(answers), cited.stream().map(book::citation).toList(),
-                    insufficient, mode, "BM25", PROMPT_VERSION, List.copyOf(trace), run.summary());
+                    insufficient, mode, retrievalMode, PROMPT_VERSION, List.copyOf(trace), run.summary());
         } catch (BusinessException error) { throw error; }
         catch (com.fasterxml.jackson.core.JsonProcessingException | IllegalArgumentException error) { throw invalid(); }
     }
 
     public GroundedAnswer insufficient(String mode, EvidenceBook book, AssistantRunGuard.Run run) {
-        return finish("{\"insufficientEvidence\":true,\"answerSegments\":[]}", mode, book, run, List.of());
+        return insufficient(mode, "BM25", book, run);
+    }
+
+    public GroundedAnswer insufficient(String mode, String retrievalMode, EvidenceBook book, AssistantRunGuard.Run run) {
+        return finish("{\"insufficientEvidence\":true,\"answerSegments\":[]}", mode, retrievalMode, book, run, List.of());
     }
     public static void fields(JsonNode node, Set<String> allowed) {
         if (node == null || !node.isObject() || node.size() != allowed.size()) throw invalid();

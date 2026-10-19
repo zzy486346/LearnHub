@@ -47,7 +47,7 @@ public class AssistantModelInvoker {
         var usage = response.usage();
         run.recordUsage(usage.promptTokens(), usage.completionTokens(), usage.totalTokens());
         run.check();
-        log.info("Assistant model completed requestId={} promptVersion={} model={} mode={} usage={} reserved={} finish={} retrieval=BM25 evidence={}",
+        log.info("Assistant model completed requestId={} promptVersion={} model={} mode={} usage={} reserved={} finish={} evidence={}",
                 run.requestId(), GroundedAnswers.PROMPT_VERSION, properties.getModel(), response.modelMode(),
                 usage.totalTokens(), run.summary().reservedTokens(), response.finishReason(), book.references());
         return response;
