@@ -70,6 +70,59 @@ public class AssistantTools {
                         "courseId", stringSchema("当前课程的正整数编号字符串")), List.of("courseId")));
     }
 
+    /** 历史只带数据，身份、key 与复核 supplier 始终由本次服务端重新绑定。 */
+    public String restoreEvidence(long userId, long scopedCourseId, String kind, JsonNode snapshot,
+                                  EvidenceBook book) {
+        if (userId <= 0 || scopedCourseId <= 0 || kind == null || snapshot == null || !snapshot.isObject() || book == null)
+            throw invalid();
+        return switch (kind) {
+            case "OUTLINE" -> {
+                scoped(snapshot, scopedCourseId);
+                JsonNode current = outlineSnapshot(userId, scopedCourseId);
+                requireSameSnapshot(snapshot, current);
+                yield book.register("outline:" + scopedCourseId, kind, current,
+                        () -> outlineSnapshot(userId, scopedCourseId));
+            }
+            case "PROGRESS" -> {
+                scoped(snapshot, scopedCourseId);
+                courses.requireAvailable(scopedCourseId, userId);
+                JsonNode current = progressSnapshot(userId, scopedCourseId);
+                requireSameSnapshot(snapshot, current);
+                yield book.register("progress:" + scopedCourseId, kind, current,
+                        () -> progressSnapshot(userId, scopedCourseId));
+            }
+            case "COURSE" -> {
+                JsonNode id = snapshot.get("courseId");
+                if (id == null || !id.isTextual() || !id.asText().matches("[1-9][0-9]{0,18}")) throw invalid();
+                long publicCourse;
+                try { publicCourse = Long.parseLong(id.asText()); }
+                catch (NumberFormatException malformed) { throw invalid(); }
+                JsonNode current = courseSnapshot(courses.requirePublished(publicCourse));
+                requireSameSnapshot(snapshot, current);
+                yield book.register("course:" + publicCourse, kind, current,
+                        () -> courseSnapshot(courses.requirePublished(publicCourse)));
+            }
+            default -> throw invalid();
+        };
+    }
+
+    private static void requireSameSnapshot(JsonNode previous, JsonNode current) {
+        if (!previous.equals(current)) throw new BusinessException("ASSISTANT_EVIDENCE_CHANGED",
+                "课程权限或学习记录已变化，历史回答已隐藏");
+    }
+
+    /** 与实际执行复用规范化规则，只返回摘要，不执行工具或占用工具预算。 */
+    public String normalizedArgumentsHash(ToolCall call, long scopedCourseId) {
+        if (call == null || call.name() == null || scopedCourseId <= 0 || !NAMES.contains(call.name())) throw invalid();
+        String normalized = json(new TreeMap<>(normalize(call, scopedCourseId)));
+        try {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(normalized.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 unavailable", impossible);
+        }
+    }
+
     public Map<String, Object> execute(Long userId, long scopedCourseId, ToolCall call,
                                        EvidenceBook book, AssistantRunGuard.Run run) {
         if (userId == null || scopedCourseId <= 0 || call == null || book == null || run == null) throw invalid();

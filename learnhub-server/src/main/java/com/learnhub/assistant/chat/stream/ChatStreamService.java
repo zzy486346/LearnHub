@@ -71,7 +71,8 @@ public class ChatStreamService {
                     if (model == null || properties.resolvedMode() != AiProperties.Mode.DEEPSEEK)
                         throw new BusinessException("AI_DISABLED", "真实流式模型尚未启用");
                     reply.send("status", Map.of("stage", "generating", "modelMode", "DEEPSEEK"));
-                    return model.prepare(owner, stored, run, text -> reply.send("delta", Map.of("text", text)));
+                    return model.prepare(owner, stored, run, text -> reply.send("delta", Map.of("text", text)),
+                            event -> reply.send(event.type(), event.payload()));
                 }
                 String prepared = conversations.prepareFake(owner, stored, run);
                 reply.send("status", Map.of("stage", "generating", "modelMode", "FAKE"));

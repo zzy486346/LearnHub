@@ -6,6 +6,9 @@ import static org.mockito.Mockito.mock;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learnhub.assistant.chat.application.ChatHistoryService;
 import com.learnhub.assistant.chat.application.ChatPersistenceService;
+import com.learnhub.assistant.chat.application.ChatEvidenceCodec;
+import com.learnhub.assistant.chat.application.ChatToolExecutionStore;
+import com.learnhub.assistant.tool.AssistantTools;
 import com.learnhub.assistant.knowledge.KnowledgeRetrievalService;
 import com.learnhub.assistant.model.AiProperties;
 import com.learnhub.assistant.qa.CourseQaService;
@@ -25,6 +28,9 @@ class LangChainChatGeneratorContextTest {
                 .withBean(ObjectMapper.class, ObjectMapper::new)
                 .withBean(AiProperties.class, AiProperties::new)
                 .withBean(AssistantLimits.class, AssistantLimits::new)
+                .withBean(AssistantTools.class, () -> mock(AssistantTools.class))
+                .withBean(ChatEvidenceCodec.class, () -> mock(ChatEvidenceCodec.class))
+                .withBean(ChatToolExecutionStore.class, () -> mock(ChatToolExecutionStore.class))
                 .withUserConfiguration(LangChainChatGenerator.class)
                 .run(context -> {
                     assertThat(context).hasNotFailed();

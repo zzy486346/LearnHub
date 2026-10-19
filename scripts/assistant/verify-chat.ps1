@@ -74,15 +74,16 @@ try {
         try {
             $taskStartedUtc = [DateTime]::UtcNow
             & $MavenPath '-pl' 'learnhub-server' '-am' `
-                '-Dtest=ChatPersistenceIntegrationTest,ChatHistoryServiceTest,ChatConversationServiceTest' `
+                '-Dtest=ChatPersistenceIntegrationTest,ChatHistoryServiceTest,ChatConversationServiceTest,ChatToolExecutionInfrastructureIntegrationTest' `
                 '-Dsurefire.failIfNoSpecifiedTests=false' '-Dlearnhub.chat.it.enabled=true' `
                 '-DargLine=-Djdk.net.URLClassPath.disableClassPathURLCheck=true' test
             $taskExitCode = $LASTEXITCODE
             if ($taskExitCode -eq 0) {
                 $taskExpectedReports = @{
-                    'ChatPersistenceIntegrationTest' = 11
+                    'ChatPersistenceIntegrationTest' = 12
                     'ChatHistoryServiceTest' = 5
                     'ChatConversationServiceTest' = 5
+                    'ChatToolExecutionInfrastructureIntegrationTest' = 8
                 }
                 foreach ($taskTestName in $taskExpectedReports.Keys) {
                     $taskReportPath = Join-Path $taskRoot `

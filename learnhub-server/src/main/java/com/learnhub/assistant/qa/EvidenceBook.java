@@ -74,6 +74,13 @@ public final class EvidenceBook {
     public List<Map<String, Object>> context() {
         return entries.values().stream().map(this::observation).toList();
     }
+
+    /** 只导出有序依赖数据；复核器必须在下一次运行按当前服务端身份重新构造。 */
+    public List<Dependency> exportDependencies() {
+        return entries.entrySet().stream().map(item -> new Dependency(item.getKey(), item.getValue().kind(),
+                materials.get(item.getKey()), "MATERIAL".equals(item.getValue().kind())
+                ? null : item.getValue().data().deepCopy())).toList();
+    }
     public List<Map<String, Object>> references() {
         return entries.values().stream().map(entry -> {
             Map<String, Object> reference = new LinkedHashMap<>();
@@ -86,7 +93,7 @@ public final class EvidenceBook {
 
     public Map<String, Object> observation(String id) { return observation(require(id)); }
     private Map<String, Object> observation(Entry entry) {
-        return Map.of("evidenceId", entry.id(), "kind", entry.kind(), "data", entry.data());
+        return Map.of("evidenceId", entry.id(), "kind", entry.kind(), "data", entry.data().deepCopy());
     }
     public boolean contains(String id) { return entries.values().stream().anyMatch(e -> e.id().equals(id)); }
     public String kind(String id) { return require(id).kind(); }
@@ -117,6 +124,7 @@ public final class EvidenceBook {
         return new BusinessException("ASSISTANT_EVIDENCE_CHANGED", "课程权限或资料版本已变化，本次回答已废弃，请重新提问");
     }
     private record Entry(String id, String kind, JsonNode data, Supplier<JsonNode> current) { }
+    public record Dependency(String key, String kind, KnowledgeRetrievalService.Source source, JsonNode snapshot) { }
     public record Citation(String evidenceId, String kind, String courseId, String lessonId, String documentId,
                            long sourceVersion, String chunkId, String title, String heading, String excerpt, JsonNode snapshot) { }
 }

@@ -48,6 +48,12 @@ const toolLabels: Record<string, string> = {
   search_courses: '课程搜索', get_course_outline: '课程目录',
   search_course_materials: '讲解稿检索', get_my_learning_progress: '本人学习进度',
 }
+const toolStatusLabels: Record<string, string> = {
+  RUNNING: '执行中', COMPLETED: '已完成', FAILED: '执行失败', CANCELLED: '已取消',
+}
+const sourceKindLabels: Record<string, string> = {
+  MATERIAL: '课程资料', OUTLINE: '课程目录', PROGRESS: '本人学习进度', COURSE: '公开课程',
+}
 
 function createRequestId() {
   if (globalThis.crypto.randomUUID) return globalThis.crypto.randomUUID()
@@ -511,7 +517,7 @@ onBeforeUnmount(() => {
               <section v-if="message.role === 'ASSISTANT' && !message.restricted && message.sources?.length" class="message-sources">
                 <h3>回答来源</h3>
                 <article v-for="source in message.sources" :key="source.evidenceId || `${source.documentId}-${source.chunkId}`">
-                  <strong>{{ source.title }}</strong><span v-if="source.heading"> · {{ source.heading }}</span>
+                  <strong>[{{ source.evidenceId }}] {{ sourceKindLabels[source.kind] || '回答依据' }} · {{ source.title }}</strong><span v-if="source.heading"> · {{ source.heading }}</span>
                   <p>{{ source.excerpt }}</p>
                   <RouterLink v-if="citationRoute(source)" :to="citationRoute(source)!">查看对应{{ source.lessonId ? '课时' : '课程' }}</RouterLink>
                 </article>
@@ -525,11 +531,11 @@ onBeforeUnmount(() => {
               <span class="message-role">学习助理 · 暂定内容</span>
               <p v-if="draftText">{{ draftText }}</p><p v-else class="draft-placeholder">正在准备回答…</p>
               <div v-if="tools.length" class="tool-steps" aria-label="工具执行状态">
-                <span v-for="tool in tools" :key="tool.id">{{ toolLabels[tool.name] || tool.name }} · {{ tool.status === 'RUNNING' ? '执行中' : '已完成' }}</span>
+                <span v-for="tool in tools" :key="tool.id">{{ toolLabels[tool.name] || tool.name }} · {{ toolStatusLabels[tool.status] || '状态待确认' }}</span>
               </div>
               <section v-if="draftSources.length" class="message-sources provisional">
                 <h3>待确认来源</h3>
-                <article v-for="source in draftSources" :key="source.evidenceId || `${source.documentId}-${source.chunkId}`"><strong>{{ source.title }}</strong><p>{{ source.excerpt }}</p></article>
+                <article v-for="source in draftSources" :key="source.evidenceId || `${source.documentId}-${source.chunkId}`"><strong>[{{ source.evidenceId }}] {{ sourceKindLabels[source.kind] || '回答依据' }} · {{ source.title }}</strong><p>{{ source.excerpt }}</p></article>
               </section>
             </div>
           </article>

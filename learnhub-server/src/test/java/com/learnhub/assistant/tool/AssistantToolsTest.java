@@ -72,6 +72,20 @@ class AssistantToolsTest {
     }
 
     @Test
+    void normalizedArgumentHashesAreStableAndNeverExecuteOrChargeTools() {
+        String first = tools.normalizedArgumentsHash(new ToolCall("a", "search_courses",
+                "{\"keyword\":\" Java \",\"limit\":3}"), 10);
+        String second = tools.normalizedArgumentsHash(new ToolCall("b", "search_courses",
+                "{\"limit\":3,\"keyword\":\"Java\"}"), 10);
+        assertThat(first).isEqualTo(second).matches("[0-9a-f]{64}");
+        org.mockito.Mockito.verifyNoInteractions(run, search, retrieval, progress, chapters, lessons, courses);
+        assertThatThrownBy(() -> tools.normalizedArgumentsHash(new ToolCall("a", "get_my_learning_progress",
+                "{\"courseId\":\"999\"}"), 10)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> tools.normalizedArgumentsHash(new ToolCall("a", "arbitrary", "{}"), 10))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
     void courseSearchOverfetchesThenUsesMysqlTruthAndRegistersEvidence() {
         when(search.search("Java", Set.of(), 6)).thenReturn(List.of(
                 new SearchResult(20L, "过期索引标题", "", "旧讲师", "", Set.of(), 0, 1)));

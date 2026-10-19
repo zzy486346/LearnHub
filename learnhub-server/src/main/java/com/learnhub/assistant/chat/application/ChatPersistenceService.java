@@ -14,7 +14,6 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
@@ -36,7 +35,6 @@ public class ChatPersistenceService {
     public static final String INTERRUPTED = "INTERRUPTED";
 
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final int MAX_SOURCES = 50;
     private static final Duration MAX_LEASE = Duration.ofMinutes(5);
     private static final AtomicLong LAST_CONVERSATION_TICK = new AtomicLong();
     private static final RowMapper<Conversation> CONVERSATION_MAPPER = ChatPersistenceService::mapConversation;
@@ -393,27 +391,10 @@ public class ChatPersistenceService {
     }
 
     private static List<Source> parseSources(String json) {
-        try {
-            JsonNode root = strictJson(json);
-            if (!root.isArray() || root.size() > MAX_SOURCES) throw invalid("回答来源格式无效");
-            List<Source> sources = new ArrayList<>(root.size());
-            int index = 0;
-            for (JsonNode node : root) {
-                if (!node.isObject()) throw invalid("回答来源格式无效");
-                Long documentId = positiveLong(node.get("documentId"));
-                Long chunkId = positiveLong(node.get("chunkId"));
-                Long version = positiveLong(node.get("sourceVersion"));
-                if (documentId == null || chunkId == null || version == null) {
-                    throw invalid("回答来源缺少文档、片段或材料版本标识");
-                }
-                sources.add(new Source(documentId, chunkId, version, "MATERIAL", "E" + (++index)));
-            }
-            return List.copyOf(sources);
-        } catch (BusinessException error) {
-            throw error;
-        } catch (Exception error) {
-            throw invalid("回答来源不是有效的 JSON 数组");
-        }
+        return ChatEvidenceCodec.parse(json).stream().filter(entry -> "MATERIAL".equals(entry.kind()))
+                .map(entry -> new Source(Long.parseLong(entry.source().documentId()),
+                        Long.parseLong(entry.source().chunkId()), entry.source().sourceVersion(),
+                        "MATERIAL", entry.evidenceId())).toList();
     }
 
     private static String normalizeSources(String json) {
@@ -511,21 +492,6 @@ public class ChatPersistenceService {
                     .digest(value.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException impossible) {
             throw new IllegalStateException("JDK 缺少 SHA-256", impossible);
-        }
-    }
-
-    private static Long positiveLong(JsonNode node) {
-        if (node == null) return null;
-        if (node.isIntegralNumber() && node.canConvertToLong()) {
-            long value = node.longValue();
-            return value > 0 ? value : null;
-        }
-        if (!node.isTextual() || !node.textValue().matches("[1-9][0-9]{0,18}")) return null;
-        try {
-            long value = Long.parseLong(node.textValue());
-            return value > 0 ? value : null;
-        } catch (NumberFormatException overflow) {
-            return null;
         }
     }
 

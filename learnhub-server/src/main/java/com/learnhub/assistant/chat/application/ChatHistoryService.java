@@ -1,13 +1,12 @@
 package com.learnhub.assistant.chat.application;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.learnhub.assistant.knowledge.KnowledgeRetrievalService;
 import com.learnhub.assistant.qa.CourseQaService;
 import com.learnhub.assistant.qa.EvidenceBook;
 import com.learnhub.common.exception.BusinessException;
 import com.learnhub.course.service.CourseService;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** 正式历史与可发送上下文共用证据复核，数据库原始来源不直接暴露给浏览器。 */
@@ -16,14 +15,20 @@ public class ChatHistoryService {
     private final ChatPersistenceService persistence;
     private final CourseService courses;
     private final CourseQaService qa;
-    private final ObjectMapper mapper;
+    private final ChatEvidenceCodec evidence;
 
     public ChatHistoryService(ChatPersistenceService persistence, CourseService courses,
                               CourseQaService qa, ObjectMapper mapper) {
+        this(persistence, courses, qa, mapper, ChatEvidenceCodec.legacyOnly());
+    }
+
+    @Autowired
+    public ChatHistoryService(ChatPersistenceService persistence, CourseService courses,
+                              CourseQaService qa, ObjectMapper mapper, ChatEvidenceCodec evidence) {
         this.persistence = persistence;
         this.courses = courses;
         this.qa = qa;
-        this.mapper = mapper;
+        this.evidence = evidence;
     }
 
     public ChatPersistenceService.Conversation require(long owner, String conversationId) {
@@ -42,12 +47,8 @@ public class ChatHistoryService {
         if (!"ASSISTANT".equals(message.role())) return view(message, message.content(), List.of(), false);
         if (!"COMPLETED".equals(message.status())) return view(message, "", List.of(), true);
         try {
-            var sources = mapper.readValue(message.sourcesJson(),
-                    new TypeReference<List<KnowledgeRetrievalService.Source>>() { });
-            if (sources == null || sources.size() > 20) throw new IllegalArgumentException();
             var book = qa.evidenceBook(owner, courseId);
-            sources.forEach(book::material);
-            book.check();
+            evidence.restoreInto(owner, courseId, message.sourcesJson(), book);
             List<EvidenceBook.Citation> citations = book.references().stream()
                     .map(reference -> book.citation((String) reference.get("evidenceId"))).toList();
             return view(message, message.content(), citations, false);

@@ -6,6 +6,11 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learnhub.assistant.chat.application.ChatHistoryService;
 import com.learnhub.assistant.chat.application.ChatPersistenceService;
+import com.learnhub.assistant.chat.application.ChatEvidenceCodec;
+import com.learnhub.assistant.chat.application.ChatToolExecutionStore;
+import com.learnhub.assistant.tool.AssistantTools;
+import com.learnhub.assistant.model.ToolCall;
+import com.learnhub.assistant.qa.GroundedAnswers;
 import com.learnhub.assistant.chat.rag.AuthorizedCourseRag;
 import com.learnhub.assistant.chat.model.transport.BoundedJdkHttpClientBuilder;
 import com.learnhub.assistant.chat.model.transport.ResponseTooLargeException;
@@ -28,6 +33,9 @@ import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import dev.langchain4j.model.output.FinishReason;
+import dev.langchain4j.agent.tool.ToolSpecification;
+import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
+import dev.langchain4j.service.tool.ToolExecutor;
 import dev.langchain4j.exception.HttpException;
 import java.net.InetAddress;
 import java.net.URI;
@@ -53,7 +61,7 @@ import jakarta.annotation.PreDestroy;
 @Service
 @ConditionalOnProperty(prefix = "learnhub.assistant", name = "langchain-enabled", havingValue = "true")
 public class LangChainChatGenerator implements AutoCloseable {
-    static final String PROMPT_VERSION = "learnhub-chat-grounded-rag-v2";
+    static final String PROMPT_VERSION = "learnhub-chat-grounded-tools-v3";
     static final String INSUFFICIENT = "现有课程资料不足以回答这个问题。";
     static final String GREETING = "你好，我可以结合课程资料帮助你学习。你想了解哪个知识点？";
     private static final URI DEEPSEEK_ENDPOINT = URI.create("https://api.deepseek.com/v1");
@@ -82,8 +90,18 @@ public class LangChainChatGenerator implements AutoCloseable {
     private final AssistantLimits limits;
     private final URI endpoint;
     private final SharedJdkHttpTransport sharedTransport;
+    private final AssistantTools tools;
+    private final ChatEvidenceCodec evidence;
+    private final ChatToolExecutionStore toolStore;
 
     @Autowired
+    public LangChainChatGenerator(ChatPersistenceService persistence, ChatHistoryService history,
+            KnowledgeRetrievalService retrieval, CourseQaService qa, ObjectMapper mapper,
+            AiProperties properties, AssistantLimits limits, AssistantTools tools,
+            ChatEvidenceCodec evidence, ChatToolExecutionStore toolStore) {
+        this(persistence, history, retrieval, qa, mapper, properties, limits, DEEPSEEK_ENDPOINT, tools, evidence, toolStore);
+    }
+
     public LangChainChatGenerator(ChatPersistenceService persistence, ChatHistoryService history,
             KnowledgeRetrievalService retrieval, CourseQaService qa, ObjectMapper mapper,
             AiProperties properties, AssistantLimits limits) {
@@ -93,6 +111,13 @@ public class LangChainChatGenerator implements AutoCloseable {
     LangChainChatGenerator(ChatPersistenceService persistence, ChatHistoryService history,
             KnowledgeRetrievalService retrieval, CourseQaService qa, ObjectMapper mapper,
             AiProperties properties, AssistantLimits limits, URI endpoint) {
+        this(persistence, history, retrieval, qa, mapper, properties, limits, endpoint, null, null, null);
+    }
+
+    LangChainChatGenerator(ChatPersistenceService persistence, ChatHistoryService history,
+            KnowledgeRetrievalService retrieval, CourseQaService qa, ObjectMapper mapper,
+            AiProperties properties, AssistantLimits limits, URI endpoint, AssistantTools tools,
+            ChatEvidenceCodec evidence, ChatToolExecutionStore toolStore) {
         this.persistence = persistence;
         this.history = history;
         this.retrieval = retrieval;
@@ -101,14 +126,22 @@ public class LangChainChatGenerator implements AutoCloseable {
         this.properties = properties;
         this.limits = limits;
         this.endpoint = allowedEndpoint(endpoint);
+        this.tools = tools;
+        this.evidence = evidence;
+        this.toolStore = toolStore;
         this.sharedTransport = new SharedJdkHttpTransport(properties.getConnectTimeout(),
                 Math.max(2, properties.getTransportThreads()), limits.getGlobalConcurrency(), 32);
     }
 
     public PreparedAnswer prepare(long owner, ChatPersistenceService.Run stored,
             AssistantRunGuard.Run guard, Consumer<String> delta) {
+        return prepare(owner, stored, guard, delta, ignored -> { });
+    }
+
+    public PreparedAnswer prepare(long owner, ChatPersistenceService.Run stored,
+            AssistantRunGuard.Run guard, Consumer<String> delta, Consumer<ToolStatus> toolStatus) {
         requireDeepSeek();
-        if (owner <= 0 || stored == null || stored.ownerUserId() != owner || delta == null) {
+        if (owner <= 0 || stored == null || stored.ownerUserId() != owner || delta == null || toolStatus == null) {
             throw new IllegalArgumentException("invalid LangChain chat run");
         }
         AssistantIoScope io = AssistantIoScope.current();
@@ -133,6 +166,7 @@ public class LangChainChatGenerator implements AutoCloseable {
         Collections.reverse(rounds);
         var memory = MessageWindowChatMemory.withMaxMessages(12);
         for (HistoryRound round : rounds) {
+            if (evidence != null) evidence.restoreInto(owner, conversation.courseId(), round.dependencies(), book);
             memory.add(UserMessage.from(round.user()));
             memory.add(AiMessage.from(stripOldCitations(round.assistant())));
         }
@@ -142,12 +176,15 @@ public class LangChainChatGenerator implements AutoCloseable {
                 rounds.stream().flatMap(round -> round.sources().stream()).toList());
         var sources = augmented.sources();
 
-        if (sources.isEmpty()) {
+        if (sources.isEmpty() && tools == null) {
             guard.check();
             book.check();
             delta.accept(INSUFFICIENT);
             return new PreparedAnswer(INSUFFICIENT, "[]", noModelUsage(guard), List.of(), "DEEPSEEK");
         }
+
+        if (tools != null) return prepareAgent(owner, conversation.courseId(), stored, guard, io, memory,
+                (UserMessage) augmented.message(), book, delta, toolStatus);
 
         memory.add(augmented.message());
         List<ChatMessage> messages = new ArrayList<>();
@@ -207,6 +244,140 @@ public class LangChainChatGenerator implements AutoCloseable {
                         "completionTokens", usage[1], "totalTokens", usage[2])), citations, "DEEPSEEK");
     }
 
+    private PreparedAnswer prepareAgent(long owner, long courseId, ChatPersistenceService.Run stored,
+            AssistantRunGuard.Run guard, AssistantIoScope io, MessageWindowChatMemory memory,
+            UserMessage augmented, EvidenceBook book, Consumer<String> delta, Consumer<ToolStatus> toolStatus) {
+        Runnable checkpoint = () -> { guard.check(); book.check(); io.remaining(); };
+        memory.add(SystemMessage.from(GroundedAnswers.SYSTEM + """
+                你可以自主选择本轮服务端提供的四个只读工具，按需要组合多个工具，也可以不用工具直接回答。
+                工具参数 courseId 只能使用本轮 JSON 中的 courseId，不得替用户指定身份。
+                用户请求个性化建议时，先取得本人进度和课程目录，再根据材料给出建议。
+                不在工具调用响应中输出正文；最后一次响应才按规定 JSON 输出答案。
+                """));
+        Set<String> callIds = new LinkedHashSet<>();
+        Set<String> callSignatures = new LinkedHashSet<>();
+        List<String> trace = new ArrayList<>();
+        long[] totals = new long[3];
+        int[] order = {0};
+        int outputTokens = Math.min(properties.getMaxOutputTokens(), limits.getMaxOutputTokens());
+        Map<ToolSpecification, ToolExecutor> executors = new LinkedHashMap<>();
+        for (var definition : tools.definitions()) {
+            var function = mapper.valueToTree(definition).path("function");
+            String name = function.path("name").asText();
+            var parameters = JsonObjectSchema.builder().additionalProperties(false);
+            function.path("parameters").path("properties").fields().forEachRemaining(field -> {
+                String description = field.getValue().path("description").asText();
+                if ("integer".equals(field.getValue().path("type").asText()))
+                    parameters.addIntegerProperty(field.getKey(), description);
+                else parameters.addStringProperty(field.getKey(), description);
+            });
+            List<String> required = new ArrayList<>();
+            function.path("parameters").path("required").forEach(value -> required.add(value.asText()));
+            var specification = ToolSpecification.builder().name(name)
+                    .description(function.path("description").asText()).parameters(parameters.required(required).build()).build();
+            executors.put(specification, (request, ignoredMemoryId) -> {
+                checkpoint.run();
+                var call = new ToolCall(request.id(), request.name(), request.arguments());
+                String hash = tools.normalizedArgumentsHash(call, courseId);
+                String execution = toolStore.begin(owner, stored, ++order[0], call, hash);
+                long started = System.nanoTime();
+                toolStatus.accept(new ToolStatus("tool_start", Map.of("toolCallId", call.id(),
+                        "toolName", call.name(), "status", "RUNNING")));
+                try {
+                    var observation = tools.execute(owner, courseId, call, book, guard);
+                    checkpoint.run();
+                    toolStore.complete(owner, stored, execution, elapsedMillis(started));
+                    trace.add(call.name());
+                    toolStatus.accept(new ToolStatus("tool_end", Map.of("toolCallId", call.id(),
+                            "toolName", call.name(), "status", "COMPLETED")));
+                    return json(observation);
+                } catch (RuntimeException failure) {
+                    String code = failure instanceof BusinessException business ? business.getCode() : "ASSISTANT_TOOL_UNAVAILABLE";
+                    boolean cancelled = "ASSISTANT_CANCELLED".equals(code) || "ASSISTANT_DEADLINE_EXCEEDED".equals(code);
+                    try { toolStore.fail(owner, stored, execution, elapsedMillis(started), code, cancelled); }
+                    catch (RuntimeException unavailable) { /* 已取消 scope 的遗留 RUNNING 由终态恢复任务补偿。 */ }
+                    try { toolStatus.accept(new ToolStatus("tool_end", Map.of("toolCallId", call.id(),
+                            "toolName", call.name(), "status", cancelled ? "CANCELLED" : "FAILED"))); }
+                    catch (RuntimeException disconnected) { /* 保留原始错误，外层统一清稿。 */ }
+                    throw failure;
+                }
+            });
+        }
+
+        try (var transport = transport(); var rendered = new GroundedAnswerStream(mapper, book, checkpoint, delta, INSUFFICIENT)) {
+            var model = OpenAiStreamingChatModel.builder().httpClientBuilder(transport)
+                    .baseUrl(endpoint.toString()).apiKey(properties.getApiKey().trim()).modelName(properties.getModel())
+                    .maxTokens(outputTokens).timeout(min(properties.getRequestTimeout(), guard.remaining(), io.remaining()))
+                    .accumulateToolCallId(false).returnThinking(false).sendThinking(false)
+                    .customParameters(Map.of("thinking", Map.of("type", "disabled")))
+                    .logRequests(false).logResponses(false).build();
+            var result = ToolStreamingSession.run(model, memory, executors, augmented.singleText(), request -> {
+                checkpoint.run();
+                // 只保留本次工具结果；历史中没有 ToolExecutionResult。每轮重建当前问题与最新合法证据。
+                List<ChatMessage> messages = new ArrayList<>(request.messages());
+                for (int i = messages.size() - 1; i >= 0; i--) {
+                    if (messages.get(i) instanceof UserMessage) {
+                        messages.set(i, UserMessage.from(json(Map.of("courseId", Long.toString(courseId),
+                                "question", stored.message(), "evidence", book.context()))));
+                        break;
+                    }
+                }
+                long inputBytes = 2048L + json(messages.stream().map(Object::toString).toList()).getBytes(StandardCharsets.UTF_8).length
+                        + json(tools.definitions()).getBytes(StandardCharsets.UTF_8).length;
+                if (inputBytes > properties.getMaxInputBytes() || inputBytes > limits.getMaxInputBytes()
+                        || inputBytes > Integer.MAX_VALUE)
+                    throw new BusinessException("AI_MODEL_INPUT_TOO_LARGE", "模型输入超过本地 UTF-8 字节预算");
+                guard.reserveModel((int) inputBytes, outputTokens);
+                persistence.recordUsage(owner, stored.id(), stored.leaseOwner(), usageJson("RESERVED", guard, null));
+                checkpoint.run();
+                return request.toBuilder().messages(messages).build();
+            }, response -> {
+                int[] usage = requiredUsage(response);
+                try { guard.recordUsage(usage[0], usage[1], usage[2]); }
+                finally {
+                    for (int i = 0; i < totals.length; i++) totals[i] += usage[i];
+                    persistence.recordUsage(owner, stored.id(), stored.leaseOwner(), usageJson("ACTUAL", guard,
+                            Map.of("promptTokens", totals[0], "completionTokens", totals[1], "totalTokens", totals[2])));
+                }
+                checkpoint.run();
+                if (response.aiMessage() == null) throw invalidOutput();
+                var calls = response.aiMessage().toolExecutionRequests();
+                if (calls == null || calls.isEmpty()) {
+                    if (response.finishReason() != FinishReason.STOP)
+                        throw new BusinessException("AI_MODEL_TRUNCATED", "模型输出未正常结束");
+                } else {
+                    if (response.finishReason() != FinishReason.TOOL_EXECUTION
+                            || response.aiMessage().text() != null && !response.aiMessage().text().isBlank()) throw invalidOutput();
+                    guard.toolDecisionRound();
+                    if (calls.size() > limits.getMaxToolCalls() - order[0])
+                        throw new BusinessException("ASSISTANT_BUDGET_EXCEEDED", "工具次数超过本次运行上限");
+                    // 完整批次先校验，避免第二个非法 ID 之前第一个工具已经执行。
+                    for (var call : calls) {
+                        if (call.id() == null || !call.id().matches("[A-Za-z0-9_-]{1,128}") || !callIds.add(call.id()))
+                            throw new BusinessException("ASSISTANT_TOOL_INVALID", "模型工具调用编号无效或重复");
+                        String hash;
+                        try { hash = tools.normalizedArgumentsHash(new ToolCall(call.id(), call.name(), call.arguments()), courseId); }
+                        catch (IllegalArgumentException malformed) {
+                            throw new BusinessException("ASSISTANT_TOOL_INVALID", "模型工具参数无效");
+                        }
+                        if (!callSignatures.add(call.name() + ":" + hash))
+                            throw new BusinessException("ASSISTANT_TOOL_REPEATED", "本次运行不能重复执行相同工具参数");
+                    }
+                }
+            }, rendered::accept, checkpoint, io, limits.getMaxToolDecisionRounds());
+            var verified = new GroundedAnswers(mapper).finish(result.text(), "DEEPSEEK", "TOOLS", book, guard, trace);
+            String text = rendered.complete(verified);
+            checkpoint.run();
+            return new PreparedAnswer(text, evidence.encode(book), usageJson("ACTUAL", guard,
+                    Map.of("promptTokens", totals[0], "completionTokens", totals[1], "totalTokens", totals[2])),
+                    verified.citations(), "DEEPSEEK");
+        } catch (RuntimeException failure) { throw modelFailure(failure); }
+    }
+
+    private static long elapsedMillis(long started) {
+        return Math.min(300_000, Math.max(0, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)));
+    }
+
     private List<HistoryRound> selectHistory(long owner, long courseId, String currentRun,
             List<ChatPersistenceService.Message> raw, Set<String> existing, int remainingEvidence) {
         List<HistoryRound> selected = new ArrayList<>();
@@ -227,13 +398,17 @@ public class LangChainChatGenerator implements AutoCloseable {
             if (user == null) continue;
             var verified = history.verify(owner, courseId, assistant);
             if (verified.restricted()) continue;
-            List<KnowledgeRetrievalService.Source> roundSources = parseSources(assistant.sourcesJson());
+            List<KnowledgeRetrievalService.Source> roundSources = evidence == null ? parseSources(assistant.sourcesJson())
+                    : ChatEvidenceCodec.parse(assistant.sourcesJson()).stream().filter(entry -> "MATERIAL".equals(entry.kind()))
+                            .map(ChatEvidenceCodec.ParsedEntry::source).toList();
             Set<String> additions = new LinkedHashSet<>();
-            for (var source : roundSources) if (!accepted.contains(source.chunkId())) additions.add(source.chunkId());
+            var keys = evidence == null ? roundSources.stream().map(KnowledgeRetrievalService.Source::chunkId).toList()
+                    : ChatEvidenceCodec.parse(assistant.sourcesJson()).stream().map(ChatEvidenceCodec.ParsedEntry::key).toList();
+            for (String key : keys) if (!accepted.contains(key)) additions.add(key);
             if (additions.size() > remainingEvidence) continue;
             accepted.addAll(additions);
             remainingEvidence -= additions.size();
-            selected.add(new HistoryRound(user.content(), verified.content(), roundSources));
+            selected.add(new HistoryRound(user.content(), verified.content(), roundSources, assistant.sourcesJson()));
         }
         return selected;
     }
@@ -352,7 +527,7 @@ public class LangChainChatGenerator implements AutoCloseable {
         }
         if (response.tokenUsage().inputTokenCount() < 0 || response.tokenUsage().outputTokenCount() < 0
                 || response.tokenUsage().totalTokenCount() < response.tokenUsage().inputTokenCount()
-                + response.tokenUsage().outputTokenCount()) {
+                + (long) response.tokenUsage().outputTokenCount()) {
             throw new BusinessException("AI_MODEL_MALFORMED_RESPONSE", "模型 usage 无效");
         }
         return new int[] {response.tokenUsage().inputTokenCount(), response.tokenUsage().outputTokenCount(),
@@ -382,7 +557,7 @@ public class LangChainChatGenerator implements AutoCloseable {
         book.check();
     }
 
-    private String usageJson(String phase, AssistantRunGuard.Run guard, Map<String, Integer> actual) {
+    private String usageJson(String phase, AssistantRunGuard.Run guard, Map<String, ? extends Number> actual) {
         Map<String, Object> usage = new LinkedHashMap<>();
         usage.put("phase", phase);
         usage.put("model", properties.getModel());
@@ -460,7 +635,8 @@ public class LangChainChatGenerator implements AutoCloseable {
     }
 
     private static BusinessException modelFailure(Throwable error) {
-        if (error instanceof BusinessException business) return business;
+        for (Throwable current = error; current != null; current = current.getCause())
+            if (current instanceof BusinessException business) return business;
         if (hasCause(error, java.util.concurrent.CancellationException.class)) {
             return new BusinessException("ASSISTANT_CANCELLED", "本次会话运行已取消");
         }
@@ -508,7 +684,9 @@ public class LangChainChatGenerator implements AutoCloseable {
     private record Complete(ChatResponse response) implements ModelEvent { }
     private record Failed(Throwable error) implements ModelEvent { }
     private record HistoryRound(String user, String assistant,
-                                List<KnowledgeRetrievalService.Source> sources) { }
+                                List<KnowledgeRetrievalService.Source> sources, String dependencies) { }
+
+    public record ToolStatus(String type, Map<String, Object> payload) { }
 
     public record PreparedAnswer(String text, String sourcesJson, String usageJson,
                                  List<EvidenceBook.Citation> citations, String modelMode) { }

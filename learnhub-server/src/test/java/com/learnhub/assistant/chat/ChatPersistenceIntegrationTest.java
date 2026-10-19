@@ -5,8 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learnhub.assistant.chat.application.ChatPersistenceService;
+import com.learnhub.assistant.chat.application.ChatEvidenceCodec;
 import com.learnhub.assistant.knowledge.KnowledgeRetrievalService;
+import com.learnhub.assistant.knowledge.KnowledgeStore;
+import com.learnhub.assistant.qa.EvidenceBook;
 import com.learnhub.common.exception.BusinessException;
+import com.learnhub.course.service.CourseService;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -281,6 +285,37 @@ class ChatPersistenceIntegrationTest {
                 .containsEntry("material_version", 3L)
                 .containsEntry("source_kind", "MATERIAL")
                 .containsEntry("citation_id", "E1");
+    }
+
+    @Test
+    void dependencyEnvelopeRoundTripsAndOnlyMaterialKeepsItsActualEvidenceId() throws Exception {
+        var conversation = service.createConversation(OWNER_A, COURSE_ID, "完整证据依赖");
+        var started = service.start(OWNER_A, conversation.id(), "dependency-envelope", "继续解释课程目录",
+                Duration.ofSeconds(30));
+        var objectMapper = new ObjectMapper();
+        var book = new EvidenceBook(OWNER_A, COURSE_ID,
+                org.mockito.Mockito.mock(KnowledgeStore.class), org.mockito.Mockito.mock(CourseService.class), objectMapper);
+        var outline = objectMapper.createObjectNode().put("courseId", Long.toString(COURSE_ID));
+        outline.putArray("chapters");
+        book.register("outline:" + COURSE_ID, "OUTLINE", outline, () -> outline.deepCopy());
+        var source = new KnowledgeRetrievalService.Source("9", 3, "11", Long.toString(COURSE_ID),
+                "43001", "缓存课程", "缓存击穿", 2, "使用互斥锁并设置过期时间。", 1.0);
+        assertThat(book.material(source)).isEqualTo("E2");
+        String envelope = new ChatEvidenceCodec(null).encode(book);
+        assertThat(service.complete(OWNER_A, started.run().id(), started.run().leaseOwner(),
+                "目录与材料共同支持的回答 [E1][E2]", envelope, "{}"))
+                .isTrue();
+        var messages = service.messages(OWNER_A, conversation.id(), Long.MAX_VALUE, 10);
+        assertThat(objectMapper.readTree(messages.get(1).sourcesJson())).isEqualTo(objectMapper.readTree(envelope));
+        assertThat(ChatEvidenceCodec.parse(messages.get(1).sourcesJson()))
+                .extracting(ChatEvidenceCodec.ParsedEntry::kind).containsExactly("OUTLINE", "MATERIAL");
+        assertThat(jdbc.queryForList("""
+                SELECT document_id, chunk_id, material_version, source_kind, citation_id
+                FROM assistant_message_source
+                """)).singleElement().satisfies(row -> assertThat(row)
+                .containsEntry("document_id", 9L).containsEntry("chunk_id", 11L)
+                .containsEntry("material_version", 3L).containsEntry("source_kind", "MATERIAL")
+                .containsEntry("citation_id", "E2"));
     }
 
     @Test

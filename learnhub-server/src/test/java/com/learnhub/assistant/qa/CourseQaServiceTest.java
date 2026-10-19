@@ -143,6 +143,11 @@ class CourseQaServiceTest {
         assertThat(argument.getValue().messages().get(1).content()).contains("Lua脚本", "evidenceId");
         assertThat(argument.getValue().tools()).isEmpty();
     }
+
+    @Test void paragraphTextCannotInventInlineCitationMarkers() {
+        when(client.generate(any(ChatRequest.class))).thenReturn(response(valid().replace("Lua执行期间", "错误 [E999] Lua执行期间")));
+        assertThatThrownBy(() -> qa.answer(7L, 1, "Lua", run)).hasMessageContaining("未通过校验");
+    }
     @Test void invalidQuestionRejectedBeforeRetrieval() {
         assertThatThrownBy(() -> qa.answer(7L, 1, "x".repeat(501), run)).hasMessageContaining("500");
         verifyNoInteractions(retrieval, client);

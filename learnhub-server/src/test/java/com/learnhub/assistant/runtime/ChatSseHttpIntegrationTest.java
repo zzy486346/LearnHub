@@ -7,6 +7,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learnhub.assistant.api.AssistantExceptionHandler;
 import com.learnhub.assistant.chat.api.ChatController;
 import com.learnhub.assistant.chat.application.*;
+import com.learnhub.assistant.chat.model.LangChainChatGenerator;
+import com.learnhub.assistant.chat.model.LangChainChatGenerator.PreparedAnswer;
+import com.learnhub.assistant.chat.model.LangChainChatGenerator.ToolStatus;
 import com.learnhub.assistant.chat.stream.ChatStreamService;
 import com.learnhub.assistant.knowledge.KnowledgeStore;
 import com.learnhub.assistant.model.AiProperties;
@@ -27,6 +30,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.atomic.*;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -51,7 +55,10 @@ class ChatSseHttpIntegrationTest {
     @MockBean CourseService courses;
     @MockBean CourseQaService qa;
     @MockBean AssistantRunStore store;
+    @MockBean LangChainChatGenerator generator;
+    @MockBean com.learnhub.assistant.tool.AssistantTools tools;
     @Autowired ObjectMapper mapper;
+    @Autowired AiProperties ai;
     final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
     final AtomicReference<String> state = new AtomicReference<>();
     final AtomicReference<ChatPersistenceService.Run> active = new AtomicReference<>();
@@ -60,6 +67,7 @@ class ChatSseHttpIntegrationTest {
     final String conversation = "owned-conversation";
 
     @BeforeEach @SuppressWarnings("unchecked") void setup() {
+        ai.setMode("FAKE");
         state.set(null); active.set(null); answer.set(null); starts.set(0);
         for (long owner : List.of(7L, 8L)) {
             Jws<Claims> jwt = mock(Jws.class); Claims claims = mock(Claims.class);
@@ -187,6 +195,97 @@ class ChatSseHttpIntegrationTest {
         assertThat(starts).hasValue(0);
     }
 
+    @Test void toolEventsKeepWorkerOrderAndExposeOnlySafeStatusBeforeFinal() throws Exception {
+        ai.setMode("DEEPSEEK");
+        AtomicReference<String> worker = new AtomicReference<>();
+        when(generator.prepare(eq(7L), any(), any(), any(), any())).thenAnswer(call -> {
+            worker.set(Thread.currentThread().getName());
+            Consumer<String> delta = call.getArgument(3);
+            Consumer<ToolStatus> status = call.getArgument(4);
+            status.accept(new ToolStatus("tool_start", Map.of("toolCallId", "safe-call-1",
+                    "toolName", "get_course_outline", "status", "RUNNING")));
+            status.accept(new ToolStatus("tool_end", Map.of("toolCallId", "safe-call-1",
+                    "toolName", "get_course_outline", "status", "COMPLETED")));
+            delta.accept("工具已完成。 ");
+            return new PreparedAnswer("工具已完成。 ", "[]", "{}", List.of(), "DEEPSEEK");
+        });
+
+        var response = client.send(sendRequest(UUID.randomUUID().toString(), 7, "查看当前课程目录"),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(200);
+        List<SseEvent> events = parseEvents(response.body());
+        assertThat(events.stream().map(SseEvent::type).toList())
+                .containsSubsequence("accepted", "tool_start", "tool_end", "delta", "sources", "final");
+        assertToolPayload(events, "tool_start", "RUNNING");
+        assertToolPayload(events, "tool_end", "COMPLETED");
+        assertThat(events.stream().map(event -> event.payload().path("seq").asLong()).toList())
+                .isSorted().doesNotHaveDuplicates();
+        assertThat(worker.get()).isEqualTo("assistant-run");
+        assertThat(response.body()).doesNotContain("arguments", "result_summary", "resultSummary", "resultBody",
+                "private-lease", "fixture-7");
+        assertThat(state).hasValue("COMPLETED");
+        assertThat(answer).hasValue("工具已完成。 ");
+        verify(generator).prepare(eq(7L), any(), any(), any(), any());
+        verify(generator, never()).prepare(anyLong(), any(), any(), any());
+    }
+
+    @Test void toolFailureReturnsOrderedErrorClearsDraftAndNeverCommitsAnswer() throws Exception {
+        ai.setMode("DEEPSEEK");
+        when(generator.prepare(eq(7L), any(), any(), any(), any())).thenAnswer(call -> {
+            Consumer<String> delta = call.getArgument(3);
+            Consumer<ToolStatus> status = call.getArgument(4);
+            status.accept(new ToolStatus("tool_start", Map.of("toolCallId", "safe-call-1",
+                    "toolName", "get_course_outline", "status", "RUNNING")));
+            delta.accept("尚未完成的回答草稿");
+            status.accept(new ToolStatus("tool_end", Map.of("toolCallId", "safe-call-1",
+                    "toolName", "get_course_outline", "status", "FAILED")));
+            throw new BusinessException("ASSISTANT_TOOL_UNAVAILABLE", "只读工具暂不可用");
+        });
+
+        var response = client.send(sendRequest(UUID.randomUUID().toString(), 7, "查看当前课程目录"),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(200);
+        List<SseEvent> events = parseEvents(response.body());
+        assertThat(events.stream().map(SseEvent::type).toList())
+                .containsSubsequence("accepted", "tool_start", "delta", "tool_end", "error")
+                .doesNotContain("sources", "final");
+        assertToolPayload(events, "tool_end", "FAILED");
+        var terminal = events.get(events.size() - 1);
+        assertThat(terminal.type()).isEqualTo("error");
+        assertThat(terminal.payload().path("code").asText()).isEqualTo("ASSISTANT_TOOL_UNAVAILABLE");
+        assertThat(terminal.payload().path("clearDraft").asBoolean()).isTrue();
+        assertThat(response.body()).doesNotContain("arguments", "resultBody", "private-lease", "fixture-7");
+        assertThat(state).hasValue("FAILED");
+        assertThat(answer).hasValue(null);
+        verify(persistence, never()).complete(anyLong(), anyString(), anyString(), anyString(), anyString(), anyString());
+    }
+
+    private List<SseEvent> parseEvents(String body) throws IOException {
+        List<SseEvent> result = new ArrayList<>();
+        for (String frame : body.replace("\r\n", "\n").split("\n\n")) {
+            String type = null;
+            StringBuilder data = new StringBuilder();
+            for (String line : frame.split("\n")) {
+                if (line.startsWith("event:")) type = line.substring(6).trim();
+                if (line.startsWith("data:")) data.append(line.substring(5).trim());
+            }
+            if (type != null && !data.isEmpty()) result.add(new SseEvent(type, mapper.readTree(data.toString())));
+        }
+        return result;
+    }
+
+    private void assertToolPayload(List<SseEvent> events, String type, String status) {
+        var event = events.stream().filter(item -> item.type().equals(type)).findFirst().orElseThrow();
+        List<String> fields = new ArrayList<>();
+        event.payload().fieldNames().forEachRemaining(fields::add);
+        assertThat(fields).containsExactlyInAnyOrder("eventId", "runId", "seq", "toolCallId", "toolName", "status");
+        assertThat(event.payload().path("toolCallId").asText()).isEqualTo("safe-call-1");
+        assertThat(event.payload().path("toolName").asText()).isEqualTo("get_course_outline");
+        assertThat(event.payload().path("status").asText()).isEqualTo(status);
+    }
+
+    private record SseEvent(String type, com.fasterxml.jackson.databind.JsonNode payload) { }
+
     private ChatPersistenceService.Run current() {
         var run = active.get();
         return new ChatPersistenceService.Run(run.id(), run.conversationId(), run.ownerUserId(), run.clientRequestId(), state.get(), run.leaseOwner(), run.message());
@@ -205,6 +304,7 @@ class ChatSseHttpIntegrationTest {
     @Configuration(proxyBeanMethods = false) @EnableAutoConfiguration
     @Import({SecurityConfig.class, JwtAuthenticationFilter.class, AssistantExceptionHandler.class,
             ChatController.class, ChatConversationService.class, ChatHistoryService.class, ChatStreamService.class,
+            com.learnhub.assistant.chat.application.ChatEvidenceCodec.class,
             AssistantExecutionManager.class, AssistantRunGuard.class, AssistantSessionVerifier.class})
     static class App {
         @Bean AssistantLimits limits() { var limits = new AssistantLimits(); limits.setTimeout(Duration.ofSeconds(5)); return limits; }
