@@ -49,8 +49,6 @@ SDK 正式正文在 Mem0 中，journal 不保存原文。SDK SQLite 历史会保
 
 FastAPI lifespan 显式关闭 Memory、OpenAI 客户端、PG 池和 journal。容器使用 internal Docker 网络，PG 和桥不发布端口，仅临时 Mem0 测试 REST 发布 `127.0.0.1` 动态端口。测试脚本必须记录所有权并 finally 清理。
 
-## 验证
-
 ## 本地启动与停止
 
 先在仓库根运行后端 `mvn verify`，再执行 `./scripts/assistant/build-memory-images.ps1`。构建固定的 `learnhub-memory-bridge:local`、`learnhub-mem0:local`，只复制 Jar 到临时最小上下文，结束核验路径后删除构建目录，不启动用户后端。
@@ -70,6 +68,8 @@ docker compose --env-file .env -f services/mem0/compose.yml up -d --wait
 ```powershell
 docker compose --env-file .env -f services/mem0/compose.yml down
 ```
+
+## 验证
 
 自动化验收分别运行 `./scripts/assistant/verify-memory.ps1 -IncludeJavaClient`、`./scripts/assistant/verify-chat.ps1 -IncludeMemory`。`./scripts/assistant/verify-memory-compose.ps1` 验证上述实际 Compose，使用随机项目/动态端口/临时凭据，核验所有权后清理自己的卷与网络，不操作日常开发实例。
 
