@@ -88,6 +88,22 @@ D:\Android\apache-maven-3.9.10\bin\mvn.cmd '-DargLine=-Djdk.net.URLClassPath.dis
 
 修复后只用剩余两次额度执行 `-HistoryFixture`：追问的上一轮是明确预置、来源重验成功的受控历史，未重新发送首次失败的问题。此结果证明真实适配器能读取有界历史、产生多个增量并取消上游；不是三轮真实模型连续对话，也不是实际 MySQL/ES/登录浏览器联合验收。课程、权限与历史均为测试 fixture；真实浏览器多 delta/持久化重启验收仍列入阶段 8。本批额度已满，不应删除台账重复执行；取消和失败的未知 usage 不能计为零。
 
+## 阶段 4：框架切分与授权 BM25 RAG
+
+`KnowledgeChunker` 已在真实导入链使用 `DocumentSplitters.recursive(600, 60)`；这里的单位是 UTF-16，不是模型 Token。按原 scene 保存标题与全局顺序。框架输出若有孤立代理项、超长或无法证明覆盖原正文，则整场景使用 code-point 边界安全回退；单块不超过 600 UTF-16 单位、相邻重叠不超过 60，拒绝原输入的非法代理项。覆盖检查采用有界迭代，10 万重复中文有 2 秒回归上限，避免重复文本回溯爆炸。
+
+策略常量 `langchain4j-recursive:utf16:max=600:overlap=60:unicode-fallback=codepoint-v1` 进入内容哈希。同一来源重导入时，旧哈希触发新材料版本和新 chunk ID，旧切片不改写。数据库未保存原 scenes，部署代码不会自动重切旧资料；须从已审校 catalog 重新导入。MySQL 先记录新版本，ES 完整写入、refresh 后才标记 indexed_version；同步失败期间旧版本不可用于回答，任务补偿后恢复，不能称为无缝切换。
+
+聊天使用 LangChain4j `ContentRetriever` / `DefaultRetrievalAugmentor` / 自定义 `ContentInjector`：用户、课程和会话从服务端 scope 捕获，Retriever 仅调用既有 `KnowledgeRetrievalService` 一次，不绕过授权 facade 直查 ES。保留文档/版本/块/课程/课时/标题等 metadata，自定义 Injector 输出原有 question/evidence JSON，增强后的 `chatMessage()` 实际进入 ChatMemory 和模型。显式使用当前有界运行 worker，关闭额外 offload，不使用框架默认 cached 线程池。
+
+历史两轮先逐条验证、最多分配 15 个不同材料依赖，本轮召回最多 5 条；证据账本整体最多 20。即使当前召回为空，合法历史依赖仍由 Injector 注入。取消、历史失效、检索后版本变化或证据超额均在请求模型前失败关闭。纯问候使用固定友好文案；确实没有课程证据时固定拒答，不编造引用、不消耗模型额度。
+
+实际验证：初次针对切分/授权检索/生成器/历史/证据的 46 项全部通过；真实知识基础设施 9 项全部通过，其中包含 6 份已审校 catalog、18 个场景在随机隔离 MySQL/ES 中导入及现有 8 条开发用例回归。另验证相同正文旧哈希升级、新旧 chunk ID 分离、旧切片可审计、旧证据失效、旧 ES 版本清除和失败补偿。该开发集是已见回归，不是新留出集。临时 MySQL 已清理，测试只操作自有随机索引，业务库与业务索引未重导入。
+
+最终根 `mvn verify` 377 项，失败 0、错误 0、跳过 71；知识基础设施 9 项在普通回归默认关闭，已由上述隔离专项实际通过。测试后知识索引 alias 与本次临时 MySQL 均无残留。`git diff --check` 通过。`StageAMaterialImportIntegrationTest` 保持关闭，未把隔离材料验证称为业务库重导入。
+
+本阶段没有新增真实模型请求；阶段 3 的 3 次额度已满。新 RAG pipeline 的模型请求由 HTTP Mock 验证，真实供应商与浏览器联合场景仍在后续系统验收中。框架接口以实际解析的 1.22.0 Jar 为准，参考 [LangChain4j RAG 文档](https://docs.langchain4j.dev/tutorials/rag/)。
+
 ## 未完成与验收边界
 
-阶段 3 浏览器联合验收及阶段 4～8 仍待完成：框架文档切分与授权检索、Embedding / pgvector、框架自主工具循环、Mem0，以及独立质量评测。已有旧 DeepSeek / Agent 的真实结果不充当新链路验收结果。
+阶段 3/4 浏览器联合验收及阶段 5～8 仍待完成：Embedding / pgvector、框架自主工具循环、Mem0，以及独立质量评测。已有旧 DeepSeek / Agent 的真实结果不充当新链路验收结果。

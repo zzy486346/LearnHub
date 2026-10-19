@@ -74,7 +74,8 @@ try {
         try {
             $taskStartedUtc = [DateTime]::UtcNow
             & $MavenPath '-pl' 'learnhub-server' '-am' '-Dtest=KnowledgeInfrastructureIntegrationTest' `
-                '-Dsurefire.failIfNoSpecifiedTests=false' '-Dlearnhub.knowledge.it.enabled=true' test
+                '-Dsurefire.failIfNoSpecifiedTests=false' '-Dlearnhub.knowledge.it.enabled=true' `
+                '-DargLine=-Djdk.net.URLClassPath.disableClassPathURLCheck=true' test
             $taskExitCode = $LASTEXITCODE
             if ($taskExitCode -eq 0) {
                 $taskReportPath = Join-Path $taskRoot `

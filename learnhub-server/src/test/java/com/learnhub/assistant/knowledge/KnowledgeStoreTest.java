@@ -12,6 +12,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.learnhub.common.exception.BusinessException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -68,6 +72,23 @@ class KnowledgeStoreTest {
     }
 
     @Test
+    void splitterStrategyUpgradeCreatesNewVersionWithoutWritingOldVersionChunks() {
+        ImportDocumentRequest request = request("相同正文");
+        when(repository.validLessonBinding(11L, 22L)).thenReturn(true);
+        when(repository.lockBySourceKey("course-11-lesson-22"))
+                .thenReturn(new KnowledgeJdbcRepository.LockedDocument(91L, "文档", 11L, 22L,
+                        legacyContentHash(request), 7L, false));
+
+        ImportDocumentResult result = store.importDocument(request);
+
+        assertThat(result.sourceVersion()).isEqualTo(8L);
+        assertThat(result.unchanged()).isFalse();
+        verify(repository).updateVersion(eq(91L), eq("文档"), eq(11L), eq(22L), anyString(), eq(8L));
+        verify(repository).insertChunks(eq(91L), eq(8L), anyList());
+        verify(repository, never()).insertChunks(eq(91L), eq(7L), anyList());
+    }
+
+    @Test
     void rejectsDeletedSourceKeyWithBusinessError() {
         ImportDocumentRequest request = request("正文");
         when(repository.validLessonBinding(11L, 22L)).thenReturn(true);
@@ -121,6 +142,31 @@ class KnowledgeStoreTest {
         var captor = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(capture).ensureDocument(eq("course-11-lesson-22"), eq("文档"), eq(11L), eq(22L), captor.capture());
         return captor.getValue();
+    }
+
+    private String legacyContentHash(ImportDocumentRequest request) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            update(digest, request.title().trim());
+            update(digest, request.courseId().toString());
+            update(digest, request.lessonId().toString());
+            for (ImportDocumentRequest.Scene scene : request.scenes()) {
+                update(digest, scene.heading() == null ? "" : scene.heading().trim());
+                update(digest, scene.content().trim());
+            }
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException exception) {
+            throw new AssertionError(exception);
+        }
+    }
+
+    private void update(MessageDigest digest, String value) {
+        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        digest.update((byte) (bytes.length >>> 24));
+        digest.update((byte) (bytes.length >>> 16));
+        digest.update((byte) (bytes.length >>> 8));
+        digest.update((byte) bytes.length);
+        digest.update(bytes);
     }
 
     private static final class HashCaptured extends RuntimeException {

@@ -147,6 +147,32 @@ class LangChainChatGeneratorTest {
     }
 
     @Test
+    void greetingDoesNotConsumeModelOrPretendCourseEvidenceIsMissing() {
+        var greeting = run("greeting", "你好！");
+        List<String> deltas = new ArrayList<>();
+        var answer = prepare(greeting, guard, deltas::add);
+        assertThat(answer.text()).isEqualTo(LangChainChatGenerator.GREETING);
+        assertThat(deltas).containsExactly(LangChainChatGenerator.GREETING);
+        assertThat(answer.sourcesJson()).isEqualTo("[]");
+        verify(guard, org.mockito.Mockito.never()).reserveModel(anyInt(), anyInt());
+        org.mockito.Mockito.verifyNoInteractions(retrieval);
+        assertThat(server.requestCount()).isZero();
+    }
+
+    @Test
+    void absentCourseEvidenceUsesFixedRefusalWithoutInventingCitationsOrCallingModel() {
+        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 12)).thenReturn(List.of());
+        when(retrieval.retrieve(eq(7L), eq(1L), anyString(), eq(5))).thenReturn(
+                new KnowledgeRetrievalService.Result("empty", List.of(), true, false));
+        var answer = prepare(text -> { });
+        assertThat(answer.text()).isEqualTo(LangChainChatGenerator.INSUFFICIENT);
+        assertThat(answer.sourcesJson()).isEqualTo("[]");
+        assertThat(answer.citations()).isEmpty();
+        verify(guard, org.mockito.Mockito.never()).reserveModel(anyInt(), anyInt());
+        assertThat(server.requestCount()).isZero();
+    }
+
+    @Test
     void externalCancellationAfterFirstDeltaStopsWithoutLateDelta() {
         when(persistence.messages(7, "conversation", Long.MAX_VALUE, 12)).thenReturn(List.of());
         server.enqueue(List.of("第一段", "迟到段落。[E1]"), "stop", true, 250);

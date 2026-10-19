@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learnhub.assistant.chat.application.ChatHistoryService;
 import com.learnhub.assistant.chat.application.ChatPersistenceService;
+import com.learnhub.assistant.chat.rag.AuthorizedCourseRag;
 import com.learnhub.assistant.chat.model.transport.BoundedJdkHttpClientBuilder;
 import com.learnhub.assistant.chat.model.transport.ResponseTooLargeException;
 import com.learnhub.assistant.chat.model.transport.SharedJdkHttpTransport;
@@ -52,8 +53,9 @@ import jakarta.annotation.PreDestroy;
 @Service
 @ConditionalOnProperty(prefix = "learnhub.assistant", name = "langchain-enabled", havingValue = "true")
 public class LangChainChatGenerator implements AutoCloseable {
-    static final String PROMPT_VERSION = "learnhub-chat-grounded-v1";
+    static final String PROMPT_VERSION = "learnhub-chat-grounded-rag-v2";
     static final String INSUFFICIENT = "现有课程资料不足以回答这个问题。";
+    static final String GREETING = "你好，我可以结合课程资料帮助你学习。你想了解哪个知识点？";
     private static final URI DEEPSEEK_ENDPOINT = URI.create("https://api.deepseek.com/v1");
     private static final int MAX_HISTORY_MESSAGES = 4;
     private static final int MAX_EVIDENCE = 20;
@@ -115,24 +117,30 @@ public class LangChainChatGenerator implements AutoCloseable {
         io.remaining();
 
         var conversation = history.require(owner, stored.conversationId());
+        if (isGreeting(stored.message())) {
+            guard.check();
+            io.remaining();
+            delta.accept(GREETING);
+            return new PreparedAnswer(GREETING, "[]", noModelUsage(guard), List.of(), "DEEPSEEK");
+        }
         List<ChatPersistenceService.Message> raw = persistence.messages(
                 owner, stored.conversationId(), Long.MAX_VALUE, 12);
         String previousQuestion = latestPreviousQuestion(raw, stored.id());
         String query = retrievalQuery(stored.message(), previousQuestion);
         var book = qa.evidenceBook(owner, conversation.courseId());
-        var current = retrieval.retrieve(owner, conversation.courseId(), query, 5).sources();
-        LinkedHashMap<String, KnowledgeRetrievalService.Source> sources = new LinkedHashMap<>();
-        current.forEach(source -> addSource(book, sources, source));
-
         List<HistoryRound> rounds = selectHistory(owner, conversation.courseId(), stored.id(), raw,
-                new LinkedHashSet<>(sources.keySet()), MAX_EVIDENCE - sources.size());
+                new LinkedHashSet<>(), MAX_EVIDENCE - 5);
         Collections.reverse(rounds);
         var memory = MessageWindowChatMemory.withMaxMessages(12);
         for (HistoryRound round : rounds) {
-            for (KnowledgeRetrievalService.Source source : round.sources()) addSource(book, sources, source);
             memory.add(UserMessage.from(round.user()));
             memory.add(AiMessage.from(stripOldCitations(round.assistant())));
         }
+        var augmented = new AuthorizedCourseRag(retrieval, mapper).augment(
+                new AuthorizedCourseRag.Scope(owner, conversation.courseId(), stored.conversationId(), guard, book),
+                stored.message(), query, memory.messages(),
+                rounds.stream().flatMap(round -> round.sources().stream()).toList());
+        var sources = augmented.sources();
 
         if (sources.isEmpty()) {
             guard.check();
@@ -141,8 +149,7 @@ public class LangChainChatGenerator implements AutoCloseable {
             return new PreparedAnswer(INSUFFICIENT, "[]", noModelUsage(guard), List.of(), "DEEPSEEK");
         }
 
-        String currentInput = json(Map.of("question", stored.message(), "evidence", book.context()));
-        memory.add(UserMessage.from(currentInput));
+        memory.add(augmented.message());
         List<ChatMessage> messages = new ArrayList<>();
         messages.add(SystemMessage.from(SYSTEM));
         messages.addAll(memory.messages());
@@ -195,7 +202,7 @@ public class LangChainChatGenerator implements AutoCloseable {
         List<EvidenceBook.Citation> citations = book.references().stream()
                 .map(reference -> book.citation((String) reference.get("evidenceId"))).toList();
         validateAnswer(answer.toString(), book);
-        return new PreparedAnswer(answer.toString(), json(List.copyOf(sources.values())),
+        return new PreparedAnswer(answer.toString(), json(sources),
                 usageJson("ACTUAL", guard, Map.of("promptTokens", usage[0],
                         "completionTokens", usage[1], "totalTokens", usage[2])), citations, "DEEPSEEK");
     }
@@ -422,12 +429,10 @@ public class LangChainChatGenerator implements AutoCloseable {
         return OLD_CITATION.matcher(text).replaceAll("").replaceAll("[ \\t]+(?=\\R|$)", "").trim();
     }
 
-    private static void addSource(EvidenceBook book,
-            LinkedHashMap<String, KnowledgeRetrievalService.Source> sources,
-            KnowledgeRetrievalService.Source source) {
-        KnowledgeRetrievalService.Source previous = sources.putIfAbsent(source.chunkId(), source);
-        if (previous == null) book.material(source);
-        else book.material(source); // EvidenceBook compares stable material fields and deliberately ignores BM25 score.
+    private static boolean isGreeting(String text) {
+        String normalized = text.strip().toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("[\\s，。！？,.!?]+", "");
+        return Set.of("你好", "您好", "嗨", "hello", "hi", "早上好", "晚上好").contains(normalized);
     }
 
     private static Duration min(Duration... values) {

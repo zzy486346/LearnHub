@@ -11,7 +11,9 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learnhub.assistant.qa.EvidenceBook;
 import com.learnhub.common.exception.BusinessException;
+import com.learnhub.course.service.CourseService;
 import com.learnhub.search.SearchUnavailableException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -21,6 +23,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -357,6 +361,137 @@ class KnowledgeInfrastructureIntegrationTest {
         assertThat(hits.get(0).sourceVersion()).isEqualTo(2);
     }
 
+    @Test
+    void splitterStrategyUpgradeKeepsOldChunksAuditableButInvalidatesOldEvidenceAndIndexHits() {
+        CourseFixture fixture = insertCourseFixture();
+        var request = document("strategy-upgrade", fixture, "切分策略升级",
+                "strategylegacyterm 用于验证相同正文按新策略重新切分。",
+                "审计要求旧版本切片保留，但不能继续作为当前证据。 ");
+        var first = store.importDocument(request);
+        long documentId = Long.parseLong(first.documentId());
+        var oldChunks = store.chunks(documentId, first.sourceVersion());
+        var sync = new KnowledgeIndexSyncService(store, gateway, jdbc);
+        assertThat(sync.syncDue(10)).isEqualTo(1);
+        gateway.refresh();
+
+        CourseService courses = mock(CourseService.class);
+        when(courses.readableLessonIds(7L, fixture.courseId())).thenReturn(List.of(fixture.lessonId()));
+        var retrieval = new KnowledgeRetrievalService(store, gateway, courses);
+        var oldSource = retrieval.retrieve(7L, fixture.courseId(), "strategylegacyterm", 5).sources().get(0);
+        var oldEvidence = new EvidenceBook(7L, fixture.courseId(), store, courses,
+                new ObjectMapper().findAndRegisterModules());
+        oldEvidence.material(oldSource);
+        oldEvidence.check();
+
+        assertThat(jdbc.update("UPDATE knowledge_document SET content_hash = ? WHERE id = ?",
+                "a".repeat(64), documentId)).isEqualTo(1);
+        var upgraded = store.importDocument(request);
+        var newChunks = store.chunks(documentId, upgraded.sourceVersion());
+
+        assertThat(upgraded.documentId()).isEqualTo(first.documentId());
+        assertThat(upgraded.sourceVersion()).isEqualTo(first.sourceVersion() + 1);
+        assertThat(newChunks).extracting(KnowledgeChunkRecord::id)
+                .doesNotContainAnyElementsOf(oldChunks.stream().map(KnowledgeChunkRecord::id).toList());
+        assertThat(store.chunks(documentId, first.sourceVersion())).isEqualTo(oldChunks);
+        assertThat(store.currentChunks(oldChunks.stream().map(KnowledgeChunkRecord::id).toList())).isEmpty();
+
+        assertThat(sync.syncDue(10)).isEqualTo(1);
+        gateway.refresh();
+        var currentHits = gateway.search(fixture.courseId(), List.of(fixture.lessonId()),
+                "strategylegacyterm", 10);
+        assertThat(currentHits).isNotEmpty().allSatisfy(hit -> {
+            assertThat(hit.sourceVersion()).isEqualTo(upgraded.sourceVersion());
+            assertThat(oldChunks).extracting(KnowledgeChunkRecord::id).doesNotContain(hit.chunkId());
+        });
+        assertThatThrownBy(oldEvidence::check)
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.getCode()).isEqualTo("ASSISTANT_EVIDENCE_CHANGED"));
+    }
+
+    @Test
+    void reviewedCatalogDevelopmentSetRunsAgainstRemappedIsolatedCourses() throws Exception {
+        JsonNode catalog = readRepositoryJson("scripts/course-media/catalog.json");
+        JsonNode mapping = readRepositoryJson("scripts/assistant/stage-a-mapping.json");
+        JsonNode development = readRepositoryJson("docs/assistant-retrieval-development.json");
+        assertThat(mapping.path("reviewed").asBoolean()).isTrue();
+        assertThat(development.path("split").asText()).isEqualTo("DEVELOPMENT");
+
+        Map<String, CatalogLesson> catalogLessons = catalogLessons(catalog);
+        Map<String, List<JsonNode>> mappingsByOriginalCourse = new LinkedHashMap<>();
+        mapping.withArray("mappings").forEach(item -> mappingsByOriginalCourse
+                .computeIfAbsent(item.path("courseId").asText(), ignored -> new ArrayList<>()).add(item));
+        assertThat(mappingsByOriginalCourse).hasSize(3);
+        assertThat(mappingsByOriginalCourse.values()).allSatisfy(items -> {
+            assertThat(items).hasSize(2);
+            assertThat(items.stream().map(item -> item.path("courseSlug").asText()).distinct()).hasSize(1);
+        });
+
+        Map<String, DevelopmentCourse> remappedCourses = new LinkedHashMap<>();
+        for (var group : mappingsByOriginalCourse.entrySet()) {
+            String slug = group.getValue().get(0).path("courseSlug").asText();
+            List<String> lessonTitles = group.getValue().stream()
+                    .map(item -> item.path("lessonTitle").asText()).toList();
+            remappedCourses.put(group.getKey(), insertDevelopmentCourse(slug, lessonTitles));
+        }
+
+        int importedScenes = 0;
+        for (JsonNode item : mapping.withArray("mappings")) {
+            String originalCourseId = item.path("courseId").asText();
+            String lessonTitle = item.path("lessonTitle").asText();
+            String slug = item.path("courseSlug").asText();
+            DevelopmentCourse course = remappedCourses.get(originalCourseId);
+            CatalogLesson lesson = catalogLessons.get(slug + "\u0000" + lessonTitle);
+            assertThat(course).isNotNull();
+            assertThat(lesson).isNotNull();
+            Long lessonId = course.lessonIdsByTitle().get(lessonTitle);
+            assertThat(lessonId).isNotNull();
+            var result = store.importDocument(new ImportDocumentRequest(item.path("sourceKey").asText(),
+                    lesson.title(), course.courseId(), lessonId, lesson.scenes()));
+            assertThat(result.chunkCount()).isPositive();
+            importedScenes += lesson.scenes().size();
+        }
+        assertThat(importedScenes).isEqualTo(18);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM knowledge_document", Integer.class)).isEqualTo(6);
+        var sync = new KnowledgeIndexSyncService(store, gateway, jdbc);
+        assertThat(sync.syncDue(20)).isEqualTo(6);
+        gateway.refresh();
+
+        CourseService courses = mock(CourseService.class);
+        for (DevelopmentCourse course : remappedCourses.values()) {
+            when(courses.readableLessonIds(7L, course.courseId())).thenReturn(course.lessonIds());
+        }
+        var retrieval = new KnowledgeRetrievalService(store, gateway, courses);
+        int executed = 0;
+        for (JsonNode testCase : development.withArray("cases")) {
+            DevelopmentCourse course = remappedCourses.get(testCase.path("courseId").asText());
+            assertThat(course).as(testCase.path("id").asText()).isNotNull();
+            var result = retrieval.retrieve(7L, course.courseId(), testCase.path("query").asText(), 5);
+            List<String> actualSourceKeys = result.sources().stream().map(source -> jdbc.queryForObject(
+                    "SELECT source_key FROM knowledge_document WHERE id = ?", String.class,
+                    Long.parseLong(source.documentId()))).distinct().toList();
+            List<String> expectedSourceKeys = strings(testCase.withArray("expectedSourceKeys"));
+            List<String> expectedTerms = strings(testCase.withArray("expectedTerms"));
+            List<String> forbiddenSourceKeys = strings(testCase.withArray("forbiddenSourceKeys"));
+            if (!expectedSourceKeys.isEmpty()) {
+                assertThat(actualSourceKeys).as(testCase.path("id").asText())
+                        .containsAnyElementsOf(expectedSourceKeys);
+            }
+            if (!expectedTerms.isEmpty()) {
+                String evidence = result.sources().stream().map(KnowledgeRetrievalService.Source::text)
+                        .reduce("", (left, right) -> left + "\n" + right);
+                assertThat(evidence).as(testCase.path("id").asText())
+                        .contains(expectedTerms.toArray(String[]::new));
+            }
+            if (!forbiddenSourceKeys.isEmpty()) {
+                assertThat(actualSourceKeys).as(testCase.path("id").asText())
+                        .doesNotContainAnyElementsOf(forbiddenSourceKeys);
+            }
+            System.out.printf("STAGE4_DEV case=%s sourceCount=%d%n", testCase.path("id").asText(), actualSourceKeys.size());
+            executed++;
+        }
+        assertThat(executed).isEqualTo(8);
+    }
+
     private ImportDocumentRequest document(String sourceKey, CourseFixture fixture, String title, String... contents) {
         List<ImportDocumentRequest.Scene> scenes = java.util.stream.IntStream.range(0, contents.length)
                 .mapToObj(index -> new ImportDocumentRequest.Scene("场景" + (index + 1), contents[index]))
@@ -382,6 +517,66 @@ class KnowledgeInfrastructureIntegrationTest {
                 VALUES (?, ?, '测试课时', 60, 0, 1)
                 """, lessonId, chapterId);
         return new CourseFixture(courseId, lessonId);
+    }
+
+    private DevelopmentCourse insertDevelopmentCourse(String slug, List<String> lessonTitles) {
+        assertThat(lessonTitles).hasSize(2);
+        long categoryId = com.baomidou.mybatisplus.core.toolkit.IdWorker.getId();
+        long courseId = com.baomidou.mybatisplus.core.toolkit.IdWorker.getId();
+        long chapterId = com.baomidou.mybatisplus.core.toolkit.IdWorker.getId();
+        jdbc.update("INSERT INTO course_category (id, name, sort_order, status) VALUES (?, ?, 1, 'ENABLED')",
+                categoryId, "开发集分类-" + slug + "-" + randomToken());
+        jdbc.update("""
+                INSERT INTO course (id, category_id, title, instructor, price, status, published_at)
+                VALUES (?, ?, ?, 'integration-test', 1.00, 'PUBLISHED', CURRENT_TIMESTAMP(3))
+                """, courseId, categoryId, "开发集课程-" + slug + "-" + randomToken());
+        jdbc.update("INSERT INTO course_chapter (id, course_id, title, sort_order) VALUES (?, ?, '开发集章节', 1)",
+                chapterId, courseId);
+        Map<String, Long> lessonIdsByTitle = new LinkedHashMap<>();
+        int order = 1;
+        for (String title : lessonTitles) {
+            long lessonId = com.baomidou.mybatisplus.core.toolkit.IdWorker.getId();
+            jdbc.update("""
+                    INSERT INTO course_lesson (id, chapter_id, title, duration_seconds, free_preview, sort_order)
+                    VALUES (?, ?, ?, 60, 0, ?)
+                    """, lessonId, chapterId, title, order++);
+            assertThat(lessonIdsByTitle.put(title, lessonId)).isNull();
+        }
+        return new DevelopmentCourse(courseId, List.copyOf(lessonIdsByTitle.values()), Map.copyOf(lessonIdsByTitle));
+    }
+
+    private Map<String, CatalogLesson> catalogLessons(JsonNode catalog) {
+        Map<String, CatalogLesson> result = new LinkedHashMap<>();
+        for (JsonNode course : catalog) {
+            String slug = course.path("slug").asText();
+            for (JsonNode lesson : course.withArray("lessons")) {
+                List<ImportDocumentRequest.Scene> scenes = new ArrayList<>();
+                for (JsonNode scene : lesson.withArray("scenes")) {
+                    String narration = scene.path("narration").asText().trim();
+                    String content = narration.isEmpty() ? scene.path("body").asText().trim() : narration;
+                    scenes.add(new ImportDocumentRequest.Scene(scene.path("heading").asText().trim(), content));
+                }
+                var value = new CatalogLesson(lesson.path("title").asText(), List.copyOf(scenes));
+                assertThat(result.put(slug + "\u0000" + value.title(), value)).isNull();
+            }
+        }
+        return result;
+    }
+
+    private JsonNode readRepositoryJson(String relativePath) throws IOException {
+        for (Path candidate : List.of(Path.of(relativePath), Path.of("..").resolve(relativePath))) {
+            Path normalized = candidate.toAbsolutePath().normalize();
+            if (Files.isRegularFile(normalized)) {
+                return new ObjectMapper().findAndRegisterModules().readTree(Files.readString(normalized));
+            }
+        }
+        throw new IllegalStateException("找不到测试资源：" + relativePath);
+    }
+
+    private List<String> strings(JsonNode array) {
+        List<String> values = new ArrayList<>();
+        array.forEach(value -> values.add(value.asText()));
+        return List.copyOf(values);
     }
 
     private JsonNode elasticsearchJson(String method, String path, Object body) {
@@ -560,6 +755,12 @@ class KnowledgeInfrastructureIntegrationTest {
     }
 
     private record CourseFixture(long courseId, long lessonId) {
+    }
+
+    private record DevelopmentCourse(long courseId, List<Long> lessonIds, Map<String, Long> lessonIdsByTitle) {
+    }
+
+    private record CatalogLesson(String title, List<ImportDocumentRequest.Scene> scenes) {
     }
 
     private record DatabaseCredentials(String username, String password) {

@@ -100,6 +100,7 @@ public class KnowledgeStore {
                                List<ImportDocumentRequest.Scene> scenes) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            update(digest, KnowledgeChunker.STRATEGY_VERSION);
             update(digest, title);
             update(digest, Long.toString(courseId));
             update(digest, Long.toString(lessonId));
