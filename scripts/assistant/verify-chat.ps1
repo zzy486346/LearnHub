@@ -88,7 +88,7 @@ try {
                     'ChatConversationServiceTest' = 5
                     'ChatToolExecutionInfrastructureIntegrationTest' = 8
                 }
-                if ($IncludeMemory) { $taskExpectedReports['PreferenceMemoryInfrastructureIntegrationTest'] = 13 }
+                if ($IncludeMemory) { $taskExpectedReports['PreferenceMemoryInfrastructureIntegrationTest'] = 17 }
                 foreach ($taskTestName in $taskExpectedReports.Keys) {
                     $taskTestPackage = if ($taskTestName -eq 'PreferenceMemoryInfrastructureIntegrationTest') { 'memory' } else { 'chat' }
                     $taskReportPath = Join-Path $taskRoot `

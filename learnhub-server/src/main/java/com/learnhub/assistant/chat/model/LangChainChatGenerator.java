@@ -10,6 +10,7 @@ import com.learnhub.assistant.chat.application.ChatEvidenceCodec;
 import com.learnhub.assistant.chat.application.ChatToolExecutionStore;
 import com.learnhub.assistant.tool.AssistantTools;
 import com.learnhub.assistant.memory.PreferenceMemorySource;
+import com.learnhub.assistant.memory.PreferenceExtractionService;
 import org.springframework.beans.factory.ObjectProvider;
 import com.learnhub.assistant.model.ToolCall;
 import com.learnhub.assistant.qa.GroundedAnswers;
@@ -96,15 +97,18 @@ public class LangChainChatGenerator implements AutoCloseable {
     private final ChatEvidenceCodec evidence;
     private final ChatToolExecutionStore toolStore;
     private ObjectProvider<PreferenceMemorySource> preferenceSources;
+    private ObjectProvider<PreferenceExtractionService> extractionServices;
 
     @Autowired
     public LangChainChatGenerator(ChatPersistenceService persistence, ChatHistoryService history,
             KnowledgeRetrievalService retrieval, CourseQaService qa, ObjectMapper mapper,
             AiProperties properties, AssistantLimits limits, AssistantTools tools,
             ChatEvidenceCodec evidence, ChatToolExecutionStore toolStore,
-            ObjectProvider<PreferenceMemorySource> preferenceSources) {
+            ObjectProvider<PreferenceMemorySource> preferenceSources,
+            ObjectProvider<PreferenceExtractionService> extractionServices) {
         this(persistence, history, retrieval, qa, mapper, properties, limits, DEEPSEEK_ENDPOINT, tools, evidence, toolStore);
         this.preferenceSources = preferenceSources;
+        this.extractionServices = extractionServices;
     }
 
     public LangChainChatGenerator(ChatPersistenceService persistence, ChatHistoryService history,
@@ -376,7 +380,14 @@ public class LangChainChatGenerator implements AutoCloseable {
             var verified = new GroundedAnswers(mapper).finish(result.text(), "DEEPSEEK", "TOOLS", book, guard, trace);
             String text = rendered.complete(verified);
             checkpoint.run();
-            return new PreparedAnswer(text, evidence.encode(book), usageJson("ACTUAL", guard,
+            var extractor = extractionServices == null ? null : extractionServices.getIfAvailable();
+            var extracted = extractor == null ? null : extractor.extract(owner, stored, guard, checkpoint, transport, endpoint);
+            if (extracted != null && extracted.usageKnown()) {
+                totals[0] += extracted.prompt(); totals[1] += extracted.completion(); totals[2] += extracted.total();
+            }
+            checkpoint.run();
+            String phase = extracted != null && extracted.attempted() && !extracted.usageKnown() ? "PARTIAL" : "ACTUAL";
+            return new PreparedAnswer(text, evidence.encode(book), usageJson(phase, guard,
                     Map.of("promptTokens", totals[0], "completionTokens", totals[1], "totalTokens", totals[2])),
                     verified.citations(), "DEEPSEEK");
         } catch (RuntimeException failure) { throw modelFailure(failure); }

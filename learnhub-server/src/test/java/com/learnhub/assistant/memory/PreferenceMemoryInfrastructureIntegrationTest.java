@@ -51,16 +51,23 @@ class PreferenceMemoryInfrastructureIntegrationTest {
             dataSource = new DriverManagerDataSource(server.replace("/?", "/" + database + "?"), username, password);
             jdbc = new JdbcTemplate(dataSource);
             jdbc.execute("CREATE TABLE assistant_conversation(id CHAR(36) PRIMARY KEY,owner_user_id BIGINT,course_id BIGINT,deleted TINYINT DEFAULT 0,status VARCHAR(20) DEFAULT 'ACTIVE')");
+            jdbc.execute("CREATE TABLE assistant_run(id VARCHAR(64) PRIMARY KEY,owner_user_id BIGINT,conversation_id VARCHAR(64),status VARCHAR(20),lease_owner VARCHAR(64),lease_expires_at DATETIME(3))");
             Path migration = Path.of("sql/migrations/V20261019__assistant_memory.sql");
             if (!Files.exists(migration)) migration = Path.of("..").resolve(migration);
             byte[] sql = Files.readAllBytes(migration);
             for (int i = 0; i < 2; i++) try (Connection conn = dataSource.getConnection()) {
                 ScriptUtils.executeSqlScript(conn, new EncodedResource(new ByteArrayResource(sql), StandardCharsets.UTF_8));
             }
+            Path extraction = migration.resolveSibling("V20261019__assistant_preference_extraction.sql");
+            for (int i = 0; i < 2; i++) try (Connection conn = dataSource.getConnection()) {
+                ScriptUtils.executeSqlScript(conn, new EncodedResource(new ByteArrayResource(Files.readAllBytes(extraction)), StandardCharsets.UTF_8));
+            }
         } catch (Exception failure) { cleanup(); throw failure; }
     }
     @BeforeEach @SuppressWarnings("unchecked") void setup() {
         jdbc.update("DELETE FROM assistant_learning_preference");
+        jdbc.update("DELETE FROM assistant_preference_extraction_attempt");
+        jdbc.update("DELETE FROM assistant_run");
         jdbc.update("DELETE FROM assistant_conversation");
         courses = mock(CourseService.class);
         client = mock(Mem0Client.class);
@@ -220,6 +227,66 @@ class PreferenceMemoryInfrastructureIntegrationTest {
             executor.shutdownNow();
             assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
         }
+    }
+    @Test void extractionAuditIsDurableAndNeverStoresOriginalText() {
+        var run = extractionRun();
+        var audit = new PreferenceExtractionAttemptStore(dataSource);
+        assertThat(audit.claim(101, run, "deepseek-flash", "literal-v1", 1200)).isTrue();
+        assertThat(jdbc.queryForObject("SELECT actual_total_tokens FROM assistant_preference_extraction_attempt WHERE run_id=?", Integer.class, run.id())).isNull();
+        audit.reserved(101, run.id(), 1328);
+        audit.usage(101, run.id(), 10, 5, 15);
+        audit.finish(101, run.id(), "NO_MATCH", null, null);
+        var restarted = new PreferenceExtractionAttemptStore(dataSource);
+        assertThat(restarted.claim(101, run, "deepseek-flash", "literal-v1", 1200)).isFalse();
+        assertThat(jdbc.queryForObject("SELECT actual_total_tokens FROM assistant_preference_extraction_attempt WHERE run_id=?", Integer.class, run.id())).isEqualTo(15);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='assistant_preference_extraction_attempt' AND (TRIM(COLUMN_COMMENT)='' OR COLUMN_NAME IN ('text','message','response','api_key'))", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='assistant_preference_extraction_attempt'", String.class)).contains("不保存原文");
+    }
+    @Test void extractionClaimRequiresOwnerLeaseAndActiveConversation() {
+        var run = extractionRun();
+        var audit = new PreferenceExtractionAttemptStore(dataSource);
+        assertThat(audit.claim(102, run, "deepseek-flash", "literal-v1", 1200)).isFalse();
+        jdbc.update("UPDATE assistant_run SET lease_expires_at=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(3))");
+        assertThat(audit.claim(101, run, "deepseek-flash", "literal-v1", 1200)).isFalse();
+        jdbc.update("UPDATE assistant_run SET lease_expires_at=TIMESTAMPADD(MINUTE,1,CURRENT_TIMESTAMP(3))");
+        jdbc.update("UPDATE assistant_conversation SET deleted=1");
+        assertThat(audit.claim(101, run, "deepseek-flash", "literal-v1", 1200)).isFalse();
+        jdbc.update("UPDATE assistant_conversation SET deleted=0");
+        assertThat(audit.claim(101, run, "deepseek-flash", "literal-v1", 1200)).isTrue();
+    }
+    @Test void concurrentExtractionClaimAndUnknownRestartDoNotRepeatModelAttempt() throws Exception {
+        var run = extractionRun();
+        var ready = new CyclicBarrier(2);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var futures = new java.util.ArrayList<java.util.concurrent.Future<Boolean>>();
+            for (int i = 0; i < 2; i++) futures.add(executor.submit(() -> {
+                ready.await(3, TimeUnit.SECONDS);
+                return new PreferenceExtractionAttemptStore(dataSource).claim(101, run, "deepseek-flash", "literal-v1", 1200);
+            }));
+            assertThat(List.of(futures.get(0).get(5, TimeUnit.SECONDS), futures.get(1).get(5, TimeUnit.SECONDS))).containsExactlyInAnyOrder(true, false);
+            var audit = new PreferenceExtractionAttemptStore(dataSource);
+            audit.reserved(101, run.id(), 1328);
+            audit.finish(101, run.id(), "UNKNOWN", "EXTRACTION_FAILED", null);
+            assertThat(new PreferenceExtractionAttemptStore(dataSource).claim(101, run, "deepseek-flash", "literal-v1", 1200)).isFalse();
+            assertThat(jdbc.queryForObject("SELECT reserved_tokens FROM assistant_preference_extraction_attempt WHERE run_id=?", Integer.class, run.id())).isEqualTo(1328);
+            assertThat(jdbc.queryForObject("SELECT actual_total_tokens FROM assistant_preference_extraction_attempt WHERE run_id=?", Integer.class, run.id())).isNull();
+        } finally { executor.shutdownNow(); assertThat(executor.awaitTermination(3, TimeUnit.SECONDS)).isTrue(); }
+    }
+    @Test void extractionAuditCannotRecordUsageUnderWrongOwnerOrBeforeReservation() {
+        var run = extractionRun();
+        var audit = new PreferenceExtractionAttemptStore(dataSource);
+        audit.claim(101, run, "deepseek-flash", "literal-v1", 1200);
+        assertThatThrownBy(() -> audit.usage(101, run.id(), 1, 1, 2)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> audit.reserved(102, run.id(), 1328)).isInstanceOf(IllegalStateException.class);
+        audit.reserved(101, run.id(), 1328);
+        assertThatThrownBy(() -> audit.usage(102, run.id(), 1, 1, 2)).isInstanceOf(IllegalStateException.class);
+    }
+    private com.learnhub.assistant.chat.application.ChatPersistenceService.Run extractionRun() {
+        String conversation = UUID.randomUUID().toString(); String run = UUID.randomUUID().toString();
+        jdbc.update("INSERT INTO assistant_conversation(id,owner_user_id,course_id) VALUES (?,101,501)", conversation);
+        jdbc.update("INSERT INTO assistant_run VALUES (?,101,?,'RUNNING','lease',TIMESTAMPADD(MINUTE,1,CURRENT_TIMESTAMP(3)))", run, conversation);
+        return new com.learnhub.assistant.chat.application.ChatPersistenceService.Run(run, conversation, 101, "request", "RUNNING", "lease", "我喜欢先看例子");
     }
     private void seedQuota(long owner, int count) {
         for (int i = 0; i < count; i++) jdbc.update("""

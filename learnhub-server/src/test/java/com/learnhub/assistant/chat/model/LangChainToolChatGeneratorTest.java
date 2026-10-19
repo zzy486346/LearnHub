@@ -214,6 +214,25 @@ class LangChainToolChatGeneratorTest {
         verify(guard, never()).reserveModel(anyInt(), anyInt());
     }
 
+    @ParameterizedTest @ValueSource(booleans = {true, false})
+    void optionalExtractionIsIncludedInFinalUsageWithoutErasingUnknownCost(boolean known) throws Exception {
+        var extraction = mock(com.learnhub.assistant.memory.PreferenceExtractionService.class);
+        when(extraction.extract(eq(7L), eq(stored), eq(guard), any(), any(), any())).thenReturn(
+                new com.learnhub.assistant.memory.PreferenceExtractionService.Result(true, known, known ? 2 : 0, known ? 1 : 0, known ? 3 : 0));
+        var beans = new org.springframework.beans.factory.support.StaticListableBeanFactory();
+        beans.addBean("extraction", extraction);
+        org.springframework.test.util.ReflectionTestUtils.setField(generator, "extractionServices",
+                beans.getBeanProvider(com.learnhub.assistant.memory.PreferenceExtractionService.class));
+        server.enqueue(Script.answer(List.of("{\"insufficientEvidence\":false,\"answerSegments\":[" + fact() + "]}"), true, null));
+        var answer = prepare(ignored -> { }, ignored -> { });
+        var usage = mapper.readTree(answer.usageJson());
+        assertThat(usage.path("phase").asText()).isEqualTo(known ? "ACTUAL" : "PARTIAL");
+        assertThat(usage.path("actual").path("totalTokens").asInt()).isEqualTo(known ? 18 : 15);
+        assertThat(answer.text()).isEqualTo("互斥锁限制并发重建。 [E1]");
+        assertThat(server.requests).hasSize(1);
+        verify(extraction).extract(eq(7L), eq(stored), eq(guard), any(), any(), any());
+    }
+
     @ParameterizedTest @ValueSource(strings = {"duplicateId", "malformedSecondArguments"})
     void validatesEntireToolBatchBeforeAnyToolExecutes(String invalidCase) {
         ToolCall second = "duplicateId".equals(invalidCase) ? progress("a")
