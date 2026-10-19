@@ -51,4 +51,26 @@ FastAPI lifespan 显式关闭 Memory、OpenAI 客户端、PG 池和 journal。�
 
 ## 验证
 
+## 本地启动与停止
+
+先在仓库根运行后端 `mvn verify`，再执行 `./scripts/assistant/build-memory-images.ps1`。构建固定的 `learnhub-memory-bridge:local`、`learnhub-mem0:local`，只复制 Jar 到临时最小上下文，结束核验路径后删除构建目录，不启动用户后端。
+
+在被 Git 忽略的根 `.env` 中配置示例已有的独立记忆库管理员密码、运行账号密码、向量桥凭据和 `LEARNHUB_ASSISTANT_MEMORY_SERVICE_TOKEN`，不要复用供应商密钥。服务凭据至少32位，桥凭据至少24位可见ASCII；建议使用独立随机值。Compose 只显式转交所需配置，不把整份 `.env` 或供应商密钥传入容器。
+
+```powershell
+docker compose --env-file .env -f services/mem0/compose.yml up -d --wait
+```
+
+初次启动自动预建独立 PG 数据库、扩展和固定表，创建仅有 DML 的 memory_runtime 账号；后续数据保存在两个命名卷。仅固定目标回环入口发布 `127.0.0.1:18280`（可配置），三个私有服务不发布端口。入口双网络具有外网路由但不支持任意目的地址，只适合本机开发，不作为公开生产网关。Java 桥只读根文件系统，私有 `/tmp` 必须允许 exec，以加载 DJL/ONNX 原生库。初次初始化失败要先查原因，不能盲目删除数据卷。
+
+后端启用前应用两个 `V20261019__assistant_memory.sql` / `V20261019__assistant_preference_extraction.sql` MySQL 迁移（均可重复执行），再在本地配置启用 `LEARNHUB_ASSISTANT_MEMORY_ENABLED=true`，保持自动提取默认关闭。自行正常启动后端，登录 `/assistant` 使用“学习偏好”。开启自动提取另设 `LEARNHUB_ASSISTANT_MEMORY_AUTO_EXTRACT_ENABLED=true`，它会额外消耗统一模型额度；本轮未执行真实供应商提取。
+
+停止本地记忆容器、保留数据卷：
+
+```powershell
+docker compose --env-file .env -f services/mem0/compose.yml down
+```
+
+自动化验收分别运行 `./scripts/assistant/verify-memory.ps1 -IncludeJavaClient`、`./scripts/assistant/verify-chat.ps1 -IncludeMemory`。`./scripts/assistant/verify-memory-compose.ps1` 验证上述实际 Compose，使用随机项目/动态端口/临时凭据，核验所有权后清理自己的卷与网络，不操作日常开发实例。
+
 依赖准备后在本目录执行 `python -m unittest -v test_app`，覆盖服务认证、严格字段、A/B 隔离、同版本冲突、旧版本拒绝、丢响应后的重启补偿、删除故障 tombstone、伪造远端结果及拒绝提取计数。真实 Linux BGE/PG/Mem0 验收另由仓库脚本执行。此 README 不声明尚未执行的测试通过。

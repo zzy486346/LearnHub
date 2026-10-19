@@ -1,0 +1,82 @@
+name: learnhub-memory
+services:
+  memory-pg:
+    image: pgvector/pgvector:0.8.7-pg16-bookworm@sha256:a97d77306ff47cc1d8add4d000cec2207da2e110746318df3137ce53c337ca30
+    environment:
+      POSTGRES_DB: learnhub_memory
+      POSTGRES_PASSWORD: ${LEARNHUB_MEMORY_PG_ADMIN_PASSWORD:?请在本地配置填写独立记忆库管理员密码}
+      LEARNHUB_MEMORY_PG_PASSWORD: ${LEARNHUB_MEMORY_PG_PASSWORD:?请在本地配置填写独立运行账号密码}
+    volumes:
+      - memory-pg:/var/lib/postgresql/data
+      - ./init-memory.sh:/docker-entrypoint-initdb.d/10-memory.sh:ro
+      - ./mem0_collection.sql:/bootstrap/mem0_collection.sql:ro
+    networks: [private]
+    healthcheck:
+      test: [CMD-SHELL, "PGPASSWORD=$$POSTGRES_PASSWORD psql -h 127.0.0.1 -U postgres -d learnhub_memory -tAc \"SELECT to_regclass('public.learning_preferences_bge512_v1') IS NOT NULL AND EXISTS(SELECT 1 FROM pg_roles WHERE rolname='memory_runtime')\" | grep -qx t"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 512m
+  memory-bridge:
+    image: learnhub-memory-bridge:local
+    environment:
+      LEARNHUB_MEMORY_EMBED_HOST: 0.0.0.0
+      LEARNHUB_MEMORY_EMBED_PORT: '8081'
+      LEARNHUB_MEMORY_EMBED_TOKEN: ${LEARNHUB_MEMORY_EMBEDDING_TOKEN:?请在本地配置填写向量桥服务凭据}
+    networks: [private]
+    read_only: true
+    # DJL/ONNX 需从该私有临时目录加载本地原生库。
+    tmpfs: ['/tmp:rw,exec,nosuid,size=512m']
+    mem_limit: 1g
+    cpus: 2
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+  memory-api:
+    image: learnhub-mem0:local
+    environment:
+      MEM0_TELEMETRY: 'false'
+      MEM0_DIR: /data/sdk
+      LEARNHUB_MEMORY_DATA_DIR: /data
+      LEARNHUB_MEMORY_SERVICE_TOKEN: ${LEARNHUB_ASSISTANT_MEMORY_SERVICE_TOKEN:?请在本地配置填写记忆服务凭据}
+      LEARNHUB_MEMORY_PG_HOST: memory-pg
+      LEARNHUB_MEMORY_PG_DATABASE: learnhub_memory
+      LEARNHUB_MEMORY_PG_USER: memory_runtime
+      LEARNHUB_MEMORY_PG_PASSWORD: ${LEARNHUB_MEMORY_PG_PASSWORD:?请在本地配置填写独立运行账号密码}
+      LEARNHUB_MEMORY_EMBEDDING_BASE_URL: http://memory-bridge:8081/v1
+      LEARNHUB_MEMORY_EMBEDDING_TOKEN: ${LEARNHUB_MEMORY_EMBEDDING_TOKEN:?请在本地配置填写向量桥服务凭据}
+    volumes: [memory-state:/data]
+    networks: [private]
+    depends_on:
+      memory-pg: {condition: service_healthy}
+      memory-bridge: {condition: service_started}
+    healthcheck:
+      test: [CMD, python, -c, "import os,urllib.request; urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/health',headers={'Authorization':'Bearer '+os.environ['LEARNHUB_MEMORY_SERVICE_TOKEN']}),timeout=2).close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    read_only: true
+    tmpfs: ['/tmp:rw,nosuid,size=64m']
+    mem_limit: 512m
+    cpus: 2
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+  memory-loopback:
+    # 仅本地开发/验收的固定目标入口，不能用作公开生产网关。
+    image: python:3.12.13-slim-bookworm@sha256:6e13e65c55e33adf203d77ee371cf8bf5d81bd4902ef07565721f46bf44917af
+    command: [python, -B, /app/test_relay.py]
+    user: '10001:10001'
+    volumes: [./test_relay.py:/app/test_relay.py:ro]
+    networks: [private, ingress]
+    ports: ['127.0.0.1:${LEARNHUB_MEMORY_LOCAL_PORT:-18280}:8080']
+    depends_on:
+      memory-api: {condition: service_healthy}
+    read_only: true
+    mem_limit: 128m
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+networks:
+  private: {internal: true}
+  ingress: {}
+volumes:
+  memory-pg: {}
+  memory-state: {}
