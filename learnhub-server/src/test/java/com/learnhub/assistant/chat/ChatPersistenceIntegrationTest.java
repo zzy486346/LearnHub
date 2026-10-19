@@ -101,7 +101,7 @@ class ChatPersistenceIntegrationTest {
                 ORDER BY TABLE_NAME
                 """, String.class);
         assertThat(tables).containsExactly(
-                "assistant_conversation", "assistant_message", "assistant_message_source",
+                "assistant_conversation", "assistant_learning_preference", "assistant_message", "assistant_message_source",
                 "assistant_run", "assistant_tool_execution");
 
         Integer uncommentedTables = jdbc.queryForObject("""

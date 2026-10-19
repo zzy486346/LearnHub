@@ -1,0 +1,6 @@
+FROM eclipse-temurin:17.0.20.1_1-jre-jammy@sha256:30a8176ab22afd141ad9cd1948ad23bdb9fb7ddae666bad4a1d188d9f479d585
+WORKDIR /app
+COPY app.jar /app/app.jar
+ENV DJL_OFFLINE=true OPT_OUT_TRACKING=true HOME=/tmp
+USER 10001:10001
+ENTRYPOINT ["java","-XX:ActiveProcessorCount=2","-Xms64m","-Xmx512m","-Djava.io.tmpdir=/tmp","-Duser.home=/tmp","-Dloader.main=com.learnhub.assistant.memory.bridge.MemoryEmbeddingBridge","-cp","/app/app.jar","org.springframework.boot.loader.launch.PropertiesLauncher"]

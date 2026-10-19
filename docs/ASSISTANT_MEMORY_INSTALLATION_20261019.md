@@ -20,4 +20,18 @@ Java 保存偏好意图、所有权、版本、状态和删除 tombstone；Mem0 
 
 ## 当前状态
 
-仅完成安装前记录；尚未创建本轮记忆服务、连接池、数据库/账号或执行 Mem0 CRUD。阶段 7 未完成。
+已按上述固定版本构建 Python 薄服务与 Java 向量桥镜像。完整传递依赖由实际下载的 Linux amd64 / CPython 3.12 wheel 生成带 SHA256 的 `services/mem0/requirements.lock`，构建强制 `--require-hashes` 并执行 `pip check`。运行期不安装依赖。Mem0 SDK 仍依赖 qdrant-client 包，但没有启动或使用 Qdrant 服务。
+
+当前 Docker 的 internal 网络没有建立宿主机端口映射，前两次隔离验收在读取 REST 映射端口时失败，服务与向量桥本身正常启动；失败记录保留在 `.local/memory-it-*.json`。验证拓扑增加一个只允许固定 `memory-api:8000` 目标和白名单路径的临时 HTTP relay。Mem0、PG、BGE 仅加入 internal 网络且均不发布端口；只有 relay 同时加入独立入口网络并绑定宿主机 127.0.0.1 随机端口。入口网络具备外网路由，relay 代码不接受任意目标、不跟随重定向、不配置供应商凭据。不能把该拓扑描述成所有容器网络都禁止外网。全部临时资源仍按随机所有权标签清理。
+
+已验证 Java 专项 57 项、Python 无网络回归 9 项、真实 MySQL 会话与偏好批次 43 项（其中 MySQL 33 项），均无失败和跳过。根 `mvn test` 536 项、失败/错误零、跳过 105；跳过的基础设施与真实供应商用例不计通过。前端偏好/聊天 Node 15 项、vue-tsc 和构建通过；Edge Mock 验收 12 项通过，390/1440 视口无横向溢出，临时端口与进程已清理。自动提取验证仍在进行，阶段 7 尚未完成。
+
+`verify-memory.ps1 -IncludeJavaClient` 已通过真实 Mem0 SDK 2.2.1 / Linux BGE / PG 闭环，33 条脚本断言和 1 项 Java 真实客户端测试均通过，零跳过；耗时 86.25 秒。覆盖独立问句召回、A/B 隔离、更新/旧版本拒绝、重复请求、两次 Mem0 重启与持久 tombstone、忘记、DDL 禁止、实际 512 维向量、桥停机 503 及恢复。首次完整功能运行结果保存 [原始脱敏成绩](assistant-memory-infrastructure-first-20261019.json)，前两次基础设施启动失败未抹掉。Mem0 三个进程区间的诊断快照累计 SDK add 5 / delete 4，Java BGE 两个进程区间累计编码 13 条；所有区间 LLM 尝试均为 0，供应商请求为 0。这些是本轮操作计数，不是长期持久成本统计。自有四容器、两临时卷、两个网络和端口 63364 已核验清理。
+
+MySQL 是偏好所有权、版本和同步意图事实源。每用户最多 50 条未删除偏好，并发配额由连接级锁约束；远端调用不占 MySQL 事务。修改立即转 PENDING、忘记立即清除本地正文并设置删除标识，均不再进入后续模型上下文。失败以 30 秒至 1 小时退避补偿，每批最多 20 条。每次补偿发送前重验来源会话与课程访问权。
+
+偏好与 E# 课程证据分离；最多 3 条当前偏好作为不可信学习偏好数据进入模型，不能成为课程事实引用。历史 v2 依赖信封保存偏好快照，重放和每轮调用前回 MySQL 检查版本、删除状态及来源授权；任一失效隐藏整条旧 AI 回答。关闭记忆功能同样阻止重放依赖记忆的历史。Mem0 检索故障时当前问答可不使用长期偏好继续，已有历史依赖复核失败不能放行。
+
+部署前先应用 `sql/migrations/V20261019__assistant_memory.sql`。默认 `LEARNHUB_ASSISTANT_MEMORY_ENABLED=false`；启用时在本地配置填 `LEARNHUB_ASSISTANT_MEMORY_BASE_URL`、独立的 `LEARNHUB_ASSISTANT_MEMORY_SERVICE_TOKEN` 与适当的 `LEARNHUB_ASSISTANT_MEMORY_TIMEOUT`。服务凭据也用于用户 HMAC 标签，轮换需规划投影重建，不能假定旧标签自动迁移。正常登录 `/assistant` 后通过标题内“学习偏好”查看、填写、修改或忘记；本轮不会为用户保留测试服务，也未重启用户后端。
+
+明确写入闭环最终根 `mvn verify` 同为 536 项、105 跳过、失败/错误零（实际执行 431 项）。自动提取尚未计入本次验收。

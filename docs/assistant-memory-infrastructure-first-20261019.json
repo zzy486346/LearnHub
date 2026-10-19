@@ -1,0 +1,95 @@
+{
+  "run": "memory-it-216a5b62d68941f0a243e19977599d14",
+  "startedAt": "2026-10-19T14:21:14.5742660Z",
+  "passed": true,
+  "sdkVersion": "2.2.1",
+  "checks": [
+    "Mem0/BGE/PG private Docker network is internal",
+    "Fixed-target test relay has a separate ingress network with egress capability",
+    "Runtime account connects successfully and lacks schema CREATE privilege",
+    "Runtime database account cannot create tables",
+    "Mem0/PG/BGE has no published host ports",
+    "Private service is attached exclusively to internal network",
+    "Mem0/PG/BGE has no published host ports",
+    "Private service is attached exclusively to internal network",
+    "Mem0/PG/BGE has no published host ports",
+    "Private service is attached exclusively to internal network",
+    "Actual installed Mem0 SDK is 2.2.1",
+    "REST rejects missing service authentication",
+    "A lists only its real SDK preference",
+    "B lists only its real SDK preference",
+    "Independent A query recalls stored learning preference",
+    "Search filters isolate A and B",
+    "Foreign update and delete are rejected",
+    "Identical version retry does not add another SDK memory",
+    "New version replaces old preference and stale/conflicting writes fail",
+    "Mem0 LLM attempts remain zero",
+    "Mem0 process restart preserves active journal and SDK history",
+    "Persistent journal prevents duplicate SDK add after restart",
+    "Forgotten preference is absent from real vector recall",
+    "Mem0 LLM attempts remain zero",
+    "Tombstone survives restart and rejects late/new writes to deleted UUID",
+    "A forgetting does not delete B preference",
+    "Real PostgreSQL contains only surviving B memory with actual 512D vectors",
+    "Denied DDL did not create any table",
+    "Linux Java BGE performed real local embedding",
+    "Embedding outage returns explicit unavailable result without supplier fallback",
+    "Real local embedding recovers with B memory intact",
+    "Java client real Mem0 integration executed exactly one fresh passing test without skips",
+    "Mem0 LLM attempts remain zero"
+  ],
+  "serviceStatistics": [
+    {
+      "writes": 8,
+      "searches": 2,
+      "lists": 3,
+      "sdkAdds": 3,
+      "sdkDeletes": 1,
+      "llmAttempts": 0
+    },
+    {
+      "writes": 4,
+      "searches": 1,
+      "lists": 1,
+      "sdkAdds": 0,
+      "sdkDeletes": 1,
+      "llmAttempts": 0
+    },
+    {
+      "writes": 8,
+      "searches": 6,
+      "lists": 2,
+      "sdkAdds": 2,
+      "sdkDeletes": 2,
+      "llmAttempts": 0
+    }
+  ],
+  "embeddingStatistics": [
+    {
+      "embedded_texts": 6,
+      "failures": 0,
+      "embedding_requests": 6
+    },
+    {
+      "embedded_texts": 7,
+      "embedding_requests": 7,
+      "failures": 0
+    }
+  ],
+  "realSupplierCalls": 0,
+  "privateServicesExternalRouting": false,
+  "relayIngressEgressAvailable": true,
+  "relayTarget": "memory-api:8000",
+  "relayForwardsExternalRequests": false,
+  "cleanup": true,
+  "failureStage": null,
+  "loopbackPort": 63364,
+  "javaIntegration": {
+    "failures": 0,
+    "skipped": 0,
+    "errors": 0,
+    "tests": 1
+  },
+  "completedAt": "2026-10-19T14:22:40.8259948Z",
+  "durationSeconds": 86.25
+}

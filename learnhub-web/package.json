@@ -12,6 +12,7 @@
     "test:admin": "node --test scripts/admin-course.test.mjs",
     "test:learning": "node --test scripts/learning-flow.test.mjs",
     "test:chat": "node --test scripts/chat-stream.test.mjs",
+    "test:preferences": "node --test scripts/preferences.test.mjs",
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview"

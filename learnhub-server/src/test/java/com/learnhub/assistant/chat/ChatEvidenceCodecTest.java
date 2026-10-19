@@ -13,6 +13,8 @@ import com.learnhub.assistant.knowledge.CurrentKnowledgeChunk;
 import com.learnhub.assistant.knowledge.KnowledgeRetrievalService;
 import com.learnhub.assistant.knowledge.KnowledgeStore;
 import com.learnhub.assistant.model.ToolCall;
+import com.learnhub.assistant.memory.PreferenceMemorySource;
+import com.learnhub.assistant.memory.PreferenceSnapshot;
 import com.learnhub.assistant.qa.CourseQaService;
 import com.learnhub.assistant.qa.EvidenceBook;
 import com.learnhub.assistant.runtime.AssistantRunGuard;
@@ -31,8 +33,10 @@ import com.learnhub.search.SearchResult;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 
 class ChatEvidenceCodecTest {
     private final ObjectMapper mapper = new ObjectMapper();
@@ -53,6 +57,112 @@ class ChatEvidenceCodecTest {
     private Course publicCourse;
     private LearningProgress learned;
     private ChatHistoryService history;
+
+    @Test
+    void preferenceDependenciesRoundTripOutsideFactEvidenceAndRecheckBoundOwner() throws Exception {
+        var source = mock(PreferenceMemorySource.class);
+        var codecWithPreferences = preferenceCodec(source);
+        var preference = preference();
+        when(source.current(7L, preference.id())).thenReturn(preference);
+        var original = original();
+        original.registerPreference(preference, () -> source.current(7L, preference.id()));
+        String encoded = codecWithPreferences.encode(original);
+        assertThat(mapper.readTree(encoded).get("version").intValue()).isEqualTo(2);
+        assertThat(mapper.readTree(encoded).get("preferences").size()).isEqualTo(1);
+        assertThat(ChatEvidenceCodec.parse(encoded)).extracting(ChatEvidenceCodec.ParsedEntry::evidenceId)
+                .containsExactly("E1", "E2", "E3", "E4");
+        var restored = book(7);
+        codecWithPreferences.restoreInto(7, 10, encoded, restored);
+        assertThat(restored.preferenceContext()).containsExactly(preference);
+        assertThat(restored.references()).hasSize(4);
+        assertThat(restored.context()).hasSize(4);
+        assertThat(codecWithPreferences.encode(restored)).isEqualTo(encoded);
+        clearInvocations(source);
+        restored.check();
+        verify(source).current(7L, preference.id());
+        verify(source, never()).current(8L, preference.id());
+    }
+
+    @Test
+    void changedForgottenForeignOrUnavailablePreferencesHideEntireHistoricalAnswer() {
+        var source = mock(PreferenceMemorySource.class);
+        var codecWithPreferences = preferenceCodec(source);
+        var preference = preference();
+        var original = original();
+        original.registerPreference(preference, () -> preference);
+        String encoded = codecWithPreferences.encode(original);
+        var qa = mock(CourseQaService.class);
+        when(qa.evidenceBook(anyLong(), eq(10L))).thenAnswer(call -> book(call.getArgument(0)));
+        var historyWithPreferences = new ChatHistoryService(mock(ChatPersistenceService.class), courses,
+                qa, mapper, codecWithPreferences);
+        when(source.current(7L, preference.id())).thenReturn(preference);
+        assertThat(historyWithPreferences.verify(7, 10, message(encoded)).restricted()).isFalse();
+        when(source.current(7L, preference.id())).thenReturn(
+                new PreferenceSnapshot(preference.id(), 2, "STYLE", "改为先讲原理"));
+        assertThat(historyWithPreferences.verify(7, 10, message(encoded)).content()).isEmpty();
+        when(source.current(7L, preference.id())).thenReturn(null);
+        var forgotten = historyWithPreferences.verify(7, 10, message(encoded));
+        assertThat(forgotten.restricted()).isTrue();
+        assertThat(forgotten.content()).isEmpty();
+        assertThat(forgotten.sources()).isEmpty();
+        assertThat(historyWithPreferences.verify(8, 10, message(encoded)).restricted()).isTrue();
+        verify(source).current(8L, preference.id());
+        when(source.current(7L, preference.id())).thenThrow(new IllegalStateException("unavailable"));
+        assertThat(historyWithPreferences.verify(7, 10, message(encoded)).restricted()).isTrue();
+        assertThat(history.verify(7, 10, message(encoded)).restricted()).isTrue();
+    }
+
+    @Test
+    void malformedPreferenceFieldsIdentityVersionAndSizeFailClosedBeforeBookMutation() throws Exception {
+        var preference = preference();
+        var original = book(7);
+        original.registerPreference(preference, () -> preference);
+        var valid = (ObjectNode) mapper.readTree(codec.encode(original));
+        List<String> invalid = new java.util.ArrayList<>();
+        for (String field : List.of("id", "version", "category", "text")) {
+            var missing = valid.deepCopy();
+            ((ObjectNode) missing.withArray("preferences").get(0)).remove(field);
+            invalid.add(missing.toString());
+        }
+        for (String value : List.of("E1", "1-1-1-1-1", "ABCDEFAB-1234-1234-1234-ABCDEFABCDEF")) {
+            var wrong = valid.deepCopy(); ((ObjectNode) wrong.withArray("preferences").get(0)).put("id", value);
+            invalid.add(wrong.toString());
+        }
+        var zero = valid.deepCopy(); ((ObjectNode) zero.withArray("preferences").get(0)).put("version", 0);
+        invalid.add(zero.toString());
+        var fractional = valid.deepCopy(); ((ObjectNode) fractional.withArray("preferences").get(0)).put("version", 1.5);
+        invalid.add(fractional.toString());
+        var category = valid.deepCopy(); ((ObjectNode) category.withArray("preferences").get(0)).put("category", "SYSTEM");
+        invalid.add(category.toString());
+        var oversized = valid.deepCopy(); ((ObjectNode) oversized.withArray("preferences").get(0)).put("text", "字".repeat(201));
+        invalid.add(oversized.toString());
+        var unknown = valid.deepCopy(); ((ObjectNode) unknown.withArray("preferences").get(0)).put("evidenceId", "E1");
+        invalid.add(unknown.toString());
+        var duplicated = valid.deepCopy(); duplicated.withArray("preferences").add(duplicated.withArray("preferences").get(0).deepCopy());
+        invalid.add(duplicated.toString());
+        var excessive = valid.deepCopy(); excessive.withArray("preferences").removeAll();
+        for (int i = 0; i < 11; i++) excessive.withArray("preferences").add(mapper.valueToTree(preference()));
+        invalid.add(excessive.toString());
+        var oldEnvelope = valid.deepCopy().put("version", 1); invalid.add(oldEnvelope.toString());
+        for (String malformed : invalid) {
+            var target = book(7);
+            assertThatThrownBy(() -> ChatEvidenceCodec.parse(malformed)).isInstanceOf(BusinessException.class);
+            assertThatThrownBy(() -> codec.restoreInto(7, 10, malformed, target)).isInstanceOf(BusinessException.class);
+            assertThat(target.exportDependencies()).isEmpty();
+            assertThat(target.exportPreferenceDependencies()).isEmpty();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private ChatEvidenceCodec preferenceCodec(PreferenceMemorySource source) {
+        ObjectProvider<PreferenceMemorySource> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(source);
+        return new ChatEvidenceCodec(tools, provider);
+    }
+
+    private PreferenceSnapshot preference() {
+        return new PreferenceSnapshot(UUID.randomUUID().toString(), 1, "STYLE", "我喜欢先看例子");
+    }
 
     @BeforeEach
     void fixture() {

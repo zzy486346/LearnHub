@@ -180,6 +180,40 @@ class LangChainToolChatGeneratorTest {
         verify(guard).recordUsage(10, 5, 15);
     }
 
+    @Test void preferencesAreSentAsNonCitableDataAndPersistedAsDependencies() throws Exception {
+        var preference = new com.learnhub.assistant.memory.PreferenceSnapshot(
+                UUID.randomUUID().toString(), 1, "STYLE", "喜欢先看例子");
+        var source = mock(com.learnhub.assistant.memory.PreferenceMemorySource.class);
+        when(source.context(7, stored.message(), 3)).thenReturn(List.of(preference));
+        when(source.current(7, preference.id())).thenReturn(preference);
+        var beans = new org.springframework.beans.factory.support.StaticListableBeanFactory();
+        beans.addBean("preferences", source);
+        org.springframework.test.util.ReflectionTestUtils.setField(generator, "preferenceSources",
+                beans.getBeanProvider(com.learnhub.assistant.memory.PreferenceMemorySource.class));
+        server.enqueue(Script.answer(List.of("{\"insufficientEvidence\":false,\"answerSegments\":[" + fact() + "]}"), true, null));
+        var answer = prepare(ignored -> { }, ignored -> { });
+        assertThat(server.requests.get(0)).contains("learningPreferences", "喜欢先看例子");
+        assertThat(answer.citations()).hasSize(1).allSatisfy(citation -> assertThat(citation.kind()).isEqualTo("MATERIAL"));
+        assertThat(mapper.readTree(answer.sourcesJson()).path("preferences")).hasSize(1);
+        verify(source, atLeast(3)).current(7, preference.id());
+    }
+
+    @Test void changedPreferenceStopsBeforeReservationOrHttp() {
+        var source = mock(com.learnhub.assistant.memory.PreferenceMemorySource.class);
+        var id = UUID.randomUUID().toString();
+        when(source.context(7, stored.message(), 3)).thenReturn(List.of(
+                new com.learnhub.assistant.memory.PreferenceSnapshot(id, 1, "STYLE", "先看例子")));
+        when(source.current(7, id)).thenReturn(
+                new com.learnhub.assistant.memory.PreferenceSnapshot(id, 2, "STYLE", "先看原理"));
+        var beans = new org.springframework.beans.factory.support.StaticListableBeanFactory();
+        beans.addBean("preferences", source);
+        org.springframework.test.util.ReflectionTestUtils.setField(generator, "preferenceSources",
+                beans.getBeanProvider(com.learnhub.assistant.memory.PreferenceMemorySource.class));
+        assertThatThrownBy(() -> prepare(ignored -> { }, ignored -> { })).isInstanceOf(BusinessException.class);
+        assertThat(server.requests).isEmpty();
+        verify(guard, never()).reserveModel(anyInt(), anyInt());
+    }
+
     @ParameterizedTest @ValueSource(strings = {"duplicateId", "malformedSecondArguments"})
     void validatesEntireToolBatchBeforeAnyToolExecutes(String invalidCase) {
         ToolCall second = "duplicateId".equals(invalidCase) ? progress("a")

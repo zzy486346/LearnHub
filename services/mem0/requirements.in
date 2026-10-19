@@ -1,0 +1,6 @@
+# 完整带哈希的 requirements.lock 由安装验证步骤生成；运行时禁止解析依赖。
+mem0ai==2.2.1
+fastapi==0.115.8
+uvicorn==0.34.0
+psycopg[binary]>=3.2.8,<4.0.0
+psycopg-pool>=3.2.6,<4.0.0

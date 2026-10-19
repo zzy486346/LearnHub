@@ -8,6 +8,7 @@ import type { AssistantCitation } from '@/api/assistant'
 import { AUTH_SESSION_CLEARED_EVENT, AUTH_SESSION_REPLACED_EVENT } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
 import type { Course } from '@/types'
+import PreferenceMemoryDialog from '@/components/PreferenceMemoryDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -23,6 +24,7 @@ const loadingHistory = ref(false)
 const sending = ref(false)
 const stopping = ref(false)
 const sidebarOpen = ref(false)
+const preferencesOpen = ref(false)
 const draftText = ref('')
 const draftSources = ref<AssistantCitation[]>([])
 const pendingQuestion = ref('')
@@ -419,6 +421,7 @@ function clearTransient() {
 }
 
 function resetPrivateState() {
+  preferencesOpen.value = false
   generation++
   historyLoadEpoch++
   streamController?.abort()
@@ -472,9 +475,11 @@ onBeforeUnmount(() => {
         <p>围绕你有权学习的课程连续追问，回答完成后保存正式历史和来源。</p>
       </div>
       <el-tag v-if="modelMode === 'FAKE'" type="warning" effect="dark">模拟流</el-tag>
+      <el-button class="preference-button" :disabled="!auth.authenticated" @click="preferencesOpen = true">学习偏好</el-button>
       <el-button class="sidebar-toggle" @click="sidebarOpen = !sidebarOpen">{{ sidebarOpen ? '收起会话' : '历史会话' }}</el-button>
     </header>
 
+    <PreferenceMemoryDialog v-if="auth.authenticated" v-model="preferencesOpen" />
     <div class="workspace-grid" :class="{ 'sidebar-open': sidebarOpen }">
       <aside class="conversation-sidebar" aria-label="历史会话">
         <el-button class="new-chat-button" type="primary" @click="newConversationForCourse()">新建会话</el-button>
@@ -601,6 +606,7 @@ onBeforeUnmount(() => {
 .chat-error { margin:8px 18px 0; padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-radius:12px; color:#95253a; background:#fff1f2; }
 .composer { padding:14px 18px 18px; }.composer label { display:block; margin-bottom:8px; font-weight:700; }.composer-actions { margin-top:10px; display:flex; justify-content:space-between; align-items:center; gap:12px; color:var(--muted); font-size:13px; }.composer-actions .warning { color:#a34b20; }.composer-actions .el-button { min-width:112px; min-height:44px; }
 .sidebar-toggle { display:none; }
+.preference-button { min-height:44px; }
 @media (max-width:900px) {
   .workspace-heading { align-items:flex-start; flex-wrap:wrap; }.sidebar-toggle { display:inline-flex; }
   .workspace-grid { grid-template-columns:1fr; min-height:0; }.conversation-sidebar { display:none; }.sidebar-open .conversation-sidebar { display:block; }.chat-panel { min-height:680px; }

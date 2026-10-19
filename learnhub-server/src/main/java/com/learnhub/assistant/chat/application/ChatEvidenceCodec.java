@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learnhub.assistant.knowledge.KnowledgeRetrievalService;
+import com.learnhub.assistant.memory.PreferenceMemorySource;
+import com.learnhub.assistant.memory.PreferenceSnapshot;
 import com.learnhub.assistant.qa.EvidenceBook;
 import com.learnhub.assistant.tool.AssistantTools;
 import com.learnhub.common.exception.BusinessException;
@@ -12,6 +14,9 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /** sources_json 的唯一有界解析契约：旧材料数组可读，新依赖保留全局 E# 顺序。 */
@@ -21,8 +26,15 @@ public class ChatEvidenceCodec {
     private static final Set<String> SOURCE_FIELDS = Set.of("documentId", "sourceVersion", "chunkId", "courseId",
             "lessonId", "title", "heading", "chunkOrder", "text", "score");
     private final AssistantTools tools;
+    private final ObjectProvider<PreferenceMemorySource> preferences;
 
-    public ChatEvidenceCodec(AssistantTools tools) { this.tools = tools; }
+    public ChatEvidenceCodec(AssistantTools tools) { this(tools, null); }
+
+    @Autowired
+    public ChatEvidenceCodec(AssistantTools tools, ObjectProvider<PreferenceMemorySource> preferences) {
+        this.tools = tools;
+        this.preferences = preferences;
+    }
 
     /** 兼容已有四参 HistoryService 的纯材料测试；结构化历史必须使用生产注入的 codec。 */
     static ChatEvidenceCodec legacyOnly() { return new ChatEvidenceCodec(null); }
@@ -37,8 +49,10 @@ public class ChatEvidenceCodec {
             if ("MATERIAL".equals(dependency.kind())) entry.set("source", JSON.valueToTree(dependency.source()));
             else entry.set("snapshot", dependency.snapshot().deepCopy());
         }
-        var envelope = JSON.createObjectNode().put("version", 1);
+        var preferenceDependencies = book.exportPreferenceDependencies();
+        var envelope = JSON.createObjectNode().put("version", preferenceDependencies.isEmpty() ? 1 : 2);
         envelope.set("entries", entries);
+        if (!preferenceDependencies.isEmpty()) envelope.set("preferences", JSON.valueToTree(preferenceDependencies));
         try {
             String encoded = JSON.writeValueAsString(envelope);
             parse(encoded);
@@ -50,8 +64,19 @@ public class ChatEvidenceCodec {
     public List<KnowledgeRetrievalService.Source> restoreInto(long owner, long courseId, String json,
                                                             EvidenceBook book) {
         if (owner <= 0 || courseId <= 0 || book == null) throw invalid();
+        var parsed = parseEnvelope(json);
+        // 先验证全部偏好，不能丢弃失效的一条后继续复用剩余历史回答。
+        PreferenceMemorySource preferenceSource = parsed.preferences().isEmpty() || preferences == null
+                ? null : preferences.getIfAvailable();
+        for (PreferenceSnapshot preference : parsed.preferences()) {
+            if (preferenceSource == null || !preference.equals(preferenceSource.current(owner, preference.id()))) throw invalid();
+        }
+        for (PreferenceSnapshot preference : parsed.preferences()) {
+            var currentSource = preferenceSource;
+            book.registerPreference(preference, () -> currentSource.current(owner, preference.id()));
+        }
         List<KnowledgeRetrievalService.Source> materials = new ArrayList<>();
-        for (ParsedEntry entry : parse(json)) {
+        for (ParsedEntry entry : parsed.entries()) {
             if ("MATERIAL".equals(entry.kind())) {
                 var source = entry.source();
                 if (source.courseId() == null || !source.courseId().equals(Long.toString(courseId))
@@ -70,6 +95,10 @@ public class ChatEvidenceCodec {
 
     /** 静态解析只校验存储契约；权限、内容和 supplier 均须在 restoreInto 中重建复核。 */
     public static List<ParsedEntry> parse(String json) {
+        return parseEnvelope(json).entries();
+    }
+
+    private static ParsedEvidence parseEnvelope(String json) {
         if (json == null || json.isBlank() || json.length() > 100_000) throw invalid();
         try {
             JsonNode root = JSON.reader().with(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
@@ -77,11 +106,17 @@ public class ChatEvidenceCodec {
             if (root == null) throw invalid();
             boolean legacy = root.isArray();
             JsonNode entries;
+            List<PreferenceSnapshot> preferenceDependencies = List.of();
             if (legacy) entries = root;
             else {
-                fields(root, Set.of("version", "entries"), Set.of("version", "entries"));
+                fields(root, Set.of("version", "entries", "preferences"), Set.of("version", "entries"));
                 if (!root.get("version").isIntegralNumber() || !root.get("version").canConvertToInt()
-                        || root.get("version").intValue() != 1) throw invalid();
+                        || !Set.of(1, 2).contains(root.get("version").intValue())) throw invalid();
+                if (root.get("version").intValue() == 1 && root.has("preferences")) throw invalid();
+                if (root.get("version").intValue() == 2) {
+                    if (!root.has("preferences")) throw invalid();
+                    preferenceDependencies = preferenceSnapshots(root.get("preferences"));
+                }
                 entries = root.get("entries");
             }
             if (!entries.isArray() || entries.size() > 20) throw invalid();
@@ -117,9 +152,35 @@ public class ChatEvidenceCodec {
                 result.add(new ParsedEntry("E" + (result.size() + 1), key, kind, source,
                         snapshot == null ? null : snapshot.deepCopy()));
             }
-            return List.copyOf(result);
+            return new ParsedEvidence(List.copyOf(result), preferenceDependencies);
         } catch (BusinessException failure) { throw failure; }
         catch (Exception malformed) { throw invalid(); }
+    }
+
+    private static List<PreferenceSnapshot> preferenceSnapshots(JsonNode nodes) {
+        if (nodes == null || !nodes.isArray() || nodes.size() > 10) throw invalid();
+        List<PreferenceSnapshot> result = new ArrayList<>();
+        Set<String> identities = new HashSet<>();
+        var names = Set.of("id", "version", "category", "text");
+        for (JsonNode node : nodes) {
+            fields(node, names, names);
+            String id = text(node.get("id"));
+            if (!UUID.fromString(id).toString().equals(id) || !identities.add(id)) throw invalid();
+            JsonNode version = node.get("version");
+            if (!version.isIntegralNumber() || !version.canConvertToLong() || version.longValue() <= 0) throw invalid();
+            String category = text(node.get("category"));
+            if (!Set.of("STYLE", "PACE", "LEVEL", "GOAL").contains(category)) throw invalid();
+            String value = text(node.get("text"));
+            if (value.length() > 200) throw invalid();
+            for (int i = 0; i < value.length(); i++) {
+                char current = value.charAt(i);
+                if (Character.isHighSurrogate(current)) {
+                    if (++i >= value.length() || !Character.isLowSurrogate(value.charAt(i))) throw invalid();
+                } else if (Character.isLowSurrogate(current)) throw invalid();
+            }
+            result.add(new PreferenceSnapshot(id, version.longValue(), category, value));
+        }
+        return List.copyOf(result);
     }
 
     private static KnowledgeRetrievalService.Source source(JsonNode node, boolean full) throws Exception {
@@ -211,4 +272,5 @@ public class ChatEvidenceCodec {
 
     public record ParsedEntry(String evidenceId, String key, String kind,
                               KnowledgeRetrievalService.Source source, JsonNode snapshot) { }
+    private record ParsedEvidence(List<ParsedEntry> entries, List<PreferenceSnapshot> preferences) { }
 }

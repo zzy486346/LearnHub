@@ -2,7 +2,8 @@
 param(
     [string]$MavenPath = 'D:\Android\apache-maven-3.9.10\bin\mvn.cmd',
     [int]$StartupTimeoutSeconds = 120,
-    [switch]$SkipMaven
+    [switch]$SkipMaven,
+    [switch]$IncludeMemory
 )
 
 $ErrorActionPreference = 'Stop'
@@ -73,8 +74,10 @@ try {
         Push-Location -LiteralPath $taskRoot
         try {
             $taskStartedUtc = [DateTime]::UtcNow
+            $taskTests = 'ChatPersistenceIntegrationTest,ChatHistoryServiceTest,ChatConversationServiceTest,ChatToolExecutionInfrastructureIntegrationTest'
+            if ($IncludeMemory) { $taskTests += ',PreferenceMemoryInfrastructureIntegrationTest' }
             & $MavenPath '-pl' 'learnhub-server' '-am' `
-                '-Dtest=ChatPersistenceIntegrationTest,ChatHistoryServiceTest,ChatConversationServiceTest,ChatToolExecutionInfrastructureIntegrationTest' `
+                "-Dtest=$taskTests" "-Dlearnhub.memory.it.enabled=$($IncludeMemory.IsPresent.ToString().ToLowerInvariant())" `
                 '-Dsurefire.failIfNoSpecifiedTests=false' '-Dlearnhub.chat.it.enabled=true' `
                 '-DargLine=-Djdk.net.URLClassPath.disableClassPathURLCheck=true' test
             $taskExitCode = $LASTEXITCODE
@@ -85,9 +88,11 @@ try {
                     'ChatConversationServiceTest' = 5
                     'ChatToolExecutionInfrastructureIntegrationTest' = 8
                 }
+                if ($IncludeMemory) { $taskExpectedReports['PreferenceMemoryInfrastructureIntegrationTest'] = 13 }
                 foreach ($taskTestName in $taskExpectedReports.Keys) {
+                    $taskTestPackage = if ($taskTestName -eq 'PreferenceMemoryInfrastructureIntegrationTest') { 'memory' } else { 'chat' }
                     $taskReportPath = Join-Path $taskRoot `
-                        "learnhub-server\target\surefire-reports\TEST-com.learnhub.assistant.chat.$taskTestName.xml"
+                        "learnhub-server\target\surefire-reports\TEST-com.learnhub.assistant.$taskTestPackage.$taskTestName.xml"
                     $taskReport = Get-Item -LiteralPath $taskReportPath
                     if ($taskReport.LastWriteTimeUtc -lt $taskStartedUtc) { throw "$taskTestName report is stale" }
                     [xml]$taskSuite = Get-Content -LiteralPath $taskReportPath -Raw
