@@ -80,9 +80,9 @@ try {
             $taskExitCode = $LASTEXITCODE
             if ($taskExitCode -eq 0) {
                 $taskExpectedReports = @{
-                    'ChatPersistenceIntegrationTest' = 10
+                    'ChatPersistenceIntegrationTest' = 11
                     'ChatHistoryServiceTest' = 5
-                    'ChatConversationServiceTest' = 4
+                    'ChatConversationServiceTest' = 5
                 }
                 foreach ($taskTestName in $taskExpectedReports.Keys) {
                     $taskReportPath = Join-Path $taskRoot `

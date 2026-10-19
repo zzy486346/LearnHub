@@ -2,6 +2,7 @@ package com.learnhub.assistant.chat.application;
 
 import com.learnhub.assistant.model.AiProperties;
 import com.learnhub.assistant.runtime.AssistantRunGuard;
+import com.learnhub.assistant.qa.EvidenceBook;
 import com.learnhub.common.exception.BusinessException;
 import com.learnhub.course.service.CourseService;
 import java.nio.charset.StandardCharsets;
@@ -64,8 +65,18 @@ public class ChatConversationService {
     }
 
     public ChatPersistenceService.Run commitFake(long owner, ChatPersistenceService.Run stored, String response) {
-        history.require(owner, stored.conversationId());
-        if (!persistence.complete(owner, stored.id(), stored.leaseOwner(), response, "[]", "{}"))
+        return commitAnswer(owner, stored, response, "[]", "{}");
+    }
+
+    public ChatPersistenceService.Run commitAnswer(long owner, ChatPersistenceService.Run stored, String response,
+                                                  String sourcesJson, String usageJson) {
+        var conversation = history.require(owner, stored.conversationId());
+        if (!"[]".equals(sourcesJson)) {
+            var checked = history.verify(owner, conversation.courseId(), new ChatPersistenceService.Message(
+                    "pending", 0, "ASSISTANT", response, "COMPLETED", stored.id(), sourcesJson));
+            if (checked.restricted()) throw new BusinessException("ASSISTANT_EVIDENCE_CHANGED", "资料或权限已变化，本次回答已废弃");
+        }
+        if (!persistence.complete(owner, stored.id(), stored.leaseOwner(), response, sourcesJson, usageJson))
             throw new BusinessException("ASSISTANT_CANCELLED", "本次会话运行已终止");
         return new ChatPersistenceService.Run(stored.id(), stored.conversationId(), stored.ownerUserId(),
                 stored.clientRequestId(), "COMPLETED", null, stored.message());
@@ -73,5 +84,15 @@ public class ChatConversationService {
 
     public List<ChatPersistenceService.Conversation> list(long owner, int offset, int limit) {
         return persistence.conversations(owner, offset, limit);
+    }
+
+    /** 来源真正发送前重新获取当前授权的引用，提交终态不受本次发送失败影响。 */
+    public List<EvidenceBook.Citation> confirmedSources(long owner, ChatPersistenceService.Run stored,
+                                                      String response, String sourcesJson) {
+        var conversation = history.require(owner, stored.conversationId());
+        var checked = history.verify(owner, conversation.courseId(), new ChatPersistenceService.Message(
+                "confirmed", 0, "ASSISTANT", response, "COMPLETED", stored.id(), sourcesJson));
+        if (checked.restricted()) throw new BusinessException("ASSISTANT_EVIDENCE_CHANGED", "资料或权限已变化，本次回答已废弃");
+        return checked.sources();
     }
 }

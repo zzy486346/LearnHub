@@ -59,4 +59,16 @@ class ChatConversationServiceTest {
         service.start(7, "conversation", "request", "hi", Duration.ofSeconds(45));
         verify(history).require(7, "conversation");
     }
+
+    @Test void sourceDeliveryUsesFreshVerificationAndRejectsRestrictedEvidence() {
+        when(history.require(7, "conversation")).thenReturn(new ChatPersistenceService.Conversation("conversation", 7, 1, "Redis", 1));
+        var citation = new com.learnhub.assistant.qa.EvidenceBook.Citation("E1", "MATERIAL", "1", "2", "9", 1, "11", "当前标题", "", "当前摘要", null);
+        when(history.verify(eq(7L), eq(1L), any())).thenReturn(new ChatHistoryService.HistoryMessage(
+                "confirmed", 0, "ASSISTANT", "答案", "COMPLETED", "run", List.of(citation), false));
+        assertThat(service.confirmedSources(7, stored, "答案", "[]")).containsExactly(citation);
+        when(history.verify(eq(7L), eq(1L), any())).thenReturn(new ChatHistoryService.HistoryMessage(
+                "confirmed", 0, "ASSISTANT", "", "COMPLETED", "run", List.of(), true));
+        assertThatThrownBy(() -> service.confirmedSources(7, stored, "答案", "[]"))
+                .hasMessageContaining("资料或权限已变化");
+    }
 }

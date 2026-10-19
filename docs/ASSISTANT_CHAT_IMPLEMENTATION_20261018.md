@@ -4,7 +4,7 @@
 
 接手时分支为 `feature/assistant-rag-agent`，HEAD 为 `73a1764`，工作区干净。已阅读根目录 `AGENT.md` 和分阶段计划，不升级 JDK 17 / Boot 3.3.5，不合并主干。
 
-阶段 0 隔离工程提交 `5042eb9`，8 项 HTTP Mock / Spring 手工 Bean 测试全部通过；依赖、工具回合和取消边界见 [实验报告](../experiments/langchain4j-compat/README.md)。`74ccb8d` 修正文档措辞：未读取凭据不能推断本机缺少凭据。生产 POM 尚未引入 LangChain4j。
+阶段 0 隔离工程提交 `5042eb9`，8 项 HTTP Mock / Spring 手工 Bean 测试全部通过；依赖、工具回合和取消边界见 [实验报告](../experiments/langchain4j-compat/README.md)。`74ccb8d` 修正文档措辞：未读取凭据不能推断本机缺少凭据。生产依赖在阶段 3 引入。
 
 取消补实验提交 `458540e`：自定义有界 JDK HTTP SPI 同时覆盖首字前、首字后及同步响应头后取消。隔离工程重新 `clean verify`：14 项、0 失败/错误/跳过。SDK 自身的句柄限制仍存在；生产必须接入自定义传输与运行硬截止，不能只设置请求超时。
 
@@ -60,6 +60,34 @@ D:\Android\apache-maven-3.9.10\bin\mvn.cmd '-DargLine=-Djdk.net.URLClassPath.dis
 - 本次浏览器、Vite/Mock Node 及其子进程已精确清理，5178/5179 已无监听。键盘全路径与真实数据库 HTTP 重启演示留到系统验收，不把鼠标/组件测试称作完整键盘验证。
 - 阶段 2 没有真实模型请求，Fake 分块仅验证传输协议和界面。
 
+## 阶段 3：LangChain4j 流式与有界上下文
+
+生产 POM 使用 LangChain4j BOM 1.22.0 的普通 Java 模块，Spring 手工装配，不使用 Starter、不升级 JDK 17 / Boot 3.3.5。新路径由 `LEARNHUB_ASSISTANT_LANGCHAIN_ENABLED=true` 与 `LEARNHUB_AI_MODE=DEEPSEEK` 联合启用；聊天入口仍需要 `LEARNHUB_ASSISTANT_CHAT_ENABLED=true`。密钥沿用本地 `LEARNHUB_DEEPSEEK_API_KEY`，生产地址固定 DeepSeek 官方 API。旧课程卡片同步客户端暂作迁移对照，尚未移除。
+
+每次从 MySQL 正式历史选取最近两轮完整问答，整条复核来源后放入请求独享的 `MessageWindowChatMemory`；窗口淘汰不删正式历史。移除历史旧引用编号，再将历史依赖与当前 BM25 来源加入本轮证据账本。历史依赖超过证据上限时整轮排除，不能保留正文却丢弃依赖。来源去重忽略检索 score，仍比较稳定字段；材料移课也会使旧引用失效。
+
+流式直接消费 `OpenAiStreamingChatModel` 回调，使用普通正文及 `[E1]` 段末标记，终态检查结束原因、完整文本一致性、引用存在、段末引用、外链和 4000 字符上限。暂不把旧整段 JSON 输出协议用于增量正文。首批立即转发，随后至多缓存 100ms 或约 256 字符再执行授权/版本检查；回调队列有界，不在供应商回调线程做 JDBC。最终提交仍重新核对本人会话、材料与运行状态。正式来源事件发送前再次核对登录、本人会话和证据，使用本次复核返回的引用；若提交后撤权，清空草稿且不发送来源/成功事件，不把已提交的数据库终态降级。
+
+生产 HTTP SPI 复用应用级 JDK HttpClient，网络池与阻塞流读取池分别有界；每个运行仅借用独立的 operation，取消 A 不会关闭 B。应用关闭时清理两个池。`AssistantIoScope` 取消绑定到 HTTP future/响应流，首字前也可取消，限制成功/错误响应字节和队列。JDK 17 的底层 selector 没有公开 close 方法，本实现限制为每个生成器实例一个，而不是每次运行新建。模型请求禁用原始日志、隐藏推理与自动付费重试；每次请求前持久化保守预留，收到完整 usage 后记录实际值。缺 usage、断流、取消均不提交成功答案，未知用量保留预留。
+
+实际验证：阶段 3 定向 25 项通过，随后追加严格请求解析/包装 HTTP 错误回归的模型 7 项通过；最终根 `mvn verify` 360 项，失败 0、错误 0、跳过 69。隔离 MySQL 专项 21 项全部通过（持久化 11、历史 5、会话 5），新增测试证明取消后的预留记录不被迟到 usage 覆盖，临时容器已清理。普通回归中的 MySQL 11 项与真实模型 1 项默认跳过，分别已通过隔离脚本和下述受控烟测执行；其余基础设施跳过保持原有开关。最终 JAR 中 Jackson 统一 2.17.2，LangChain4j 普通模块 1.22.0，响应式模块 1.22.0-beta32。
+
+### 2026-10-19 有限真实烟测
+
+自动审批最初要求明确批准测试载荷外传和付费；用户随后明确授权本批最多 3 次、12000 预留 Token、每次最多 512 输出 Token。实际将输出进一步下调为 256。运行脚本 `scripts/assistant/verify-langchain-live.ps1` 仅读本地凭据，未打印/提交密钥。
+
+本批累计 3 次模型请求、11592 Token 预留，台账位于被忽略的 `.local/langchain-phase3-live-ledger.json`，不会重置或自动重试：
+
+| 场景 | 结果 | 首批延迟 | delta 批数 | 实际 usage |
+| --- | --- | --- | --- | --- |
+| 首次问答 | 失败 `AI_MODEL_UNAVAILABLE`，无增量 | 无 | 0 | 未知，保留预留 |
+| 修复后代词追问 | 完成 | 1656 ms | 3 | 输入 293、输出 31、合计 324 |
+| 首字后取消 | `ASSISTANT_CANCELLED`，不返回成功答案 | 455 ms | 1 | 未知，保留预留 |
+
+首次失败后通过严格 Mock 请求解析发现 SDK 内建与手工扩展重复输出 `stream_options`；删除重复扩展，保留 SDK 自带 `include_usage=true`，7 项模型回归通过。首次请求的原始状态未保留，不推定其实际计费为零。SDK 会包装 HTTP 错误，现已沿 cause 链分类 400/401/404/429/5xx，响应正文和原始异常不发给客户端。
+
+修复后只用剩余两次额度执行 `-HistoryFixture`：追问的上一轮是明确预置、来源重验成功的受控历史，未重新发送首次失败的问题。此结果证明真实适配器能读取有界历史、产生多个增量并取消上游；不是三轮真实模型连续对话，也不是实际 MySQL/ES/登录浏览器联合验收。课程、权限与历史均为测试 fixture；真实浏览器多 delta/持久化重启验收仍列入阶段 8。本批额度已满，不应删除台账重复执行；取消和失败的未知 usage 不能计为零。
+
 ## 未完成与验收边界
 
-阶段 3～8 仍待实施/验收：真实模型流式、生产 LangChain4j / ChatMemory、框架文档切分与授权检索、Embedding / pgvector、框架自主工具循环、Mem0，以及独立质量评测。已有旧 DeepSeek / Agent 的真实结果不充当新链路验收结果。
+阶段 3 浏览器联合验收及阶段 4～8 仍待完成：框架文档切分与授权检索、Embedding / pgvector、框架自主工具循环、Mem0，以及独立质量评测。已有旧 DeepSeek / Agent 的真实结果不充当新链路验收结果。

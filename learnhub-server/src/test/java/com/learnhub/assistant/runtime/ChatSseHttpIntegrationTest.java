@@ -131,6 +131,22 @@ class ChatSseHttpIntegrationTest {
         assertThat(state).hasValue("CANCELLED"); assertThat(answer).hasValue(null);
     }
 
+    @Test void revocationAfterCommitSuppressesSourcesAndFinalWithoutDowngradingDatabase() throws Exception {
+        when(persistence.complete(eq(7L), anyString(), anyString(), anyString(), anyString(), anyString()))
+                .thenAnswer(call -> {
+                    boolean changed = state.compareAndSet("RUNNING", "COMPLETED");
+                    if (changed) answer.set(call.getArgument(3));
+                    doThrow(new BusinessException("COURSE_NOT_FOUND", "课程受限"))
+                            .when(courses).requireAvailable(1L, 7L);
+                    return changed;
+                });
+        var response = client.send(sendRequest(UUID.randomUUID().toString(), 7, "解释缓存"), HttpResponse.BodyHandlers.ofString());
+        assertThat(response.body()).contains("event:delta", "event:error", "\"clearDraft\":true")
+                .doesNotContain("event:sources", "event:final");
+        assertThat(state).hasValue("COMPLETED");
+        verify(persistence, never()).fail(anyLong(), anyString(), anyString(), anyString());
+    }
+
     @Test void revokedIdentityDuringStreamReturnsStructuredErrorAndDiscardsDraft() throws Exception {
         var response = client.send(sendRequest(UUID.randomUUID().toString(), 7, "解释".repeat(200)), HttpResponse.BodyHandlers.ofInputStream());
         try (var reader = new BufferedReader(new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
@@ -144,9 +160,18 @@ class ChatSseHttpIntegrationTest {
     }
 
     @Test void disconnectCancelsRunAndDoesNotPersistDraft() throws Exception {
-        var response = client.send(sendRequest(UUID.randomUUID().toString(), 7, "解释".repeat(200)), HttpResponse.BodyHandlers.ofInputStream());
-        try (var reader = new BufferedReader(new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
-            readUntilDelta(reader);
+        // BodyHandler.close可能排空短响应后复用连接；RST才能确定模拟服务端可观测的断连。
+        byte[] body = mapper.writeValueAsBytes(Map.of("message", "解释".repeat(200), "clientRequestId", UUID.randomUUID().toString()));
+        try (var socket = new java.net.Socket("127.0.0.1", port)) {
+            socket.setSoTimeout(5000);
+            socket.setSoLinger(true, 0);
+            String headers = "POST /api/assistant/conversations/" + conversation + "/runs HTTP/1.1\r\n"
+                    + "Host: 127.0.0.1:" + port + "\r\nAuthorization: Bearer fixture-7\r\n"
+                    + "Content-Type: application/json\r\nContent-Length: " + body.length + "\r\n\r\n";
+            socket.getOutputStream().write(headers.getBytes(StandardCharsets.US_ASCII));
+            socket.getOutputStream().write(body);
+            socket.getOutputStream().flush();
+            readUntilDelta(new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8)));
         }
         long deadline = System.nanoTime() + Duration.ofSeconds(3).toNanos();
         while ("RUNNING".equals(state.get()) && System.nanoTime() < deadline) Thread.sleep(20);

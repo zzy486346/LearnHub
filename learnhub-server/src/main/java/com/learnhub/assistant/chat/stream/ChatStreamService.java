@@ -3,6 +3,8 @@ package com.learnhub.assistant.chat.stream;
 import com.learnhub.assistant.chat.api.ChatController.RunStatus;
 import com.learnhub.assistant.chat.application.*;
 import com.learnhub.assistant.model.AiProperties;
+import com.learnhub.assistant.chat.model.LangChainChatGenerator;
+import com.learnhub.assistant.chat.model.LangChainChatGenerator.PreparedAnswer;
 import com.learnhub.assistant.runtime.*;
 import com.learnhub.common.api.ApiResponse;
 import com.learnhub.common.exception.BusinessException;
@@ -11,6 +13,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -23,14 +26,17 @@ public class ChatStreamService {
     private final AssistantExecutionManager executions;
     private final AssistantLimits limits;
     private final AiProperties properties;
+    private final ObjectProvider<LangChainChatGenerator> models;
     private final ScheduledExecutorService heartbeats = Executors.newSingleThreadScheduledExecutor(task -> {
         var thread = new Thread(task, "assistant-stream-heartbeat"); thread.setDaemon(true); return thread;
     });
 
     public ChatStreamService(ChatConversationService conversations, ChatPersistenceService persistence,
-            ChatHistoryService history, AssistantExecutionManager executions, AssistantLimits limits, AiProperties properties) {
+            ChatHistoryService history, AssistantExecutionManager executions, AssistantLimits limits, AiProperties properties,
+            ObjectProvider<LangChainChatGenerator> models) {
         this.conversations = conversations; this.persistence = persistence; this.history = history;
         this.executions = executions; this.limits = limits; this.properties = properties;
+        this.models = models;
     }
 
     public SseEmitter open(long owner, String conversationId, String requestId, String message, Runnable identity) {
@@ -60,6 +66,13 @@ public class ChatStreamService {
         };
             var result = executions.submitCommitting(owner, stored.id(), checkpoint, run -> {
                 reply.send("status", Map.of("stage", "context"));
+                if (properties.resolvedMode() != AiProperties.Mode.FAKE) {
+                    var model = models.getIfAvailable();
+                    if (model == null || properties.resolvedMode() != AiProperties.Mode.DEEPSEEK)
+                        throw new BusinessException("AI_DISABLED", "真实流式模型尚未启用");
+                    reply.send("status", Map.of("stage", "generating", "modelMode", "DEEPSEEK"));
+                    return model.prepare(owner, stored, run, text -> reply.send("delta", Map.of("text", text)));
+                }
                 String prepared = conversations.prepareFake(owner, stored, run);
                 reply.send("status", Map.of("stage", "generating", "modelMode", "FAKE"));
                 for (int offset = 0; offset < prepared.length();) {
@@ -75,17 +88,29 @@ public class ChatStreamService {
                         throw new BusinessException("ASSISTANT_CANCELLED", "本次会话运行已取消");
                     }
                 }
-                return prepared;
+                return new PreparedAnswer(prepared, "[]", "{}", List.of(), "FAKE");
             }, (run, prepared) -> {
                 reply.checkOpen();
-                var completed = conversations.commitFake(owner, stored, prepared);
-                return new RunStatus(completed.id(), completed.conversationId(), completed.status());
+                var completed = conversations.commitAnswer(owner, stored, prepared.text(), prepared.sourcesJson(), prepared.usageJson());
+                return new CommittedReply(new RunStatus(completed.id(), completed.conversationId(), completed.status()),
+                        prepared.text(), prepared.sourcesJson());
             });
             result.setResultHandler(value -> {
                 if (value instanceof ResponseEntity<?> response && response.getBody() instanceof ApiResponse<?> body
                         && "OK".equals(body.code())) {
-                    reply.send("sources", Map.of("sources", List.of()));
-                    reply.finish("final", Map.of("status", "COMPLETED"));
+                    try {
+                        identity.run();
+                        if (!(body.data() instanceof CommittedReply committed))
+                            throw new IllegalStateException("missing committed chat reply");
+                        var sources = conversations.confirmedSources(owner, stored, committed.text(), committed.sourcesJson());
+                        reply.send("sources", Map.of("sources", sources));
+                        reply.finish("final", Map.of("status", "COMPLETED"));
+                    } catch (RuntimeException unavailable) {
+                        // 正式终态已提交；不把COMPLETED改成FAILED。前端清稿，历史接口照常复核后返回。
+                        String code = unavailable instanceof BusinessException business
+                                ? business.getCode() : "ASSISTANT_UNAVAILABLE";
+                        reply.finish("error", Map.of("code", code, "message", "会话权限或来源无法确认，请刷新历史", "clearDraft", true));
+                    }
                 } else {
                     String code = "ASSISTANT_UNAVAILABLE";
                     String errorMessage = "学习助理暂时不可用";
@@ -106,6 +131,8 @@ public class ChatStreamService {
     }
 
     @PreDestroy public void close() { heartbeats.shutdownNow(); }
+
+    private record CommittedReply(RunStatus run, String text, String sourcesJson) { }
 
     private final class Reply {
         final long owner;

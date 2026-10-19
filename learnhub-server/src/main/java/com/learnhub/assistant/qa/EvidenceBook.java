@@ -59,6 +59,7 @@ public final class EvidenceBook {
             for (var source : materials.values()) {
                 var chunk = current.get(Long.parseLong(source.chunkId()));
                 if (chunk == null || chunk.courseId() != courseId || !readable.contains(chunk.lessonId())
+                        || chunk.lessonId() != Long.parseLong(source.lessonId())
                         || chunk.documentId() != Long.parseLong(source.documentId())
                         || chunk.sourceVersion() != source.sourceVersion()
                         || !Objects.equals(chunk.content(), source.text()) || !Objects.equals(chunk.title(), source.title())

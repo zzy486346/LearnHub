@@ -51,6 +51,7 @@ mybatis-plus:
 learnhub:
   assistant:
     chat-enabled: ${LEARNHUB_ASSISTANT_CHAT_ENABLED:false}
+    langchain-enabled: ${LEARNHUB_ASSISTANT_LANGCHAIN_ENABLED:false}
     timeout: ${LEARNHUB_ASSISTANT_TIMEOUT:PT45S}
     max-model-calls: ${LEARNHUB_ASSISTANT_MAX_MODEL_CALLS:4}
     max-tool-decision-rounds: ${LEARNHUB_ASSISTANT_MAX_TOOL_ROUNDS:3}

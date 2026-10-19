@@ -232,6 +232,17 @@ public class ChatPersistenceService {
         }));
     }
 
+    /** 模型发送前保存累计预留；进程中断后也不能把未知usage记作零成本。 */
+    public void recordUsage(long owner, String runId, String leaseOwner, String usageJson) {
+        String usage = normalizeJsonObject(usageJson, "模型用量");
+        int changed = jdbc.update("""
+                UPDATE assistant_run SET usage_json = ?
+                WHERE id = ? AND owner_user_id = ? AND status = 'RUNNING'
+                  AND lease_owner = ? AND lease_expires_at > CURRENT_TIMESTAMP(3)
+                """, usage, requiredId(runId), owner, leaseOwner);
+        if (changed != 1) throw new BusinessException("ASSISTANT_CANCELLED", "运行已停止，不能继续调用模型");
+    }
+
     public boolean fail(long owner, String runId, String status, String errorCode) {
         String terminal = requiredTerminal(status);
         return Boolean.TRUE.equals(transactions.execute(tx -> {

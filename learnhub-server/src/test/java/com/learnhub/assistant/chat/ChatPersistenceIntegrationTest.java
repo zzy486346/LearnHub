@@ -227,6 +227,21 @@ class ChatPersistenceIntegrationTest {
     }
 
     @Test
+    void reservedUsageSurvivesFailureAndLateUsageCannotReplaceTerminalRecord() {
+        var conversation = service.createConversation(OWNER_A, COURSE_ID, "预留用量");
+        var started = service.start(OWNER_A, conversation.id(), "usage-request", "缓存击穿", Duration.ofSeconds(30));
+        service.recordUsage(OWNER_A, started.run().id(), started.run().leaseOwner(),
+                "{\"reservedTokens\":2048,\"usageComplete\":false}");
+        assertThat(jdbc.queryForObject("SELECT JSON_EXTRACT(usage_json, '$.reservedTokens') FROM assistant_run WHERE id = ?",
+                Integer.class, started.run().id())).isEqualTo(2048);
+        service.cancel(OWNER_A, started.run().id());
+        assertBusinessCode("ASSISTANT_CANCELLED", () -> service.recordUsage(OWNER_A, started.run().id(),
+                started.run().leaseOwner(), "{\"reservedTokens\":0}"));
+        assertThat(jdbc.queryForObject("SELECT JSON_EXTRACT(usage_json, '$.reservedTokens') FROM assistant_run WHERE id = ?",
+                Integer.class, started.run().id())).isEqualTo(2048);
+    }
+
+    @Test
     void completionRequiresLeaseOwnerAndPersistsOnlyCompletedAssistantMessage() throws Exception {
         var conversation = service.createConversation(OWNER_A, COURSE_ID, "完成");
         var started = service.start(OWNER_A, conversation.id(), "client-complete", "解释缓存击穿", Duration.ofSeconds(30));
