@@ -245,13 +245,23 @@ class VectorProjectionInfrastructureIntegrationTest {
 
     @Test
     void frozenDevelopmentSetComparesBm25AndHybridSourceRecallWithoutModelApi() throws Exception {
+        evaluateFrozenSet("docs/assistant-retrieval-development.json", "DEVELOPMENT", 8);
+    }
+
+    @Test
+    void frozenThirtyQuestionHoldoutMeasuresRetrievalAndAuthorizationWithoutModelApi() throws Exception {
+        evaluateFrozenSet("docs/assistant-retrieval-holdout-20261019.json", "HOLDOUT", 30);
+    }
+
+    private void evaluateFrozenSet(String fixture, String split, int expectedCases) throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         JsonNode catalog = mapper.readTree(Files.readString(projectFile("scripts/course-media/catalog.json")));
         JsonNode mapping = mapper.readTree(Files.readString(projectFile("scripts/assistant/stage-a-mapping.json")));
-        JsonNode development = mapper.readTree(Files.readString(projectFile("docs/assistant-retrieval-development.json")));
+        byte[] frozenBytes = Files.readAllBytes(projectFile(fixture));
+        JsonNode development = mapper.readTree(frozenBytes);
         assertThat(mapping.path("reviewed").asBoolean()).isTrue();
-        assertThat(development.path("split").asText()).isEqualTo("DEVELOPMENT");
-        assertThat(development.withArray("cases").size()).isEqualTo(8);
+        assertThat(development.path("split").asText()).isEqualTo(split);
+        assertThat(development.withArray("cases").size()).isEqualTo(expectedCases);
 
         Map<String, DevelopmentCourse> courses = new LinkedHashMap<>();
         Map<String, List<JsonNode>> grouped = new LinkedHashMap<>();
@@ -307,28 +317,37 @@ class VectorProjectionInfrastructureIntegrationTest {
                 List<Map<String, Object>> rows = new ArrayList<>();
                 for (JsonNode testCase : development.withArray("cases")) {
                     DevelopmentCourse course = courses.get(testCase.path("courseId").asText());
+                    long owner = testCase.path("owner").asLong(7);
+                    boolean denied = testCase.path("denyAccess").asBoolean() || owner != 7;
+                    when(permissions.readableLessonIds(owner, course.id())).thenReturn(
+                            denied ? List.of() : List.copyOf(course.lessons().values()));
                     rows.add(measureDevelopmentCase("BM25", bm25, testCase, course));
                     rows.add(measureDevelopmentCase("HYBRID", hybrid, testCase, course));
                 }
                 Map<String, Object> report = new LinkedHashMap<>();
                 report.put("schemaVersion", 1);
-                report.put("split", "DEVELOPMENT");
-                report.put("metricBoundary", "SOURCE_RECALL_PROXY_NOT_ANSWER_SUPPORT_OR_HOLDOUT");
+                report.put("split", split);
+                report.put("fixtureSha256", java.util.HexFormat.of().formatHex(
+                        java.security.MessageDigest.getInstance("SHA-256").digest(frozenBytes)));
+                report.put("metricBoundary", "SOURCE_RECALL_PROXY_NOT_GENERATED_ANSWER_QUALITY; PERMISSIONS_MOCK; MYSQL_ES_PG_BGE_REAL");
+                report.put("supplierCalls", 0);
+                report.put("embeddingModel", BgeChineseEmbedding.MODEL_ID);
                 report.put("projectionEmbeddingCount", projectionEmbeddings);
                 report.put("cases", rows);
                 report.put("summary", List.of(developmentSummary("BM25", rows), developmentSummary("HYBRID", rows)));
-                Path directory = Path.of("target", "vector-development");
+                Path directory = Path.of("target", "vector-evaluation");
                 Files.createDirectories(directory);
-                Path reportPath = directory.resolve("stage5-vector-development-" + UUID.randomUUID() + ".json");
+                Path reportPath = directory.resolve(split.toLowerCase(java.util.Locale.ROOT) + "-" + UUID.randomUUID() + ".json");
                 Files.writeString(reportPath, mapper.writerWithDefaultPrettyPrinter().writeValueAsString(report),
                         java.nio.file.StandardOpenOption.CREATE_NEW);
-                System.out.println("STAGE5_DEV_REPORT " + reportPath.toAbsolutePath());
-                System.out.println("STAGE5_DEV_SUMMARY " + mapper.writeValueAsString(report.get("summary")));
+                System.out.println("FROZEN_RETRIEVAL_REPORT " + reportPath.toAbsolutePath());
+                System.out.println("FROZEN_RETRIEVAL_SUMMARY " + split + " " + mapper.writeValueAsString(report.get("summary")));
                 // 首次实际分数先保存，再断言权限边界；不要求混合召回一定优于 BM25。
                 assertThat(rows).allSatisfy(row -> {
                     assertThat(row.get("scopeViolationCount")).isEqualTo(0L);
                     assertThat(row.get("forbiddenSourceCount")).isEqualTo(0L);
-                    assertThat(row.get("actualMode")).isEqualTo(row.get("mode"));
+                    assertThat(row.get("authorizationViolationCount")).isEqualTo(0L);
+                    assertThat(row.get("actualMode")).isEqualTo(Boolean.TRUE.equals(row.get("accessDenied")) ? "NONE" : row.get("mode"));
                 });
             } finally {
                 gateway.deleteOwnedIndex();
@@ -340,7 +359,9 @@ class VectorProjectionInfrastructureIntegrationTest {
                                                        JsonNode testCase, DevelopmentCourse course) {
         long beforeEmbeddings = embedding.embeddingCount();
         long started = System.nanoTime();
-        var result = retrieval.retrieve(7L, course.id(), testCase.path("query").asText(), 5);
+        long owner = testCase.path("owner").asLong(7);
+        boolean denied = testCase.path("denyAccess").asBoolean() || owner != 7;
+        var result = retrieval.retrieve(owner, course.id(), testCase.path("query").asText(), 5);
         long elapsed = System.nanoTime() - started;
         List<String> actualKeys = result.sources().stream().map(source -> mysql.queryForObject(
                 "SELECT source_key FROM knowledge_document WHERE id = ?", String.class,
@@ -353,6 +374,10 @@ class VectorProjectionInfrastructureIntegrationTest {
         row.put("caseId", testCase.path("id").asText());
         row.put("mode", mode);
         row.put("actualMode", result.retrievalMode());
+        row.put("category", testCase.path("category").asText());
+        row.put("owner", owner);
+        row.put("accessDenied", denied);
+        row.put("authorizationViolationCount", denied ? (long) result.sources().size() : 0L);
         row.put("answerable", answerable);
         row.put("recallAt5", answerable && !expected.isEmpty() ? (double) matched / expected.size() : null);
         row.put("returnedChunkCount", result.sources().size());

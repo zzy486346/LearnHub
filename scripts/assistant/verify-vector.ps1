@@ -59,7 +59,7 @@ try {
             '-DargLine=-Djdk.net.URLClassPath.disableClassPathURLCheck=true' test
         $taskExitCode = $LASTEXITCODE
         if ($taskExitCode -eq 0) {
-            $taskRequired = @{ CourseVectorInfrastructureIntegrationTest = 4; BgeChineseEmbeddingTest = 3; VectorProjectionInfrastructureIntegrationTest = 7 }
+            $taskRequired = @{ CourseVectorInfrastructureIntegrationTest = 4; BgeChineseEmbeddingTest = 3; VectorProjectionInfrastructureIntegrationTest = 8 }
             foreach ($taskClass in $taskRequired.Keys) {
                 $taskReport = Get-Item -LiteralPath (Join-Path $taskRoot "learnhub-server/target/surefire-reports/TEST-com.learnhub.assistant.knowledge.vector.$taskClass.xml")
                 [xml]$taskSuite = Get-Content -LiteralPath $taskReport.FullName -Raw

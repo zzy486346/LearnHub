@@ -54,7 +54,7 @@ async function mount(overrides = {}) {
   const source = (await readFile(new URL('../src/views/AssistantChatView.vue', import.meta.url), 'utf8'))
     .replace('</script>', `defineExpose({
       question, sendQuestion, stopGeneration, activeConversation, sending, draftText,
-      retryQuestion, unknownRequest, messages, conversations, activeRunId
+      retryQuestion, unknownRequest, messages, conversations, activeRunId, preferencesOpen
     })\n</script>`)
   const compiled = compileScript(parse(source).descriptor, { id: 'chat-workspace-test' }).content
     .replace(/from ['"]vue['"]/g, `from ${JSON.stringify(vueUrl)}`)
@@ -66,6 +66,7 @@ async function mount(overrides = {}) {
     .replace(/import \{ AUTH_SESSION_CLEARED_EVENT, AUTH_SESSION_REPLACED_EVENT \} from ['"]@\/api\/http['"]/,
       "const AUTH_SESSION_CLEARED_EVENT='learnhub:auth-session-cleared', AUTH_SESSION_REPLACED_EVENT='learnhub:auth-session-replaced'")
     .replace(/import \{ useAuthStore \} from ['"]@\/stores\/auth['"]/, 'const { useAuthStore } = globalThis.chatWorkspaceHarness')
+    .replace(/import PreferenceMemoryDialog from ['"]@\/components\/PreferenceMemoryDialog.vue['"]/, 'const PreferenceMemoryDialog = { render: () => null }')
   const code = ts.transpileModule(compiled, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
   }).outputText
@@ -89,9 +90,11 @@ test('账户切换同步中止旧流并丢弃迟到增量', async () => {
     stream.onEvent({ type: 'accepted', payload: { runId: 'r-old', eventId: 'e1', seq: 1 } })
     stream.onEvent({ type: 'delta', payload: { runId: 'r-old', eventId: 'e2', seq: 2, text: '旧内容' } })
     assert.equal(app.view.draftText, '旧内容')
+    app.view.preferencesOpen = true
     app.auth.user = { id: 8 }
     assert.equal(stream.signal.aborted, true)
     assert.equal(app.view.draftText, '')
+    assert.equal(app.view.preferencesOpen, false)
     stream.onEvent({ type: 'delta', payload: { runId: 'r-old', eventId: 'e3', seq: 3, text: '迟到内容' } })
     assert.equal(app.view.draftText, '')
     release(); await pending
