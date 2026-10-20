@@ -56,9 +56,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 /** 所有 HTTP 均限制到本机随机端口，实际 SDK 与实际严格工具包装器共同运行。 */
 @Timeout(15)
@@ -171,6 +174,80 @@ class LangChainToolChatGeneratorTest {
         String request = server.requests.get(1);
         assertThat(request).contains("tool_call_id", "positionSeconds", "30", "互斥锁重建", "get_my_learning_progress");
         assertThat(request).doesNotContain("900", "local_mock_only");
+    }
+
+    @Test void wireToolSchemaPreservesIntegerBoundsDefaultAndRequiredFields() throws Exception {
+        server.enqueue(Script.answer(List.of("{\"insufficientEvidence\":false,\"answerSegments\":[" + fact() + "]}"), true, null));
+        prepare(ignored -> { }, ignored -> { });
+        var request = mapper.readTree(server.requests.get(0));
+        assertThat(request.path("tools")).hasSize(4);
+        int checked = 0;
+        for (var tool : request.path("tools")) {
+            var parameters = tool.path("function").path("parameters");
+            // DeepSeek 非 strictTools 模式下 SDK 不发送 additionalProperties，服务端仍拒绝额外字段。
+            assertThat(parameters.path("required").isArray()).isTrue();
+            var limit = parameters.path("properties").path("limit");
+            if (!limit.isMissingNode()) {
+                assertThat(limit.path("type").asText()).isEqualTo("integer");
+                assertThat(limit.path("minimum").asInt()).isEqualTo(1);
+                assertThat(limit.path("maximum").asInt()).isEqualTo(5);
+                assertThat(limit.path("default").asInt()).isEqualTo(3);
+                checked++;
+            }
+        }
+        assertThat(checked).isEqualTo(2);
+    }
+
+    @Test @ExtendWith(OutputCaptureExtension.class)
+    void invalidLimitIsRejectedBeforeExecutionAndLogsOnlySafeDiagnostics(
+            CapturedOutput output) {
+        String privateQuery = "PRIVATE_TOOL_QUERY_NEVER_LOG";
+        String arguments = "{\"courseId\":\"1\",\"query\":\"" + privateQuery + "\",\"limit\":10}";
+        server.enqueue(Script.tools(true, new ToolCall("bad", "search_course_materials", arguments)));
+        assertThatThrownBy(() -> prepare(ignored -> fail("不能显示草稿"), ignored -> fail("不能执行工具")))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("未通过校验");
+        verifyNoInteractions(executions);
+        assertThat(server.requests).hasSize(1);
+        assertThat(output.getAll()).contains("requestId=tool-run", "tool=search_course_materials",
+                "field=limit", "reason=OUT_OF_RANGE").doesNotContain(privateQuery, arguments);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"missing", "extra", "scope", "unknown", "malformed", "type"})
+    @ExtendWith(OutputCaptureExtension.class)
+    void rejectionDiagnosticsNeverEchoModelSuppliedNamesOrValues(String invalidCase,
+            CapturedOutput output) {
+        String name = "unknown".equals(invalidCase) ? "PRIVATE_UNKNOWN_TOOL" : "search_course_materials";
+        String arguments = switch (invalidCase) {
+            case "missing" -> "{\"courseId\":\"1\"}";
+            case "extra" -> "{\"courseId\":\"1\",\"query\":\"PRIVATE_QUERY\",\"PRIVATE_FIELD\":true}";
+            case "scope" -> "{\"courseId\":\"999\",\"query\":\"PRIVATE_QUERY\"}";
+            case "malformed" -> "{\"query\":\"PRIVATE_QUERY\"";
+            case "type" -> "{\"courseId\":\"1\",\"query\":\"PRIVATE_QUERY\",\"limit\":\"3\"}";
+            default -> "{}";
+        };
+        String field = switch (invalidCase) {
+            case "missing" -> "query";
+            case "scope" -> "courseId";
+            case "unknown" -> "tool";
+            case "type" -> "limit";
+            default -> "arguments";
+        };
+        String reason = switch (invalidCase) {
+            case "missing" -> "MISSING_FIELD";
+            case "extra" -> "UNEXPECTED_FIELD";
+            case "scope" -> "SCOPE_MISMATCH";
+            case "unknown" -> "UNKNOWN_TOOL";
+            case "type" -> "EXPECTED_INTEGER";
+            default -> "INVALID_JSON";
+        };
+        server.enqueue(Script.tools(true, new ToolCall("bad", name, arguments)));
+        assertThatThrownBy(() -> prepare(ignored -> fail("不得显示草稿"), ignored -> fail("不得执行工具")))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("未通过校验");
+        verifyNoInteractions(executions);
+        assertThat(server.requests).hasSize(1);
+        assertThat(output.getAll()).contains("requestId=tool-run", "field=" + field, "reason=" + reason)
+                .doesNotContain("PRIVATE_QUERY", "PRIVATE_FIELD", "PRIVATE_UNKNOWN_TOOL");
+        if ("unknown".equals(invalidCase)) assertThat(output.getAll()).contains("tool=UNKNOWN");
     }
 
     @Test void modelMayFinishWithoutUsingAnyTool() throws Exception {

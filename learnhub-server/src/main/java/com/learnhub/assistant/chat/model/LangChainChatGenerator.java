@@ -38,6 +38,7 @@ import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import dev.langchain4j.model.output.FinishReason;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
+import dev.langchain4j.model.chat.request.json.JsonRawSchema;
 import dev.langchain4j.service.tool.ToolExecutor;
 import dev.langchain4j.exception.HttpException;
 import java.net.InetAddress;
@@ -60,10 +61,13 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 @ConditionalOnProperty(prefix = "learnhub.assistant", name = "langchain-enabled", havingValue = "true")
 public class LangChainChatGenerator implements AutoCloseable {
+    private static final Logger log = LoggerFactory.getLogger(LangChainChatGenerator.class);
     static final String PROMPT_VERSION = "learnhub-chat-grounded-preferences-v5";
     static final String INSUFFICIENT = "现有课程资料不足以回答这个问题。";
     static final String GREETING = "你好，我可以结合课程资料帮助你学习。你想了解哪个知识点？";
@@ -276,12 +280,9 @@ public class LangChainChatGenerator implements AutoCloseable {
             var function = mapper.valueToTree(definition).path("function");
             String name = function.path("name").asText();
             var parameters = JsonObjectSchema.builder().additionalProperties(false);
-            function.path("parameters").path("properties").fields().forEachRemaining(field -> {
-                String description = field.getValue().path("description").asText();
-                if ("integer".equals(field.getValue().path("type").asText()))
-                    parameters.addIntegerProperty(field.getKey(), description);
-                else parameters.addStringProperty(field.getKey(), description);
-            });
+            // SDK 的整数 schema 仅支持 description；原始属性保留范围、默认值及后续约束。
+            function.path("parameters").path("properties").fields().forEachRemaining(field ->
+                    parameters.addProperty(field.getKey(), JsonRawSchema.from(field.getValue().toString())));
             List<String> required = new ArrayList<>();
             function.path("parameters").path("required").forEach(value -> required.add(value.asText()));
             var specification = ToolSpecification.builder().name(name)
@@ -370,6 +371,13 @@ public class LangChainChatGenerator implements AutoCloseable {
                             throw new BusinessException("ASSISTANT_TOOL_INVALID", "模型工具调用编号无效或重复");
                         String hash;
                         try { hash = tools.normalizedArgumentsHash(new ToolCall(call.id(), call.name(), call.arguments()), courseId); }
+                        catch (AssistantTools.ToolValidationException malformed) {
+                            String safeTool = executors.keySet().stream().anyMatch(spec -> spec.name().equals(call.name()))
+                                    ? call.name() : "UNKNOWN";
+                            log.warn("Assistant tool rejected requestId={} tool={} field={} reason={}",
+                                    stored.id(), safeTool, malformed.field(), malformed.reason());
+                            throw malformed;
+                        }
                         catch (IllegalArgumentException malformed) {
                             throw new BusinessException("ASSISTANT_TOOL_INVALID", "模型工具参数无效");
                         }

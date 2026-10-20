@@ -113,7 +113,8 @@ public class AssistantTools {
 
     /** 与实际执行复用规范化规则，只返回摘要，不执行工具或占用工具预算。 */
     public String normalizedArgumentsHash(ToolCall call, long scopedCourseId) {
-        if (call == null || call.name() == null || scopedCourseId <= 0 || !NAMES.contains(call.name())) throw invalid();
+        if (call == null || call.name() == null || !NAMES.contains(call.name())) throw invalid("tool", "UNKNOWN_TOOL");
+        if (scopedCourseId <= 0) throw invalid("courseId", "INVALID_SCOPE");
         String normalized = json(new TreeMap<>(normalize(call, scopedCourseId)));
         try {
             return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
@@ -240,7 +241,7 @@ public class AssistantTools {
             root = mapper.reader().with(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
                     .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readTree(call.arguments());
         } catch (Exception error) {
-            throw invalid();
+            throw invalid("arguments", "INVALID_JSON");
         }
         return switch (call.name()) {
             case "search_courses" -> {
@@ -262,25 +263,27 @@ public class AssistantTools {
     }
 
     private static void fields(JsonNode root, Set<String> allowed, Set<String> required) {
-        if (root == null || !root.isObject()) throw invalid();
-        root.fieldNames().forEachRemaining(name -> { if (!allowed.contains(name)) throw invalid(); });
-        if (!required.stream().allMatch(root::has)) throw invalid();
+        if (root == null || !root.isObject()) throw invalid("arguments", "EXPECTED_OBJECT");
+        // 不把模型生成的未知字段名放入异常或日志。
+        root.fieldNames().forEachRemaining(name -> { if (!allowed.contains(name)) throw invalid("arguments", "UNEXPECTED_FIELD"); });
+        for (String name : required) if (!root.has(name)) throw invalid(name, "MISSING_FIELD");
     }
 
     private static String text(JsonNode root, String name, int max) {
         JsonNode value = root.get(name);
-        if (value == null || !value.isTextual()) throw invalid();
+        if (value == null || !value.isTextual()) throw invalid(name, "EXPECTED_STRING");
         String normalized = value.asText().trim();
-        if (normalized.isEmpty() || normalized.length() > max) throw invalid();
+        if (normalized.isEmpty()) throw invalid(name, "EMPTY_STRING");
+        if (normalized.length() > max) throw invalid(name, "TOO_LONG");
         return normalized;
     }
 
     private static int limit(JsonNode root) {
         JsonNode value = root.get("limit");
         if (value == null) return 3;
-        if (!value.isIntegralNumber() || !value.canConvertToInt()) throw invalid();
+        if (!value.isIntegralNumber() || !value.canConvertToInt()) throw invalid("limit", "EXPECTED_INTEGER");
         int limit = value.intValue();
-        if (limit < 1 || limit > 5) throw invalid();
+        if (limit < 1 || limit > 5) throw invalid("limit", "OUT_OF_RANGE");
         return limit;
     }
 
@@ -288,13 +291,13 @@ public class AssistantTools {
         JsonNode value = root.get("courseId");
         // 模型有时将 schema 中的编号字符串返回为 JSON 整数；只兼容精确 long，仍按服务端范围鉴权。
         if (value == null || !(value.isTextual() || value.isIntegralNumber() && value.canConvertToLong())
-                || !value.asText().matches("[1-9][0-9]{0,18}")) throw invalid();
+                || !value.asText().matches("[1-9][0-9]{0,18}")) throw invalid("courseId", "INVALID_COURSE_ID");
         try {
             long courseId = Long.parseLong(value.asText());
-            if (courseId != scopedCourseId) throw invalid();
+            if (courseId != scopedCourseId) throw invalid("courseId", "SCOPE_MISMATCH");
             return courseId;
         } catch (NumberFormatException error) {
-            throw invalid();
+            throw invalid("courseId", "INVALID_COURSE_ID");
         }
     }
 
@@ -319,7 +322,8 @@ public class AssistantTools {
     }
 
     private static Map<String, Object> integerSchema(int minimum, int maximum, int defaultValue) {
-        return Map.of("type", "integer", "minimum", minimum, "maximum", maximum, "default", defaultValue);
+        return Map.of("type", "integer", "minimum", minimum, "maximum", maximum, "default", defaultValue,
+                "description", "返回条数，必须为" + minimum + "至" + maximum + "的整数；省略时默认" + defaultValue);
     }
 
     private static Map<String, Object> mapOf(Object... pairs) {
@@ -331,6 +335,25 @@ public class AssistantTools {
     private static String safe(String value) { return value == null ? "" : value; }
 
     private static BusinessException invalid() {
-        return new BusinessException("ASSISTANT_TOOL_INVALID", "工具名称或参数未通过校验");
+        return invalid("arguments", "INVALID_ARGUMENTS");
+    }
+
+    private static ToolValidationException invalid(String field, String reason) {
+        return new ToolValidationException(field, reason);
+    }
+
+    /** 仅携带服务端固定字段和原因；不得保存原始工具参数或解析器异常。 */
+    public static final class ToolValidationException extends BusinessException {
+        private final String field;
+        private final String reason;
+
+        private ToolValidationException(String field, String reason) {
+            super("ASSISTANT_TOOL_INVALID", "工具名称或参数未通过校验");
+            this.field = field;
+            this.reason = reason;
+        }
+
+        public String field() { return field; }
+        public String reason() { return reason; }
     }
 }
