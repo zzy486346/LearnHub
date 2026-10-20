@@ -286,7 +286,9 @@ public class AssistantTools {
 
     private static long scoped(JsonNode root, long scopedCourseId) {
         JsonNode value = root.get("courseId");
-        if (value == null || !value.isTextual() || !value.asText().matches("[1-9][0-9]{0,18}")) throw invalid();
+        // 模型有时将 schema 中的编号字符串返回为 JSON 整数；只兼容精确 long，仍按服务端范围鉴权。
+        if (value == null || !(value.isTextual() || value.isIntegralNumber() && value.canConvertToLong())
+                || !value.asText().matches("[1-9][0-9]{0,18}")) throw invalid();
         try {
             long courseId = Long.parseLong(value.asText());
             if (courseId != scopedCourseId) throw invalid();

@@ -138,7 +138,7 @@ class LangChainToolChatGeneratorTest {
     }
 
     @Test void choosesTwoToolsUsesNonEmptyOwnProgressAndStreamsValidatedSegmentsBeforeFinal() throws Exception {
-        server.enqueue(Script.tools(true, outline("a"), progress("b")));
+        server.enqueue(Script.tools(true, new ToolCall("a", "get_course_outline", "{\"courseId\":1}"), progress("b")));
         var visible = new CountDownLatch(1);
         Script finalScript = Script.answer(List.of(
                 "{\"insufficientEvidence\":false,\"answerSegments\":[" + suggestion() + ",",

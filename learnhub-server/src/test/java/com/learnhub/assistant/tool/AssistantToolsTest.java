@@ -86,6 +86,18 @@ class AssistantToolsTest {
     }
 
     @Test
+    void integralCourseIdsNormalizeToTheSameScopedStringWithoutWeakeningScopeChecks() {
+        assertThat(tools.normalizedArgumentsHash(new ToolCall("a", "get_course_outline",
+                "{\"courseId\":10}"), 10)).isEqualTo(tools.normalizedArgumentsHash(
+                new ToolCall("b", "get_course_outline", "{\"courseId\":\"10\"}"), 10));
+        for (String value : List.of("11", "10.0", "1e1", "0", "-10", "9223372036854775808", "true", "null")) {
+            assertThatThrownBy(() -> tools.normalizedArgumentsHash(new ToolCall("bad", "get_course_outline",
+                    "{\"courseId\":" + value + "}"), 10)).isInstanceOf(BusinessException.class);
+        }
+        org.mockito.Mockito.verifyNoInteractions(run, search, retrieval, progress, chapters, lessons, courses);
+    }
+
+    @Test
     void courseSearchOverfetchesThenUsesMysqlTruthAndRegistersEvidence() {
         when(search.search("Java", Set.of(), 6)).thenReturn(List.of(
                 new SearchResult(20L, "过期索引标题", "", "旧讲师", "", Set.of(), 0, 1)));
@@ -171,7 +183,7 @@ class AssistantToolsTest {
                 new ToolCall("x2", "search_courses", "{\"keyword\":\"Java\",\"userId\":99}"),
                 new ToolCall("x3", "search_courses", "{\"keyword\":\"a\",\"keyword\":\"b\"}"),
                 new ToolCall("x4", "search_courses", "{\"keyword\":\"a\"} {}"),
-                new ToolCall("x5", "get_course_outline", "{\"courseId\":10}"),
+                new ToolCall("x5", "get_course_outline", "{\"courseId\":10.5}"),
                 new ToolCall("x6", "get_course_outline", "{\"courseId\":\"11\"}"),
                 new ToolCall("x7", "search_course_materials", "{\"courseId\":\"10\",\"query\":\"\"}"));
 
