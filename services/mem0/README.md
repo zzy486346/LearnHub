@@ -55,6 +55,27 @@ FastAPI lifespan 显式关闭 Memory、OpenAI 客户端、PG 池和 journal。�
 
 在被 Git 忽略的根 `.env` 中配置示例已有的独立记忆库管理员密码、运行账号密码、向量桥凭据和 `LEARNHUB_ASSISTANT_MEMORY_SERVICE_TOKEN`，不要复用供应商密钥。服务凭据至少32位，桥凭据至少24位可见ASCII；建议使用独立随机值。Compose 只显式转交所需配置，不把整份 `.env` 或供应商密钥传入容器。
 
+日常推荐统一放入 Docker Desktop 的 `deploy` 分组。在仓库根目录执行：
+
+```powershell
+# 首次部署且这两个卷尚不存在时创建；已有卷会原样保留。
+docker volume create learnhub-memory_memory-pg
+docker volume create learnhub-memory_memory-state
+docker compose --env-file .env -p deploy -f deploy/docker-compose.yml -f deploy/docker-compose.memory.yml up -d --wait memory-pg memory-bridge memory-api memory-loopback
+```
+
+`deploy/docker-compose.memory.yml` 通过 extends 复用本目录服务定义，保留私网隔离和本机端口，使用 external 卷复用已有数据，避免统一项目执行 `down --volumes` 时删除记忆数据。上述定向启动只管理四个记忆服务。若原来的 `learnhub-memory` 项目正在运行，先用下方独立项目的 `down` 停止它，禁止加 `--volumes`，再执行统一启动命令；不能让两个 PG 容器同时使用同一个数据卷。不要在迁移后再次启动独立项目。
+
+统一部署后仅停止记忆服务：
+
+```powershell
+docker compose --env-file .env -p deploy -f deploy/docker-compose.yml -f deploy/docker-compose.memory.yml stop memory-loopback memory-api memory-bridge memory-pg
+```
+
+2026-10-20 本地实际迁移验证：四个记忆容器已归入 `deploy`，两个原数据卷挂载名称一致，PG 记忆表记录数前后一致，经本机入口带认证访问 `/health` 返回 `UP`；六个基础服务容器 ID 和启动时间均未变化。合并配置另核对了 bind 路径、external 卷、私网及本机端口，未调用供应商模型。
+
+以下独立项目命令保留用于隔离部署或从旧项目迁移，不能与统一部署同时启动：
+
 ```powershell
 docker compose --env-file .env -f services/mem0/compose.yml up -d --wait
 ```

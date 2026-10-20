@@ -1,0 +1,31 @@
+# 与 docker-compose.yml 一起使用，统一归入 deploy 项目。
+# 复用已有独立记忆卷；external 防止 compose down --volumes 删除记忆数据。
+services:
+  memory-pg:
+    extends:
+      file: ../services/mem0/compose.yml
+      service: memory-pg
+  memory-bridge:
+    extends:
+      file: ../services/mem0/compose.yml
+      service: memory-bridge
+  memory-api:
+    extends:
+      file: ../services/mem0/compose.yml
+      service: memory-api
+  memory-loopback:
+    extends:
+      file: ../services/mem0/compose.yml
+      service: memory-loopback
+
+networks:
+  private: {internal: true}
+  ingress: {}
+
+volumes:
+  memory-pg:
+    external: true
+    name: learnhub-memory_memory-pg
+  memory-state:
+    external: true
+    name: learnhub-memory_memory-state

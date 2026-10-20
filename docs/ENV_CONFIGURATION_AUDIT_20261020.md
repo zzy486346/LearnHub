@@ -1,5 +1,7 @@
 # 本地环境配置核对（2026-10-20）
 
+本文的缺项清单是补齐配置前的检查快照。随后已在本地补齐配置并生成独立凭据；请以实际 `.env` 为准。日常记忆服务现使用下方统一 `deploy` 入口，独立 Compose 仅用于隔离部署及测试。
+
 本次直接核对根目录 `.env`、`.env.example`、Java 配置和两份 Compose。只调整注释及分组，所有已有配置值保持一致；未启动或重启任何服务。
 
 ## 当前状态与缺项
@@ -27,13 +29,13 @@
 Set-Location D:\Project\myproject\LearnHub
 # 基础服务（不会额外创建 Mem0 或课程向量库）
 docker compose --env-file .env -f deploy/docker-compose.yml up -d
-# 填好上述 4 项 Mem0 必填凭据，且本地服务镜像准备好后执行
-docker compose --env-file .env -f services/mem0/compose.yml up -d --wait
+# 填好 Mem0 必填凭据、准备好镜像及两个记忆数据卷后，统一归入 deploy
+docker compose --env-file .env -p deploy -f deploy/docker-compose.yml -f deploy/docker-compose.memory.yml up -d --wait memory-pg memory-bridge memory-api memory-loopback
 ```
 
 `--env-file` 提供 Compose 的变量替换来源，只有 Compose 显式引用的变量才起作用，不会把整份 `.env` 自动注入每个容器。现有基础 Compose 的 MySQL 和 RabbitMQ 账号、端口部分写在 YAML 中，因此不能仅修改 Java 的连接参数来更改容器账号。已有数据库卷的密码也不会因修改初始化环境变量自动改变。
 
-Mem0 Compose 已引用上述凭据，包含私有 PostgreSQL/pgvector、向量桥、记忆 API 与本机入口。它只发布本机 API 端口，PG 不发布宿主机端口；课程向量库不由该 Compose 创建。缺少四项必填凭据时 Compose 会在变量校验阶段报错。镜像构建、迁移和完整验收说明见 `services/mem0/README.md` 与 `docs/ASSISTANT_FINAL_ACCEPTANCE_20261019.md`。
+Mem0 Compose 已引用上述凭据，包含私有 PostgreSQL/pgvector、向量桥、记忆 API 与本机入口。统一入口复用 `learnhub-memory_memory-pg`、`learnhub-memory_memory-state` 两个 external 卷；首次创建卷及旧项目迁移步骤见 `services/mem0/README.md`。它只发布本机 API 端口，PG 不发布宿主机端口；课程向量库不由该 Compose 创建。缺少四项必填凭据时 Compose 会在变量校验阶段报错。镜像构建、迁移和完整验收说明见 `services/mem0/README.md` 与 `docs/ASSISTANT_FINAL_ACCEPTANCE_20261019.md`。
 
 ## 本次验证范围
 
