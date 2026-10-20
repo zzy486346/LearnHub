@@ -43,14 +43,34 @@ final class ChatContextPlanner {
     Plan fit(List<ChatMessage> original, Object tools, int inputLimit, int capacity) {
         List<ChatMessage> messages = new ArrayList<>(original);
         int removed = 0;
+        int summaryRemoved = 0;
         int size = bytes(messages, tools);
+        while (size > capacity && removeOldestSummaryEntry(messages)) {
+            summaryRemoved++;
+            size = bytes(messages, tools);
+        }
         while (size > capacity && removeOldestRound(messages)) {
             removed++;
             size = bytes(messages, tools);
         }
         if (size > inputLimit) throw new BusinessException("AI_MODEL_INPUT_TOO_LARGE", "模型输入超过本地 UTF-8 字节预算");
         if (size > capacity) throw new BusinessException("ASSISTANT_BUDGET_EXCEEDED", "本次运行剩余预算不足以容纳当前问题与证据");
-        return new Plan(List.copyOf(messages), size, removed);
+        return new Plan(List.copyOf(messages), size, removed, summaryRemoved);
+    }
+
+    private boolean removeOldestSummaryEntry(List<ChatMessage> messages) {
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            if (!(messages.get(i) instanceof UserMessage user)) continue;
+            try {
+                var root = mapper.readTree(user.singleText());
+                var entries = root.path("conversationSummary").path("userStatements");
+                if (!root.path("question").isTextual() || !entries.isArray() || entries.isEmpty()) return false;
+                ((com.fasterxml.jackson.databind.node.ArrayNode) entries).remove(0);
+                messages.set(i, UserMessage.from(mapper.writeValueAsString(root)));
+                return true;
+            } catch (Exception notStructuredContext) { return false; }
+        }
+        return false;
     }
 
     private boolean removeOldestRound(List<ChatMessage> messages) {
@@ -74,5 +94,5 @@ final class ChatContextPlanner {
     }
 
     private static int utf8(String value) { return value.getBytes(StandardCharsets.UTF_8).length; }
-    record Plan(List<ChatMessage> messages, int inputBytes, int droppedRounds) { }
+    record Plan(List<ChatMessage> messages, int inputBytes, int droppedRounds, int droppedSummaryEntries) { }
 }

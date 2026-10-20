@@ -140,6 +140,22 @@ class LangChainToolChatGeneratorTest {
         verify(guard, never()).reserveModel(anyInt(), anyInt());
     }
 
+    @Test void secondModelRoundUsesRemainingReservationAndFailsBeforeAnotherHttp() {
+        limits.setMaxRunTokens(12000);
+        var reserved = new java.util.concurrent.atomic.AtomicLong();
+        when(guard.summary()).thenAnswer(ignored -> new AssistantRunSummary(stored.id(), 0, 0, 0,
+                reserved.get(), 0, 0, 0, true, "RUNNING", 1));
+        doAnswer(call -> { reserved.addAndGet((int) call.getArgument(0) + (int) call.getArgument(1)); return null; })
+                .when(guard).reserveModel(anyInt(), anyInt());
+        server.enqueue(Script.tools(true, progress("budget-a")));
+        assertThatThrownBy(() -> prepare(ignored -> { }, ignored -> { }))
+                .isInstanceOfSatisfying(BusinessException.class, failure ->
+                        assertThat(failure.getCode()).isEqualTo("ASSISTANT_BUDGET_EXCEEDED"));
+        assertThat(server.requests).hasSize(1);
+        verify(guard, times(1)).reserveModel(anyInt(), anyInt());
+        assertThat(reserved.get()).isGreaterThan(0);
+    }
+
     @Test void choosesTwoToolsUsesNonEmptyOwnProgressAndStreamsValidatedSegmentsBeforeFinal() throws Exception {
         server.enqueue(Script.tools(true, new ToolCall("a", "get_course_outline", "{\"courseId\":1}"), progress("b")));
         var visible = new CountDownLatch(1);

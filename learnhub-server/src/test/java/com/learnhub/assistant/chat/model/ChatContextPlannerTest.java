@@ -44,4 +44,17 @@ class ChatContextPlannerTest {
         assertThatThrownBy(() -> planner.fit(messages, null, 16000, 1))
                 .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getCode()).isEqualTo("ASSISTANT_BUDGET_EXCEEDED"));
     }
+
+    @Test void dropsOlderSummaryEntriesBeforeRecentCompleteRoundsAndKeepsValidJson() throws Exception {
+        var json = new ObjectMapper();
+        String required = "{\"question\":\"当前\",\"evidence\":[],\"conversationSummary\":{\"userStatements\":[]}}";
+        String withSummary = required.replace("\"userStatements\":[]", "\"userStatements\":[{\"text\":\"" + "旧摘录".repeat(500) + "\"}]");
+        List<ChatMessage> base = List.of(UserMessage.from("最近问题"), AiMessage.from("最近回答"), UserMessage.from(required));
+        var plan = planner.fit(List.of(base.get(0), base.get(1), UserMessage.from(withSummary)), null,
+                16000, planner.bytes(base, null));
+        assertThat(plan.droppedRounds()).isZero();
+        assertThat(plan.droppedSummaryEntries()).isOne();
+        assertThat(json.readTree(((UserMessage) plan.messages().get(2)).singleText()).path("conversationSummary")
+                .path("userStatements")).isEmpty();
+    }
 }

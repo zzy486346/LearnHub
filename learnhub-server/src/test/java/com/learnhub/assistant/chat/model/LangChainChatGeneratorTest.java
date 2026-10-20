@@ -144,8 +144,8 @@ class LangChainChatGeneratorTest {
                 message(4, "ASSISTANT", "近期回答。[E1]", "recent", sources)));
         server.enqueue(List.of("当前回答。[E1]"), "stop", true, 0);
         prepare(text -> { });
-        assertThat(server.requests().get(0)).contains("近期回答", "它有什么局限？", source.text())
-                .doesNotContain("庞大历史标记", "庞大回答标记");
+        assertThat(server.requests().get(0)).contains("近期回答", "它有什么局限？", source.text(), "conversationSummary", "USER_QUOTE")
+                .doesNotContain("庞大历史标记".repeat(1500), "庞大回答标记");
     }
 
     @Test
@@ -159,6 +159,65 @@ class LangChainChatGeneratorTest {
         prepare(text -> { });
         verify(retrieval).retrieve(7L, 1, stored.message(), 5);
         assertThat(server.requests().get(0)).doesNotContain("失效主体标记", "失效回答标记", "失效资料");
+    }
+
+    @Test
+    void synopsisIsRebuiltFromVerifiedHistoryAndDisappearsWhenItsMaterialChanges() throws Exception {
+        String longUser = "我希望先学习缓存失效；" + "重复说明".repeat(1800);
+        String sources = mapper.writeValueAsString(List.of(source));
+        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 48)).thenReturn(List.of(
+                message(1, "USER", longUser, "old", "[]"),
+                message(2, "ASSISTANT", "不应摘录的助手推断。[E1]", "old", sources),
+                message(3, "USER", "缓存是什么", "recent", "[]"),
+                message(4, "ASSISTANT", "近期回答", "recent", "[]")));
+        server.enqueue(List.of("回答。[E1]"), "stop", true, 0);
+        prepare(text -> { });
+        String first = server.requests().get(0);
+        assertThat(first).contains("我希望先学习缓存失效", "user-extract-v1", "dependencyHash", "USER_QUOTE")
+                .doesNotContain("不应摘录的助手推断", longUser);
+        var questionNode = mapper.readTree(mapper.readTree(first).path("messages").get(3).path("content").asText());
+        assertThat(questionNode.path("conversationSummary").path("userStatements")).hasSize(1);
+        // 原始来源 v1 不再存在；下一次从原消息复核，不复用上次摘要或覆盖游标。
+        when(store.currentChunks(List.of(11L))).thenReturn(List.of(
+                new CurrentKnowledgeChunk(11, 9, 2, 1, 2, source.title(), 0, source.heading(), source.text())));
+        when(retrieval.retrieve(eq(7L), eq(1L), anyString(), eq(5))).thenReturn(
+                new KnowledgeRetrievalService.Result("empty", List.of(), true, false));
+        var answer = prepare(text -> { });
+        assertThat(answer.text()).isEqualTo(LangChainChatGenerator.INSUFFICIENT);
+        assertThat(server.requests()).hasSize(1);
+        verify(guard, org.mockito.Mockito.times(1)).reserveModel(anyInt(), anyInt());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void forgettingPreferenceInvalidatesTheEntireSynopsisRound() throws Exception {
+        var preference = new com.learnhub.assistant.memory.PreferenceSnapshot(
+                "00000000-0000-0000-0000-000000000001", 1, "STYLE", "先看例子");
+        var preferenceSource = mock(com.learnhub.assistant.memory.PreferenceMemorySource.class);
+        org.springframework.beans.factory.ObjectProvider<com.learnhub.assistant.memory.PreferenceMemorySource> provider =
+                mock(org.springframework.beans.factory.ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(preferenceSource);
+        when(preferenceSource.current(7, preference.id())).thenReturn(preference);
+        var codec = new com.learnhub.assistant.chat.application.ChatEvidenceCodec(null, provider);
+        var previousBook = new EvidenceBook(7L, 1, store, courses, mapper);
+        previousBook.material(source);
+        previousBook.registerPreference(preference, () -> preferenceSource.current(7, preference.id()));
+        String dependencies = codec.encode(previousBook);
+        generator.close();
+        var history = new ChatHistoryService(persistence, courses, qa, mapper, codec);
+        generator = new LangChainChatGenerator(persistence, history, retrieval, qa, mapper,
+                properties, limits, server.endpoint(), null, codec, null);
+        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 48)).thenReturn(List.of(
+                message(1, "USER", "旧用户目标标记；" + "长历史".repeat(2500), "old", "[]"),
+                message(2, "ASSISTANT", "不保留助手推断。[E1]", "old", dependencies)));
+        server.enqueue(List.of("回答。[E1]"), "stop", true, 0);
+        prepare(text -> { });
+        assertThat(server.requests().get(0)).contains("USER_QUOTE", "旧用户目标标记").doesNotContain("不保留助手推断");
+        when(preferenceSource.current(7, preference.id())).thenReturn(null);
+        when(retrieval.retrieve(eq(7L), eq(1L), anyString(), eq(5))).thenReturn(
+                new KnowledgeRetrievalService.Result("empty", List.of(), true, false));
+        assertThat(prepare(text -> { }).text()).isEqualTo(LangChainChatGenerator.INSUFFICIENT);
+        assertThat(server.requests()).hasSize(1);
     }
 
     @Test
