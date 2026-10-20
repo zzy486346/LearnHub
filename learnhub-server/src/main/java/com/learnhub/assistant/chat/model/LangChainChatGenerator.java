@@ -14,6 +14,7 @@ import com.learnhub.assistant.memory.PreferenceExtractionService;
 import org.springframework.beans.factory.ObjectProvider;
 import com.learnhub.assistant.model.ToolCall;
 import com.learnhub.assistant.qa.GroundedAnswers;
+import com.learnhub.assistant.qa.AnswerEvidenceOutcome;
 import com.learnhub.assistant.chat.rag.AuthorizedCourseRag;
 import com.learnhub.assistant.chat.model.transport.BoundedJdkHttpClientBuilder;
 import com.learnhub.assistant.chat.model.transport.ResponseTooLargeException;
@@ -67,8 +68,8 @@ import org.slf4j.LoggerFactory;
 @ConditionalOnProperty(prefix = "learnhub.assistant", name = "langchain-enabled", havingValue = "true")
 public class LangChainChatGenerator implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(LangChainChatGenerator.class);
-    static final String PROMPT_VERSION = "learnhub-chat-synopsis-v7";
-    static final String INSUFFICIENT = "现有课程资料不足以回答这个问题。";
+    static final String PROMPT_VERSION = "learnhub-chat-evidence-outcome-v8";
+    static final String INSUFFICIENT = AnswerEvidenceOutcome.INSUFFICIENT_TEXT;
     static final String GREETING = "你好，我可以结合课程资料帮助你学习。你想了解哪个知识点？";
     private static final URI DEEPSEEK_ENDPOINT = URI.create("https://api.deepseek.com/v1");
     private static final int HISTORY_CANDIDATES = 48;
@@ -175,7 +176,8 @@ public class LangChainChatGenerator implements AutoCloseable {
             guard.check();
             io.remaining();
             delta.accept(GREETING);
-            return new PreparedAnswer(GREETING, "[]", noModelUsage(guard), List.of(), "DEEPSEEK");
+            return new PreparedAnswer(GREETING, "[]", usageJson("NO_MODEL", guard, null,
+                    AnswerEvidenceOutcome.NO_COURSE_ANSWER), List.of(), "DEEPSEEK");
         }
         List<ChatPersistenceService.Message> raw = persistence.messages(
                 owner, stored.conversationId(), Long.MAX_VALUE, HISTORY_CANDIDATES);
@@ -221,7 +223,8 @@ public class LangChainChatGenerator implements AutoCloseable {
             guard.check();
             book.check();
             delta.accept(INSUFFICIENT);
-            return new PreparedAnswer(INSUFFICIENT, "[]", noModelUsage(guard), List.of(), "DEEPSEEK");
+            return new PreparedAnswer(INSUFFICIENT, "[]", usageJson("NO_MODEL", guard, null,
+                    AnswerEvidenceOutcome.NO_SOURCES_SERVER), List.of(), "DEEPSEEK");
         }
 
         if (tools != null) return prepareAgent(owner, conversation.courseId(), stored, guard, io, memory,
@@ -275,12 +278,15 @@ public class LangChainChatGenerator implements AutoCloseable {
         book.check();
         io.remaining();
 
-        List<EvidenceBook.Citation> citations = book.references().stream()
+        boolean insufficient = INSUFFICIENT.equals(answer.toString());
+        List<EvidenceBook.Citation> citations = insufficient ? List.of() : book.references().stream()
                 .map(reference -> book.citation((String) reference.get("evidenceId"))).toList();
         validateAnswer(answer.toString(), book);
         return new PreparedAnswer(answer.toString(), json(sources),
                 usageJson("ACTUAL", guard, Map.of("promptTokens", usage[0],
-                        "completionTokens", usage[1], "totalTokens", usage[2])), citations, "DEEPSEEK");
+                        "completionTokens", usage[1], "totalTokens", usage[2]), insufficient
+                        ? AnswerEvidenceOutcome.MODEL_REPORTED_INSUFFICIENT
+                        : AnswerEvidenceOutcome.MODEL_ANSWER_WITH_VALID_REFERENCES), citations, "DEEPSEEK");
     }
 
     private PreparedAnswer prepareAgent(long owner, long courseId, ChatPersistenceService.Run stored,
@@ -417,7 +423,9 @@ public class LangChainChatGenerator implements AutoCloseable {
             checkpoint.run();
             String phase = extracted != null && extracted.attempted() && !extracted.usageKnown() ? "PARTIAL" : "ACTUAL";
             return new PreparedAnswer(text, evidence.encode(book), usageJson(phase, guard,
-                    Map.of("promptTokens", totals[0], "completionTokens", totals[1], "totalTokens", totals[2])),
+                    Map.of("promptTokens", totals[0], "completionTokens", totals[1], "totalTokens", totals[2]),
+                    verified.insufficientEvidence() ? AnswerEvidenceOutcome.MODEL_REPORTED_INSUFFICIENT
+                            : AnswerEvidenceOutcome.MODEL_ANSWER_WITH_VALID_REFERENCES),
                     verified.citations(), "DEEPSEEK");
         } catch (RuntimeException failure) { throw modelFailure(failure); }
     }
@@ -647,17 +655,19 @@ public class LangChainChatGenerator implements AutoCloseable {
     }
 
     private String usageJson(String phase, AssistantRunGuard.Run guard, Map<String, ? extends Number> actual) {
+        return usageJson(phase, guard, actual, null);
+    }
+
+    private String usageJson(String phase, AssistantRunGuard.Run guard, Map<String, ? extends Number> actual,
+            AnswerEvidenceOutcome outcome) {
         Map<String, Object> usage = new LinkedHashMap<>();
         usage.put("phase", phase);
         usage.put("model", properties.getModel());
         usage.put("promptVersion", PROMPT_VERSION);
         usage.put("summary", guard.summary());
         if (actual != null) usage.put("actual", actual);
+        if (outcome != null) usage.put("evidenceOutcome", outcome.name());
         return json(usage);
-    }
-
-    private String noModelUsage(AssistantRunGuard.Run guard) {
-        return usageJson("NO_MODEL", guard, null);
     }
 
     private String json(Object value) {

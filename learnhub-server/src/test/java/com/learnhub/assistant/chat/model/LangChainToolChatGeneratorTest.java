@@ -140,6 +140,34 @@ class LangChainToolChatGeneratorTest {
         verify(guard, never()).reserveModel(anyInt(), anyInt());
     }
 
+    @Test void nonemptyWeakEvidenceRefusalPublishesNoSourcesAndRetainsRevalidationEnvelope() {
+        server.enqueue(Script.answer(List.of("{\"insufficientEvidence\":true,\"answerSegments\":[]}"), true, null));
+        var answer = prepare(ignored -> { }, ignored -> { });
+        assertThat(answer.text()).isEqualTo(LangChainChatGenerator.INSUFFICIENT);
+        assertThat(answer.citations()).isEmpty();
+        assertThat(answer.usageJson()).contains("MODEL_REPORTED_INSUFFICIENT");
+        var service = new ChatHistoryService(persistence, courses, qa, mapper, codec);
+        var historyMessage = new ChatPersistenceService.Message("answer", 2, "ASSISTANT", answer.text(),
+                "COMPLETED", stored.id(), answer.sourcesJson());
+        assertThat(service.verify(7, 1, historyMessage).sources()).isEmpty();
+        when(courses.readableLessonIds(7L, 1L)).thenReturn(List.of());
+        assertThat(service.verify(7, 1, historyMessage).restricted()).isTrue();
+        assertThat(server.requests).hasSize(1);
+    }
+
+    @Test void validReferencesAreExplicitlyNotReportedAsSemanticallyVerifiedAnswers() {
+        // 负向质量探针：故意返回与真实 E1 无关的细节。结构校验不等于语义支持校验。
+        String unsupported = "Lua执行失败会自动回滚MySQL事务。";
+        server.enqueue(Script.answer(List.of("{\"insufficientEvidence\":false,\"answerSegments\":[{\"text\":\""
+                + unsupported + "\",\"evidenceIds\":[\"E1\"],\"kind\":\"FACT\"}]}"), true, null));
+        List<String> deltas = new ArrayList<>();
+        var answer = prepare(deltas::add, ignored -> { });
+        // 不把该结果计为回答正确率通过。枚举只证明本轮引用存在，不能命名为 SUPPORTED。
+        assertThat(answer.usageJson()).contains("MODEL_ANSWER_WITH_VALID_REFERENCES").doesNotContain("SEMANTICALLY_VERIFIED");
+        assertThat(source.text()).doesNotContain(unsupported);
+        assertThat(String.join("", deltas)).isEqualTo(answer.text());
+    }
+
     @Test void secondModelRoundUsesRemainingReservationAndFailsBeforeAnotherHttp() {
         limits.setMaxRunTokens(12000);
         var reserved = new java.util.concurrent.atomic.AtomicLong();

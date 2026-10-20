@@ -2,6 +2,7 @@ package com.learnhub.assistant.chat.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learnhub.assistant.qa.CourseQaService;
+import com.learnhub.assistant.qa.AnswerEvidenceOutcome;
 import com.learnhub.assistant.qa.EvidenceBook;
 import com.learnhub.common.exception.BusinessException;
 import com.learnhub.course.service.CourseService;
@@ -49,6 +50,9 @@ public class ChatHistoryService {
         try {
             var book = qa.evidenceBook(owner, courseId);
             evidence.restoreInto(owner, courseId, message.sourcesJson(), book);
+            // 依赖仍需复核，但弱召回不是资料不足文案的支持来源；历史页与 SSE 来源共用此出口。
+            if (AnswerEvidenceOutcome.INSUFFICIENT_TEXT.equals(message.content()))
+                return view(message, message.content(), List.of(), false);
             List<EvidenceBook.Citation> citations = book.references().stream()
                     .map(reference -> book.citation((String) reference.get("evidenceId"))).toList();
             return view(message, message.content(), citations, false);

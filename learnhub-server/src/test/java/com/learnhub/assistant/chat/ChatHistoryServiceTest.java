@@ -38,6 +38,16 @@ class ChatHistoryServiceTest {
         assertThat(result.sources()).singleElement().satisfies(citation -> assertThat(citation.chunkId()).isEqualTo("11"));
     }
 
+    @Test void refusalHidesWeakSourcesButStillRevalidatesTheirDependencies() throws Exception {
+        var refusal = new ChatPersistenceService.Message("m", 2, "ASSISTANT", "现有课程资料不足以回答这个问题。",
+                "COMPLETED", "r", mapper.writeValueAsString(List.of(source)));
+        var result = history.verify(7, 1, refusal);
+        assertThat(result.restricted()).isFalse();
+        assertThat(result.sources()).isEmpty();
+        when(courses.readableLessonIds(7L, 1L)).thenReturn(List.of());
+        assertHidden(history.verify(7, 1, refusal));
+    }
+
     @Test void revokedAccessHidesEntireAnswerAndAllSources() throws Exception {
         when(courses.readableLessonIds(7L, 1L)).thenReturn(List.of());
         assertHidden(history.verify(7, 1, message(mapper.writeValueAsString(List.of(source)))));

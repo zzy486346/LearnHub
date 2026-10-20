@@ -250,6 +250,7 @@ class LangChainChatGeneratorTest {
         assertThat(answer.text()).isEqualTo(LangChainChatGenerator.GREETING);
         assertThat(deltas).containsExactly(LangChainChatGenerator.GREETING);
         assertThat(answer.sourcesJson()).isEqualTo("[]");
+        assertThat(answer.usageJson()).contains("NO_COURSE_ANSWER");
         verify(guard, org.mockito.Mockito.never()).reserveModel(anyInt(), anyInt());
         org.mockito.Mockito.verifyNoInteractions(retrieval);
         assertThat(server.requestCount()).isZero();
@@ -264,8 +265,21 @@ class LangChainChatGeneratorTest {
         assertThat(answer.text()).isEqualTo(LangChainChatGenerator.INSUFFICIENT);
         assertThat(answer.sourcesJson()).isEqualTo("[]");
         assertThat(answer.citations()).isEmpty();
+        assertThat(answer.usageJson()).contains("NO_SOURCES_SERVER");
         verify(guard, org.mockito.Mockito.never()).reserveModel(anyInt(), anyInt());
         assertThat(server.requestCount()).isZero();
+    }
+
+    @Test
+    void nonemptyWeakSourcesCanProduceModelRefusalWithoutPublishingThemAsSupport() {
+        server.enqueue(List.of(LangChainChatGenerator.INSUFFICIENT), "stop", true, 0);
+        var answer = prepare(run("weak", "课程作者使用哪个私人手机号？"), guard("weak"), text -> { });
+        assertThat(answer.text()).isEqualTo(LangChainChatGenerator.INSUFFICIENT);
+        assertThat(answer.citations()).isEmpty();
+        assertThat(answer.usageJson()).contains("MODEL_REPORTED_INSUFFICIENT");
+        // 用量仍计入模型调用；历史保留依赖用于失效复核，但不展示为答案来源。
+        assertThat(answer.sourcesJson()).contains("chunkId");
+        assertThat(server.requestCount()).isOne();
     }
 
     @Test
