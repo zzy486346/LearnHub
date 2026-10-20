@@ -101,7 +101,7 @@ class LangChainChatGeneratorTest {
                 source.chunkId(), source.courseId(), source.lessonId(), source.title(), source.heading(),
                 source.chunkOrder(), source.text(), 99);
         String sources = mapper.writeValueAsString(List.of(historicalSource));
-        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 12)).thenReturn(List.of(
+        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 48)).thenReturn(List.of(
                 message(1, "USER", "最旧问题", "old-1", "[]"),
                 message(2, "ASSISTANT", "最旧回答 [E1]", "old-1", sources),
                 message(3, "USER", "缓存击穿是什么？", "old-2", "[]"),
@@ -124,8 +124,8 @@ class LangChainChatGeneratorTest {
         assertThat(request.path("thinking").path("type").asText()).isEqualTo("disabled");
         assertThat(request.path("stream_options").path("include_usage").asBoolean()).isTrue();
         String requestBody = server.requests().get(0);
-        assertThat(requestBody).contains("锁必须设置超时。", "缓存击穿是什么？");
-        assertThat(requestBody).doesNotContain("最旧问题", "最旧回答",
+        assertThat(requestBody).contains("锁必须设置超时。", "缓存击穿是什么？", "最旧问题", "最旧回答");
+        assertThat(requestBody).doesNotContain(
                 "同一时刻限制一个重建者。[E1]", "锁必须设置超时。[E1]");
         verify(guard).reserveModel(anyInt(), eq(512));
         verify(guard).recordUsage(3, 2, 5);
@@ -135,8 +135,45 @@ class LangChainChatGeneratorTest {
     }
 
     @Test
+    void dropsOversizedHistoryAsAWholeWithoutLosingCurrentEvidence() throws Exception {
+        String sources = mapper.writeValueAsString(List.of(source));
+        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 48)).thenReturn(List.of(
+                message(1, "USER", "庞大历史标记".repeat(1500), "old", "[]"),
+                message(2, "ASSISTANT", "庞大回答标记。[E1]", "old", sources),
+                message(3, "USER", "缓存怎么重建？", "recent", "[]"),
+                message(4, "ASSISTANT", "近期回答。[E1]", "recent", sources)));
+        server.enqueue(List.of("当前回答。[E1]"), "stop", true, 0);
+        prepare(text -> { });
+        assertThat(server.requests().get(0)).contains("近期回答", "它有什么局限？", source.text())
+                .doesNotContain("庞大历史标记", "庞大回答标记");
+    }
+
+    @Test
+    void inaccessibleHistoricalTurnCannotContaminateReferenceQueryOrModelInput() throws Exception {
+        var obsolete = new KnowledgeRetrievalService.Source("9", 99, "11", "1", "2", source.title(),
+                source.heading(), 0, "失效资料", 1);
+        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 48)).thenReturn(List.of(
+                message(1, "USER", "失效主体标记", "old", "[]"),
+                message(2, "ASSISTANT", "失效回答标记。[E1]", "old", mapper.writeValueAsString(List.of(obsolete)))));
+        server.enqueue(List.of("回答。[E1]"), "stop", true, 0);
+        prepare(text -> { });
+        verify(retrieval).retrieve(7L, 1, stored.message(), 5);
+        assertThat(server.requests().get(0)).doesNotContain("失效主体标记", "失效回答标记", "失效资料");
+    }
+
+    @Test
+    void independentTopicUsesOnlyCurrentQuestionForRetrieval() throws Exception {
+        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 48)).thenReturn(List.of(
+                message(1, "USER", "缓存锁怎么释放？", "old", "[]"),
+                message(2, "ASSISTANT", "旧回答", "old", "[]")));
+        server.enqueue(List.of("回答。[E1]"), "stop", true, 0);
+        prepare(run("new-topic", "解释数据库索引"), guard("new-topic"), text -> { });
+        verify(retrieval).retrieve(7L, 1, "解释数据库索引", 5);
+    }
+
+    @Test
     void rejectsMissingUsageAndLengthFinishWithoutReturningPreparedAnswer() {
-        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 12)).thenReturn(List.of());
+        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 48)).thenReturn(List.of());
         server.enqueue(List.of("答案。[E1]"), "stop", false, 0);
         assertThatThrownBy(() -> prepare(text -> { }))
                 .isInstanceOf(BusinessException.class).hasMessageContaining("usage");
@@ -161,7 +198,7 @@ class LangChainChatGeneratorTest {
 
     @Test
     void absentCourseEvidenceUsesFixedRefusalWithoutInventingCitationsOrCallingModel() {
-        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 12)).thenReturn(List.of());
+        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 48)).thenReturn(List.of());
         when(retrieval.retrieve(eq(7L), eq(1L), anyString(), eq(5))).thenReturn(
                 new KnowledgeRetrievalService.Result("empty", List.of(), true, false));
         var answer = prepare(text -> { });
@@ -174,7 +211,7 @@ class LangChainChatGeneratorTest {
 
     @Test
     void externalCancellationAfterFirstDeltaStopsWithoutLateDelta() {
-        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 12)).thenReturn(List.of());
+        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 48)).thenReturn(List.of());
         server.enqueue(List.of("第一段", "迟到段落。[E1]"), "stop", true, 250);
         List<String> deltas = new CopyOnWriteArrayList<>();
 
@@ -188,7 +225,7 @@ class LangChainChatGeneratorTest {
 
     @Test
     void sdkWrappedHttpErrorsKeepSafeStatusClassificationWithoutRetryOrProviderText() {
-        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 12)).thenReturn(List.of());
+        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 48)).thenReturn(List.of());
         int[] statuses = {401, 429, 400, 500};
         String[] codes = {"AI_MODEL_AUTHENTICATION_FAILED", "AI_MODEL_RATE_LIMITED",
                 "AI_MODEL_REQUEST_REJECTED", "AI_MODEL_PROVIDER_ERROR"};
@@ -204,7 +241,7 @@ class LangChainChatGeneratorTest {
 
     @Test
     void materialRevocationBetweenDeltaBatchesDiscardsAnswer() {
-        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 12)).thenReturn(List.of());
+        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 48)).thenReturn(List.of());
         server.enqueue(List.of("第一段", "第二段。[E1]"), "stop", true, 200);
         AtomicBoolean first = new AtomicBoolean();
 
@@ -215,7 +252,7 @@ class LangChainChatGeneratorTest {
 
     @Test
     void consecutiveRunsReuseSharedPoolsAndGeneratorCloseStopsTheirThreads() throws Exception {
-        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 12)).thenReturn(List.of());
+        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 48)).thenReturn(List.of());
         server.enqueue(List.of("第一次回答。[E1]"), "stop", true, 0);
         server.enqueue(List.of("第二次回答。[E1]"), "stop", true, 0);
 
@@ -232,7 +269,7 @@ class LangChainChatGeneratorTest {
 
     @Test
     void cancellingOneParallelRunDoesNotCancelAnotherRun() throws Exception {
-        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 12)).thenReturn(List.of());
+        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 48)).thenReturn(List.of());
         server.enqueue(List.of("A首段", "A迟到段。[E1]"), "stop", true, 250);
         server.enqueue(List.of("B完整回答。[E1]"), "stop", true, 0);
         var runA = run("run-a", "并行问题A");

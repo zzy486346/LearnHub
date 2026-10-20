@@ -95,7 +95,7 @@ class LangChainToolChatGeneratorTest {
                 10_000, 20, 10, 30, true, "RUNNING", 1));
         when(persistence.conversation(7, stored.conversationId())).thenReturn(
                 new ChatPersistenceService.Conversation(stored.conversationId(), 7, 1, "课程", 1));
-        when(persistence.messages(7, stored.conversationId(), Long.MAX_VALUE, 12)).thenReturn(List.of());
+        when(persistence.messages(7, stored.conversationId(), Long.MAX_VALUE, 48)).thenReturn(List.of());
         when(courses.readableLessonIds(7L, 1L)).thenReturn(List.of(2L));
         when(store.currentChunks(List.of(11L))).thenReturn(List.of(
                 new CurrentKnowledgeChunk(11, 9, 1, 1, 2, source.title(), 0, source.heading(), source.text())));

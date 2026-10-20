@@ -25,3 +25,12 @@
 - 审计基线：6 个测试类合计 55 项，全部执行、零失败/错误/跳过。命令为根 Maven `-pl learnhub-server -am test -Dtest=LangChainChatGeneratorTest,LangChainToolChatGeneratorTest,LangChainChatGeneratorContextTest,AuthorizedCourseRagTest,ChatEvidenceCodecTest,EvidenceBookTest -Dsurefire.failIfNoSpecifiedTests=false`。
 - 首次命令因 PowerShell 未引用含点参数而失败，已修正；沙箱内 Java 测试启动受限并停滞，终止该次命令后使用授权执行完成基线。没有重跑业务库导入或付费请求。
 - `assistant-context-holdout-20261020.json` 冻结 16 个自造 fixture 的多轮规范，状态 `NOT_RUN`。它用于协议/回归覆盖与后续供应商验收，不是回答质量成绩；实现者已经看过规范，不再声称未见留出集。
+
+## 动态上下文第一步
+
+- 新增 `ChatContextPlanner`，统一计算消息、JSON 转义、工具 schema 和 2048 字节协议开销；容量取本地输入上限与运行剩余预留减输出的较小值。这延续现有 `reserveModel(inputBytes, outputTokens)` 的字节作为 Token 上界策略，保守而非供应商精确分词。
+- 历史候选由 12 条扩大至 48 条，先按 owner/course/已完成配对与依赖复核，再以剩余空间的一半选入完整回合，剩余空间留给工具观察。历史正文和依赖一起计费，证据仍最多 20 条；同一材料仍由账本去重。预算不足不拆 JSON，也不拆工具链。
+- 本轮材料优先通过实际 LangChain4j Augmentor 获取、验证和登记，随后恢复准入历史，统一按账本渲染当前输入。不是重复检索；RAG 内容验证仍执行，模型输入格式集中在 `currentMessage`，避免把最初的 JSON 快照当成工具后最新证据。
+- 新增确定性 `ConversationQueryPlanner`。独立问题不拼接上一问；指代问题从已经通过依赖复核的候选中寻找最近明确问题。查询只用于召回，可能使用因输入预算未选入完整对话的问题，不把查询改写当事实；它不具备完整语义指代消解能力。
+- Agent 每次发送前再次按当前已预留总数规划，先移除较早普通历史对；固定规则、当前问题、工具调用与结果、完整证据不做字符串截断。必要输入仍超限时在预留/HTTP 前失败。日志只记录模式、数量、预算和丢弃数。
+- 专项 67 项全部实际通过，零失败/错误/跳过（首次新增测试编译发现两个 `Long` 参数错误，已修正后执行）。根 `mvn test` / `mvn verify` 分别通过：592 项，479 实际执行、113 条件跳过，零失败/错误；Mem0 deadline 测试本轮两次完整回归均通过。没有启用真实维护/付费验收测试。
