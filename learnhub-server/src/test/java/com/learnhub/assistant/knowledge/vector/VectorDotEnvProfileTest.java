@@ -34,10 +34,15 @@ class VectorDotEnvProfileTest {
         runner(empty).run(context -> assertThat(context).hasNotFailed().doesNotHaveBean(CourseVectorRuntime.class));
     }
 
-    private ApplicationContextRunner runner(Path local) {
+    private ApplicationContextRunner runner(Path local) throws Exception {
+        // 使用真实配置映射，但隔离开发者 .env，避免本机启用开关污染缺省分支。
+        Path resources = Path.of("src/main/resources");
+        Path config = directory.resolve("application.yml");
+        Files.writeString(config, Files.readString(resources.resolve("application.yml"))
+                .replace("optional:file:.env[.properties],optional:file:../.env[.properties]", local.toUri().toString()));
+        Files.copy(resources.resolve("application-vector.yml"), directory.resolve("application-vector.yml"));
         return new ApplicationContextRunner()
-                .withPropertyValues("spring.config.location=file:src/main/resources/application.yml",
-                        "spring.config.import=" + local.toUri())
+                .withPropertyValues("spring.config.location=" + config.toUri())
                 .withInitializer(new ConfigDataApplicationContextInitializer())
                 .withUserConfiguration(VectorConfiguration.class)
                 .withBean(VectorProjectionSync.class, () -> mock(VectorProjectionSync.class));
