@@ -23,4 +23,18 @@ docker compose --env-file .env -p deploy -f deploy/docker-compose.yml -f deploy/
 
 完整服务定义可以同时传入三份 Compose 文件；定向指定服务名可避免不必要的更新。记忆卷创建与旧项目迁移见 [Mem0 部署说明](../services/mem0/README.md)。
 
-2026-10-20 已实际创建课程向量容器，扩展版本 0.8.7、表及中文注释核验通过；原有 10 个容器的 ID 和启动时间保持一致。全量回填和冻结新语料评测另行记录。
+2026-10-20 已实际创建课程向量容器，扩展版本 0.8.7、表及中文注释核验通过；原有 10 个容器的 ID 和启动时间保持一致。已回填 57 份当前资料、273 个片段、273 条 512 维向量，详见 [回填与评测记录](../docs/ASSISTANT_VECTOR_LOCAL_ACCEPTANCE_20261020.md)。
+
+## 回填及增量同步
+
+在仓库根目录执行维护验证命令：
+
+```powershell
+& 'D:\Android\apache-maven-3.9.10\bin\mvn.cmd' -pl learnhub-server -am '-Dtest=LocalHybridBackfillSafetyTest,LocalHybridBackfillIntegrationTest' '-Dsurefire.failIfNoSpecifiedTests=false' '-Dlearnhub.vector.local.backfill=true' test
+```
+
+它仅接受本机 MySQL/ES/Redis 和 `127.0.0.1:15432/learnhub_vector`；不启动 HTTP 服务，禁用测试上下文全部定时任务及业务启动迁移，不创建购买权限，不调用生成模型。先核对 ES 当前代次，再由本地 BGE 向量化并通过既有投影补偿器回填。当前文档/版本/片段身份集合必须与 PG 精确一致。重复运行验证幂等性，首轮回执保留不覆盖，最新回执写入 Git 忽略的 `.local/vector-local-latest.json`。
+
+日常后端读取 `.env` 的 `SPRING_PROFILES_ACTIVE=local,vector`，以及 `LEARNHUB_VECTOR_ENABLED=true`、`LEARNHUB_VECTOR_SYNC_ENABLED=true`。启动后每 10 秒批量补偿待同步资料，新增/更新资料仍通过原有导入入口写入 MySQL，禁止直接把 PG 当资料事实源。Java 进程使用私有 PG 连接池，不替换 MySQL DataSource。
+
+`LEARNHUB_VECTOR_HYBRID_ENABLED=false` 暂时保留：本轮证明来源召回与排序，未证明资料不足问题的回答质量。需要本地试验时可改为 `true` 后正常重启后端，启用 BM25 + 中文 BGE + RRF（k=60）；向量不可用会退回 BM25。代理没有重启正在运行的用户后端，因此本次 `.env` 修改会在用户下次正常启动时生效。

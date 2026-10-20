@@ -1,0 +1,1785 @@
+{
+  "datasetId" : "learnhub-local-hybrid-20261020",
+  "datasetCommit" : "30f656e",
+  "datasetSha256" : "4a508f4a8c0f66ff7e1b00ed1208ec853a7adc6028785314b64422b79aa198d9",
+  "activeProfiles" : [ "local", "vector" ],
+  "materialSnapshotSha256" : "f5e93eb12de009386c5a21c0d12cfea1c1b06097efe95a89047f629a327cbf99",
+  "documents" : 57,
+  "currentChunks" : 273,
+  "vectorRows" : 273,
+  "dimension" : 512,
+  "modelId" : "bge-zh-v15-q-lc122-t480-o32-v1",
+  "rankConstant" : 60,
+  "candidateLimitPerChannel" : 100,
+  "returnedChunkLimit" : 5,
+  "timing" : "Warm local model; per-case rotated mode order; permission and version reads included; assertions excluded",
+  "materialEncodingsThisRun" : 0,
+  "queryEncodingsIncludingWarmup" : 157,
+  "deniedScopeChecks" : 21,
+  "authorizationViolations" : 0,
+  "supplierCalls" : 0,
+  "metrics" : {
+    "BM25" : {
+      "queries" : 72,
+      "answerableQueries" : 48,
+      "sourceRecallAt5Hits" : 48,
+      "sourceMrrAt5" : 0.9375,
+      "noEvidenceQueries" : 12,
+      "noEvidenceQueriesWithSources" : 12,
+      "weakSourcesForNoEvidence" : 60,
+      "meanLatencyMs" : 33.20613888888889,
+      "p95LatencyMs" : 41.1748
+    },
+    "SEMANTIC" : {
+      "queries" : 72,
+      "answerableQueries" : 48,
+      "sourceRecallAt5Hits" : 48,
+      "sourceMrrAt5" : 0.9305555555555555,
+      "noEvidenceQueries" : 12,
+      "noEvidenceQueriesWithSources" : 12,
+      "weakSourcesForNoEvidence" : 60,
+      "meanLatencyMs" : 36.038737499999996,
+      "p95LatencyMs" : 58.7654
+    },
+    "HYBRID" : {
+      "queries" : 72,
+      "answerableQueries" : 48,
+      "sourceRecallAt5Hits" : 48,
+      "sourceMrrAt5" : 0.9583333333333334,
+      "noEvidenceQueries" : 12,
+      "noEvidenceQueriesWithSources" : 12,
+      "weakSourcesForNoEvidence" : 60,
+      "meanLatencyMs" : 48.83804027777778,
+      "p95LatencyMs" : 65.0349
+    }
+  },
+  "results" : [ {
+    "id" : "ans-1001-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 168.525
+  }, {
+    "id" : "ans-1001-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 103.3818
+  }, {
+    "id" : "ans-1001-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 76.8067
+  }, {
+    "id" : "ans-1001-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 41.2282
+  }, {
+    "id" : "ans-1001-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 68.7072
+  }, {
+    "id" : "ans-1001-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 41.783
+  }, {
+    "id" : "ans-1002-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 59.4712
+  }, {
+    "id" : "ans-1002-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 39.2736
+  }, {
+    "id" : "ans-1002-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 34.7018
+  }, {
+    "id" : "ans-1002-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 34.5308
+  }, {
+    "id" : "ans-1002-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 44.3288
+  }, {
+    "id" : "ans-1002-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 53.4007
+  }, {
+    "id" : "ans-12001-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12001.lesson.32011", "generated.course.12001.lesson.32011", "generated.course.12001.lesson.32011", "generated.course.12001.lesson.32011", "generated.course.12001.lesson.32012" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 47.2318
+  }, {
+    "id" : "ans-12001-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12001.lesson.32011", "generated.course.12001.lesson.32011", "generated.course.12001.lesson.32011", "generated.course.12001.lesson.32011", "generated.course.12001.lesson.32011" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 50.6014
+  }, {
+    "id" : "ans-12001-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12001.lesson.32011", "generated.course.12001.lesson.32011", "generated.course.12001.lesson.32011", "generated.course.12001.lesson.32011", "generated.course.12001.lesson.32011" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 36.1869
+  }, {
+    "id" : "ans-12001-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32012" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 55.0612
+  }, {
+    "id" : "ans-12001-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32012" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 33.6619
+  }, {
+    "id" : "ans-12001-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32011" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 40.2411
+  }, {
+    "id" : "ans-12002-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12002.lesson.32021", "generated.course.12002.lesson.32021", "generated.course.12002.lesson.32021", "catalog.java-concurrency.inventory-race", "generated.course.12002.lesson.32021" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 41.1748
+  }, {
+    "id" : "ans-12002-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "catalog.java-concurrency.inventory-race", "generated.course.12002.lesson.32021", "generated.course.12002.lesson.32021", "generated.course.12002.lesson.32021", "generated.course.12002.lesson.32021" ],
+    "firstExpectedRank" : 2,
+    "sourceCount" : 5,
+    "latencyMs" : 39.9888
+  }, {
+    "id" : "ans-12002-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12002.lesson.32021", "generated.course.12002.lesson.32021", "generated.course.12002.lesson.32021", "generated.course.12002.lesson.32021", "catalog.java-concurrency.inventory-race" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 54.5071
+  }, {
+    "id" : "ans-12002-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12002.lesson.32022", "catalog.java-concurrency.thread-pool", "generated.course.12002.lesson.32022", "generated.course.12002.lesson.32022", "catalog.java-concurrency.thread-pool" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 44.3675
+  }, {
+    "id" : "ans-12002-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12002.lesson.32022", "catalog.java-concurrency.thread-pool", "catalog.java-concurrency.thread-pool", "catalog.java-concurrency.thread-pool", "generated.course.12002.lesson.32022" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 58.6172
+  }, {
+    "id" : "ans-12002-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "catalog.java-concurrency.thread-pool", "catalog.java-concurrency.thread-pool", "generated.course.12002.lesson.32022", "generated.course.12002.lesson.32022", "catalog.java-concurrency.thread-pool" ],
+    "firstExpectedRank" : 3,
+    "sourceCount" : 5,
+    "latencyMs" : 37.4433
+  }, {
+    "id" : "ans-12003-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32031" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 56.5671
+  }, {
+    "id" : "ans-12003-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32031" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 34.6566
+  }, {
+    "id" : "ans-12003-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32031" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 39.6362
+  }, {
+    "id" : "ans-12003-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 39.131
+  }, {
+    "id" : "ans-12003-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32031" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 42.3498
+  }, {
+    "id" : "ans-12003-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32031" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 57.8588
+  }, {
+    "id" : "ans-12004-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 34.7213
+  }, {
+    "id" : "ans-12004-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 50.9535
+  }, {
+    "id" : "ans-12004-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 32.0521
+  }, {
+    "id" : "ans-12004-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32042" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 46.11
+  }, {
+    "id" : "ans-12004-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32042" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 35.5343
+  }, {
+    "id" : "ans-12004-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32042" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 34.2147
+  }, {
+    "id" : "ans-12005-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12005.lesson.32052", "generated.course.12005.lesson.32052", "generated.course.12005.lesson.32051", "generated.course.12005.lesson.32051", "generated.course.12005.lesson.32051" ],
+    "firstExpectedRank" : 3,
+    "sourceCount" : 5,
+    "latencyMs" : 30.5033
+  }, {
+    "id" : "ans-12005-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12005.lesson.32052", "generated.course.12005.lesson.32051", "generated.course.12005.lesson.32051", "generated.course.12005.lesson.32051", "generated.course.12005.lesson.32051" ],
+    "firstExpectedRank" : 2,
+    "sourceCount" : 5,
+    "latencyMs" : 38.2964
+  }, {
+    "id" : "ans-12005-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12005.lesson.32052", "generated.course.12005.lesson.32051", "generated.course.12005.lesson.32051", "generated.course.12005.lesson.32052", "generated.course.12005.lesson.32051" ],
+    "firstExpectedRank" : 2,
+    "sourceCount" : 5,
+    "latencyMs" : 55.4527
+  }, {
+    "id" : "ans-12005-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12005.lesson.32052", "generated.course.12005.lesson.32052", "generated.course.12005.lesson.32051", "generated.course.12005.lesson.32051", "generated.course.12005.lesson.32052" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 36.6325
+  }, {
+    "id" : "ans-12005-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12005.lesson.32052", "generated.course.12005.lesson.32051", "generated.course.12005.lesson.32051", "generated.course.12005.lesson.32052", "generated.course.12005.lesson.32051" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 49.3195
+  }, {
+    "id" : "ans-12005-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12005.lesson.32052", "generated.course.12005.lesson.32051", "generated.course.12005.lesson.32051", "generated.course.12005.lesson.32051", "generated.course.12005.lesson.32052" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 33.5831
+  }, {
+    "id" : "ans-12006-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32061" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 50.922
+  }, {
+    "id" : "ans-12006-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32061" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 33.4688
+  }, {
+    "id" : "ans-12006-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32061" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 37.8968
+  }, {
+    "id" : "ans-12006-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32062" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 29.999
+  }, {
+    "id" : "ans-12006-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32062" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 35.268
+  }, {
+    "id" : "ans-12006-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32062" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 49.0658
+  }, {
+    "id" : "ans-12007-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12007.lesson.32071", "generated.course.12007.lesson.32071", "generated.course.12007.lesson.32071", "catalog.redis-cache.hot-key-expiry", "catalog.redis-cache.hot-key-expiry" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 42.2871
+  }, {
+    "id" : "ans-12007-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12007.lesson.32071", "generated.course.12007.lesson.32071", "catalog.redis-cache.hot-key-expiry", "catalog.redis-cache.hot-key-expiry", "generated.course.12007.lesson.32071" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 54.8551
+  }, {
+    "id" : "ans-12007-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12007.lesson.32071", "generated.course.12007.lesson.32071", "catalog.redis-cache.hot-key-expiry", "catalog.redis-cache.hot-key-expiry", "catalog.redis-cache.hot-key-expiry" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 34.0032
+  }, {
+    "id" : "ans-12007-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12007.lesson.32072", "catalog.redis-cache.consistency", "catalog.redis-cache.consistency", "generated.course.12007.lesson.32072", "generated.course.12007.lesson.32072" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 59.2238
+  }, {
+    "id" : "ans-12007-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12007.lesson.32072", "catalog.redis-cache.consistency", "generated.course.12007.lesson.32072", "generated.course.12007.lesson.32072", "catalog.redis-cache.consistency" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 32.84
+  }, {
+    "id" : "ans-12007-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "catalog.redis-cache.consistency", "catalog.redis-cache.consistency", "generated.course.12007.lesson.32072", "generated.course.12007.lesson.32072", "generated.course.12007.lesson.32072" ],
+    "firstExpectedRank" : 3,
+    "sourceCount" : 5,
+    "latencyMs" : 36.0119
+  }, {
+    "id" : "ans-12008-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32082", "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32081" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 29.9097
+  }, {
+    "id" : "ans-12008-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32081" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 33.6562
+  }, {
+    "id" : "ans-12008-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32082" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 48.0743
+  }, {
+    "id" : "ans-12008-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32082", "generated.course.12008.lesson.32082", "generated.course.12008.lesson.32082", "generated.course.12008.lesson.32082" ],
+    "firstExpectedRank" : 2,
+    "sourceCount" : 5,
+    "latencyMs" : 39.2474
+  }, {
+    "id" : "ans-12008-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12008.lesson.32082", "generated.course.12008.lesson.32082", "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32082", "generated.course.12008.lesson.32082" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 57.0694
+  }, {
+    "id" : "ans-12008-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12008.lesson.32082", "generated.course.12008.lesson.32082", "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32082", "generated.course.12008.lesson.32082" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 37.0581
+  }, {
+    "id" : "ans-12009-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32091" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 75.9039
+  }, {
+    "id" : "ans-12009-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32091" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 43.9321
+  }, {
+    "id" : "ans-12009-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32091" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 60.2543
+  }, {
+    "id" : "ans-12009-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12009.lesson.32092", "generated.course.12009.lesson.32092", "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32092", "generated.course.12009.lesson.32092" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 32.4347
+  }, {
+    "id" : "ans-12009-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12009.lesson.32092", "generated.course.12009.lesson.32092", "generated.course.12009.lesson.32092", "generated.course.12009.lesson.32092", "generated.course.12009.lesson.32091" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 30.947
+  }, {
+    "id" : "ans-12009-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12009.lesson.32092", "generated.course.12009.lesson.32092", "generated.course.12009.lesson.32092", "generated.course.12009.lesson.32092", "generated.course.12009.lesson.32091" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 44.4274
+  }, {
+    "id" : "ans-12010-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32101" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 32.9666
+  }, {
+    "id" : "ans-12010-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32102" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 49.4943
+  }, {
+    "id" : "ans-12010-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32102" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 29.934
+  }, {
+    "id" : "ans-12010-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12010.lesson.32102", "generated.course.12010.lesson.32102", "generated.course.12010.lesson.32102", "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32101" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 49.3082
+  }, {
+    "id" : "ans-12010-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12010.lesson.32102", "generated.course.12010.lesson.32102", "generated.course.12010.lesson.32102", "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32102" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 40.6316
+  }, {
+    "id" : "ans-12010-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12010.lesson.32102", "generated.course.12010.lesson.32102", "generated.course.12010.lesson.32102", "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32102" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 38.3783
+  }, {
+    "id" : "ans-12011-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32111" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 35.5863
+  }, {
+    "id" : "ans-12011-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32111" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 33.5783
+  }, {
+    "id" : "ans-12011-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32111" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 48.3933
+  }, {
+    "id" : "ans-12011-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12011.lesson.32112", "generated.course.12011.lesson.32112", "generated.course.12011.lesson.32112", "generated.course.12011.lesson.32112", "generated.course.12011.lesson.32111" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 31.6538
+  }, {
+    "id" : "ans-12011-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12011.lesson.32112", "generated.course.12011.lesson.32112", "generated.course.12011.lesson.32112", "generated.course.12011.lesson.32112", "generated.course.12011.lesson.32112" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 52.3322
+  }, {
+    "id" : "ans-12011-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12011.lesson.32112", "generated.course.12011.lesson.32112", "generated.course.12011.lesson.32112", "generated.course.12011.lesson.32112", "generated.course.12011.lesson.32112" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 32.2881
+  }, {
+    "id" : "ans-12012-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12012.lesson.32121", "generated.course.12012.lesson.32121", "generated.course.12012.lesson.32121", "generated.course.12012.lesson.32121", "generated.course.12012.lesson.32121" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 50.7232
+  }, {
+    "id" : "ans-12012-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12012.lesson.32121", "generated.course.12012.lesson.32121", "generated.course.12012.lesson.32121", "generated.course.12012.lesson.32121", "generated.course.12012.lesson.32121" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 31.4314
+  }, {
+    "id" : "ans-12012-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12012.lesson.32121", "generated.course.12012.lesson.32121", "generated.course.12012.lesson.32121", "generated.course.12012.lesson.32121", "generated.course.12012.lesson.32121" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 34.8051
+  }, {
+    "id" : "ans-12012-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32122" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 30.5497
+  }, {
+    "id" : "ans-12012-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32121" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 32.8629
+  }, {
+    "id" : "ans-12012-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32122" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 50.031
+  }, {
+    "id" : "ans-12013-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12013.lesson.32131", "generated.course.12013.lesson.32131", "generated.course.12013.lesson.32131", "generated.course.12013.lesson.32132", "generated.course.12013.lesson.32131" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 37.5553
+  }, {
+    "id" : "ans-12013-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12013.lesson.32131", "generated.course.12013.lesson.32131", "generated.course.12013.lesson.32131", "generated.course.12013.lesson.32131", "generated.course.12013.lesson.32132" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 56.6892
+  }, {
+    "id" : "ans-12013-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12013.lesson.32131", "generated.course.12013.lesson.32131", "generated.course.12013.lesson.32131", "generated.course.12013.lesson.32131", "generated.course.12013.lesson.32131" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 32.7146
+  }, {
+    "id" : "ans-12013-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12013.lesson.32131", "generated.course.12013.lesson.32132", "generated.course.12013.lesson.32131", "generated.course.12013.lesson.32132", "generated.course.12013.lesson.32132" ],
+    "firstExpectedRank" : 2,
+    "sourceCount" : 5,
+    "latencyMs" : 47.1756
+  }, {
+    "id" : "ans-12013-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12013.lesson.32131", "generated.course.12013.lesson.32132", "generated.course.12013.lesson.32132", "generated.course.12013.lesson.32132", "generated.course.12013.lesson.32131" ],
+    "firstExpectedRank" : 2,
+    "sourceCount" : 5,
+    "latencyMs" : 32.4798
+  }, {
+    "id" : "ans-12013-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12013.lesson.32131", "generated.course.12013.lesson.32131", "generated.course.12013.lesson.32132", "generated.course.12013.lesson.32132", "generated.course.12013.lesson.32132" ],
+    "firstExpectedRank" : 3,
+    "sourceCount" : 5,
+    "latencyMs" : 58.7654
+  }, {
+    "id" : "ans-12014-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12014.lesson.32141", "generated.course.12014.lesson.32141", "generated.course.12014.lesson.32141", "generated.course.12014.lesson.32141", "generated.course.12014.lesson.32142" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 29.3376
+  }, {
+    "id" : "ans-12014-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12014.lesson.32141", "generated.course.12014.lesson.32141", "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32141", "generated.course.12014.lesson.32142" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 34.1719
+  }, {
+    "id" : "ans-12014-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12014.lesson.32141", "generated.course.12014.lesson.32141", "generated.course.12014.lesson.32141", "generated.course.12014.lesson.32141", "generated.course.12014.lesson.32142" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 48.4775
+  }, {
+    "id" : "ans-12014-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32142" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 34.5445
+  }, {
+    "id" : "ans-12014-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32142" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 50.5643
+  }, {
+    "id" : "ans-12014-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32142" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 38.8485
+  }, {
+    "id" : "ans-12015-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12015.lesson.32151", "catalog.elasticsearch.inverted-index", "catalog.elasticsearch.inverted-index", "catalog.elasticsearch.inverted-index", "generated.course.12015.lesson.32151" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 51.336
+  }, {
+    "id" : "ans-12015-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12015.lesson.32151", "catalog.elasticsearch.inverted-index", "catalog.elasticsearch.inverted-index", "catalog.elasticsearch.inverted-index", "generated.course.12015.lesson.32151" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 32.8085
+  }, {
+    "id" : "ans-12015-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12015.lesson.32151", "catalog.elasticsearch.inverted-index", "generated.course.12015.lesson.32151", "catalog.elasticsearch.inverted-index", "generated.course.12015.lesson.32151" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 36.408
+  }, {
+    "id" : "ans-12015-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "catalog.elasticsearch.relevance-ranking", "generated.course.12015.lesson.32152", "generated.course.12015.lesson.32152", "generated.course.12015.lesson.32152", "generated.course.12015.lesson.32151" ],
+    "firstExpectedRank" : 2,
+    "sourceCount" : 5,
+    "latencyMs" : 28.4969
+  }, {
+    "id" : "ans-12015-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "catalog.elasticsearch.relevance-ranking", "generated.course.12015.lesson.32152", "generated.course.12015.lesson.32152", "generated.course.12015.lesson.32151", "generated.course.12015.lesson.32152" ],
+    "firstExpectedRank" : 2,
+    "sourceCount" : 5,
+    "latencyMs" : 34.4559
+  }, {
+    "id" : "ans-12015-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "catalog.elasticsearch.relevance-ranking", "generated.course.12015.lesson.32152", "generated.course.12015.lesson.32152", "generated.course.12015.lesson.32152", "generated.course.12015.lesson.32151" ],
+    "firstExpectedRank" : 2,
+    "sourceCount" : 5,
+    "latencyMs" : 49.7603
+  }, {
+    "id" : "ans-12016-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12016.lesson.32161", "generated.course.12016.lesson.32161", "generated.course.12016.lesson.32161", "generated.course.12016.lesson.32161", "generated.course.12016.lesson.32161" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 34.7726
+  }, {
+    "id" : "ans-12016-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12016.lesson.32161", "generated.course.12016.lesson.32161", "generated.course.12016.lesson.32161", "generated.course.12016.lesson.32161", "generated.course.12016.lesson.32161" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 43.5754
+  }, {
+    "id" : "ans-12016-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12016.lesson.32161", "generated.course.12016.lesson.32161", "generated.course.12016.lesson.32161", "generated.course.12016.lesson.32161", "generated.course.12016.lesson.32161" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 30.4141
+  }, {
+    "id" : "ans-12016-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32161" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 46.5964
+  }, {
+    "id" : "ans-12016-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32162" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 32.6978
+  }, {
+    "id" : "ans-12016-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32161" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 30.9205
+  }, {
+    "id" : "ans-12017-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12017.lesson.32171", "generated.course.12017.lesson.32171", "generated.course.12017.lesson.32171", "generated.course.12017.lesson.32171", "generated.course.12017.lesson.32171" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 29.085
+  }, {
+    "id" : "ans-12017-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12017.lesson.32171", "generated.course.12017.lesson.32171", "generated.course.12017.lesson.32171", "generated.course.12017.lesson.32172", "generated.course.12017.lesson.32172" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 33.4705
+  }, {
+    "id" : "ans-12017-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12017.lesson.32171", "generated.course.12017.lesson.32171", "generated.course.12017.lesson.32171", "generated.course.12017.lesson.32171", "generated.course.12017.lesson.32172" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 46.5637
+  }, {
+    "id" : "ans-12017-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12017.lesson.32172", "generated.course.12017.lesson.32172", "generated.course.12017.lesson.32172", "generated.course.12017.lesson.32172", "generated.course.12017.lesson.32171" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 28.5247
+  }, {
+    "id" : "ans-12017-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12017.lesson.32172", "generated.course.12017.lesson.32172", "generated.course.12017.lesson.32172", "generated.course.12017.lesson.32172", "generated.course.12017.lesson.32172" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 43.1427
+  }, {
+    "id" : "ans-12017-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12017.lesson.32172", "generated.course.12017.lesson.32172", "generated.course.12017.lesson.32172", "generated.course.12017.lesson.32172", "generated.course.12017.lesson.32172" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 28.8933
+  }, {
+    "id" : "ans-12018-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32181", "generated.course.12018.lesson.32181", "generated.course.12018.lesson.32181", "generated.course.12018.lesson.32182" ],
+    "firstExpectedRank" : 2,
+    "sourceCount" : 5,
+    "latencyMs" : 42.1812
+  }, {
+    "id" : "ans-12018-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32181", "generated.course.12018.lesson.32181", "generated.course.12018.lesson.32181" ],
+    "firstExpectedRank" : 3,
+    "sourceCount" : 5,
+    "latencyMs" : 30.5575
+  }, {
+    "id" : "ans-12018-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12018.lesson.32181", "generated.course.12018.lesson.32181", "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32181", "generated.course.12018.lesson.32181" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 31.376
+  }, {
+    "id" : "ans-12018-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32181", "generated.course.12018.lesson.32182" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 27.8199
+  }, {
+    "id" : "ans-12018-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32181" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 27.8673
+  }, {
+    "id" : "ans-12018-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32181" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 38.8839
+  }, {
+    "id" : "ans-12019-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12019.lesson.32191", "generated.course.12019.lesson.32191", "generated.course.12019.lesson.32191", "generated.course.12019.lesson.32192", "generated.course.12019.lesson.32192" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 29.8004
+  }, {
+    "id" : "ans-12019-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12019.lesson.32191", "generated.course.12019.lesson.32191", "generated.course.12019.lesson.32191", "generated.course.12019.lesson.32191", "generated.course.12019.lesson.32192" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 46.0211
+  }, {
+    "id" : "ans-12019-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12019.lesson.32191", "generated.course.12019.lesson.32191", "generated.course.12019.lesson.32191", "generated.course.12019.lesson.32191", "generated.course.12019.lesson.32192" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 28.748
+  }, {
+    "id" : "ans-12019-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12019.lesson.32192", "generated.course.12019.lesson.32192", "generated.course.12019.lesson.32192", "generated.course.12019.lesson.32192", "generated.course.12019.lesson.32192" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 45.7854
+  }, {
+    "id" : "ans-12019-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12019.lesson.32192", "generated.course.12019.lesson.32192", "generated.course.12019.lesson.32192", "generated.course.12019.lesson.32191", "generated.course.12019.lesson.32192" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 29.3012
+  }, {
+    "id" : "ans-12019-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12019.lesson.32192", "generated.course.12019.lesson.32192", "generated.course.12019.lesson.32192", "generated.course.12019.lesson.32192", "generated.course.12019.lesson.32192" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 37.1213
+  }, {
+    "id" : "ans-12020-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12020.lesson.32201", "generated.course.12020.lesson.32201", "generated.course.12020.lesson.32201", "generated.course.12020.lesson.32201", "generated.course.12020.lesson.32201" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 30.7735
+  }, {
+    "id" : "ans-12020-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12020.lesson.32201", "generated.course.12020.lesson.32201", "generated.course.12020.lesson.32201", "generated.course.12020.lesson.32201", "generated.course.12020.lesson.32201" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 32.0406
+  }, {
+    "id" : "ans-12020-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12020.lesson.32201", "generated.course.12020.lesson.32201", "generated.course.12020.lesson.32201", "generated.course.12020.lesson.32201", "generated.course.12020.lesson.32201" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 48.2032
+  }, {
+    "id" : "ans-12020-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12020.lesson.32202", "generated.course.12020.lesson.32202", "generated.course.12020.lesson.32202", "generated.course.12020.lesson.32202", "generated.course.12020.lesson.32201" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 35.6486
+  }, {
+    "id" : "ans-12020-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12020.lesson.32202", "generated.course.12020.lesson.32202", "generated.course.12020.lesson.32202", "generated.course.12020.lesson.32202", "generated.course.12020.lesson.32202" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 58.0187
+  }, {
+    "id" : "ans-12020-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12020.lesson.32202", "generated.course.12020.lesson.32202", "generated.course.12020.lesson.32202", "generated.course.12020.lesson.32202", "generated.course.12020.lesson.32202" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 29.4074
+  }, {
+    "id" : "ans-12021-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12021.lesson.32211", "generated.course.12021.lesson.32211", "generated.course.12021.lesson.32211", "generated.course.12021.lesson.32211", "generated.course.12021.lesson.32211" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 39.6504
+  }, {
+    "id" : "ans-12021-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12021.lesson.32211", "generated.course.12021.lesson.32211", "generated.course.12021.lesson.32211", "generated.course.12021.lesson.32211", "generated.course.12021.lesson.32211" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 28.6027
+  }, {
+    "id" : "ans-12021-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12021.lesson.32211", "generated.course.12021.lesson.32211", "generated.course.12021.lesson.32211", "generated.course.12021.lesson.32211", "generated.course.12021.lesson.32212" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 29.0574
+  }, {
+    "id" : "ans-12021-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32212" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 27.1368
+  }, {
+    "id" : "ans-12021-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32212" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 35.9551
+  }, {
+    "id" : "ans-12021-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32212" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 43.3408
+  }, {
+    "id" : "ans-8900835210-01",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 29.1228
+  }, {
+    "id" : "ans-8900835210-01",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 42.6459
+  }, {
+    "id" : "ans-8900835210-01",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 30.6054
+  }, {
+    "id" : "ans-8900835210-02",
+    "category" : "ANSWERABLE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 43.0062
+  }, {
+    "id" : "ans-8900835210-02",
+    "category" : "ANSWERABLE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 28.4345
+  }, {
+    "id" : "ans-8900835210-02",
+    "category" : "ANSWERABLE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009" ],
+    "firstExpectedRank" : 1,
+    "sourceCount" : 5,
+    "latencyMs" : 65.8941
+  }, {
+    "id" : "none-1001-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 33.8305
+  }, {
+    "id" : "none-1001-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 31.1925
+  }, {
+    "id" : "none-1001-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 47.7234
+  }, {
+    "id" : "none-1002-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 28.3907
+  }, {
+    "id" : "none-1002-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 41.7671
+  }, {
+    "id" : "none-1002-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 28.4205
+  }, {
+    "id" : "none-12003-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32032" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 65.0349
+  }, {
+    "id" : "none-12003-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32031" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 27.5827
+  }, {
+    "id" : "none-12003-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32031" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 31.6523
+  }, {
+    "id" : "none-12004-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 25.7824
+  }, {
+    "id" : "none-12004-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32042" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 30.338
+  }, {
+    "id" : "none-12004-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32042" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 41.4186
+  }, {
+    "id" : "none-12006-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32061" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 29.8048
+  }, {
+    "id" : "none-12006-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32062" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 44.9335
+  }, {
+    "id" : "none-12006-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32062" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 30.1941
+  }, {
+    "id" : "none-12008-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32082" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 43.3099
+  }, {
+    "id" : "none-12008-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12008.lesson.32082", "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32081" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 29.1057
+  }, {
+    "id" : "none-12008-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32081", "generated.course.12008.lesson.32082", "generated.course.12008.lesson.32081" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 51.8082
+  }, {
+    "id" : "none-12009-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12009.lesson.32092", "generated.course.12009.lesson.32092", "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32091" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 28.2524
+  }, {
+    "id" : "none-12009-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12009.lesson.32092", "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32091" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 31.9645
+  }, {
+    "id" : "none-12009-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12009.lesson.32092", "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32091", "generated.course.12009.lesson.32092", "generated.course.12009.lesson.32091" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 44.4087
+  }, {
+    "id" : "none-12010-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12010.lesson.32102", "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32102", "generated.course.12010.lesson.32102" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 29.4346
+  }, {
+    "id" : "none-12010-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12010.lesson.32102", "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32102", "generated.course.12010.lesson.32102" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 41.858
+  }, {
+    "id" : "none-12010-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32102", "generated.course.12010.lesson.32102", "generated.course.12010.lesson.32101", "generated.course.12010.lesson.32102" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 25.5752
+  }, {
+    "id" : "none-12012-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12012.lesson.32121", "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32121" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 41.1901
+  }, {
+    "id" : "none-12012-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12012.lesson.32121", "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32121", "generated.course.12012.lesson.32121", "generated.course.12012.lesson.32122" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 27.0908
+  }, {
+    "id" : "none-12012-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12012.lesson.32121", "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32122", "generated.course.12012.lesson.32122" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 31.6333
+  }, {
+    "id" : "none-12015-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12015.lesson.32151", "generated.course.12015.lesson.32152", "catalog.elasticsearch.inverted-index", "catalog.elasticsearch.inverted-index", "catalog.elasticsearch.inverted-index" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 28.1365
+  }, {
+    "id" : "none-12015-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "catalog.elasticsearch.inverted-index", "catalog.elasticsearch.relevance-ranking", "generated.course.12015.lesson.32152", "catalog.elasticsearch.inverted-index", "catalog.elasticsearch.relevance-ranking" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 30.0854
+  }, {
+    "id" : "none-12015-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "catalog.elasticsearch.inverted-index", "catalog.elasticsearch.inverted-index", "generated.course.12015.lesson.32152", "generated.course.12015.lesson.32152", "generated.course.12015.lesson.32151" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 41.5645
+  }, {
+    "id" : "none-12018-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32181", "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32181", "generated.course.12018.lesson.32182" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 28.8111
+  }, {
+    "id" : "none-12018-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32181", "generated.course.12018.lesson.32181", "generated.course.12018.lesson.32181", "generated.course.12018.lesson.32182" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 42.4061
+  }, {
+    "id" : "none-12018-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12018.lesson.32181", "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32181", "generated.course.12018.lesson.32182", "generated.course.12018.lesson.32182" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 29.2537
+  }, {
+    "id" : "none-8900835210-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 46.8054
+  }, {
+    "id" : "none-8900835210-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 30.8974
+  }, {
+    "id" : "none-8900835210-01",
+    "category" : "NO_EVIDENCE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009", "generated.course.8900835210.lesson.3009" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 31.1009
+  }, {
+    "id" : "cross-1001-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 3,
+    "latencyMs" : 26.087
+  }, {
+    "id" : "cross-1001-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 32.8294
+  }, {
+    "id" : "cross-1001-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001", "generated.course.1001.lesson.3001" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 47.7318
+  }, {
+    "id" : "cross-1002-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 28.5936
+  }, {
+    "id" : "cross-1002-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 42.171
+  }, {
+    "id" : "cross-1002-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005", "generated.course.1002.lesson.3005" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 4,
+    "latencyMs" : 26.5812
+  }, {
+    "id" : "cross-12001-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32011", "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32012" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 43.4933
+  }, {
+    "id" : "cross-12001-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32012" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 29.0027
+  }, {
+    "id" : "cross-12001-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32011", "generated.course.12001.lesson.32011", "generated.course.12001.lesson.32012", "generated.course.12001.lesson.32011" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 30.5067
+  }, {
+    "id" : "cross-12002-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "catalog.java-concurrency.inventory-race", "generated.course.12002.lesson.32021", "generated.course.12002.lesson.32022", "generated.course.12002.lesson.32021", "generated.course.12002.lesson.32021" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 26.9214
+  }, {
+    "id" : "cross-12002-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12002.lesson.32021", "catalog.java-concurrency.thread-pool", "generated.course.12002.lesson.32021", "catalog.java-concurrency.inventory-race", "catalog.java-concurrency.thread-pool" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 31.6215
+  }, {
+    "id" : "cross-12002-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12002.lesson.32021", "catalog.java-concurrency.inventory-race", "generated.course.12002.lesson.32021", "generated.course.12002.lesson.32021", "generated.course.12002.lesson.32021" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 52.4771
+  }, {
+    "id" : "cross-12003-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32031" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 31.9626
+  }, {
+    "id" : "cross-12003-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32031" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 43.8611
+  }, {
+    "id" : "cross-12003-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12003.lesson.32031", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032", "generated.course.12003.lesson.32032" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 37.1327
+  }, {
+    "id" : "cross-12004-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32041" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 37.5179
+  }, {
+    "id" : "cross-12004-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32041" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 26.6033
+  }, {
+    "id" : "cross-12004-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32041", "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32042", "generated.course.12004.lesson.32041" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 27.512
+  }, {
+    "id" : "cross-12006-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32062" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 26.2607
+  }, {
+    "id" : "cross-12006-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32061" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 27.2097
+  }, {
+    "id" : "cross-12006-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32061", "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32062", "generated.course.12006.lesson.32062" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 39.2385
+  }, {
+    "id" : "cross-12007-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12007.lesson.32071", "generated.course.12007.lesson.32072", "catalog.redis-cache.hot-key-expiry", "generated.course.12007.lesson.32072", "generated.course.12007.lesson.32072" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 27.4705
+  }, {
+    "id" : "cross-12007-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12007.lesson.32072", "generated.course.12007.lesson.32071", "catalog.redis-cache.consistency", "generated.course.12007.lesson.32071", "generated.course.12007.lesson.32072" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 43.96
+  }, {
+    "id" : "cross-12007-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "catalog.redis-cache.consistency", "generated.course.12007.lesson.32072", "generated.course.12007.lesson.32071", "generated.course.12007.lesson.32072", "generated.course.12007.lesson.32072" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 27.0481
+  }, {
+    "id" : "cross-12011-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12011.lesson.32112", "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32112" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 46.2396
+  }, {
+    "id" : "cross-12011-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12011.lesson.32112", "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32112", "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32112" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 28.2699
+  }, {
+    "id" : "cross-12011-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12011.lesson.32112", "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32111", "generated.course.12011.lesson.32112", "generated.course.12011.lesson.32111" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 28.2415
+  }, {
+    "id" : "cross-12014-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12014.lesson.32141", "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32141", "generated.course.12014.lesson.32141" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 24.3871
+  }, {
+    "id" : "cross-12014-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12014.lesson.32141", "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32141" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 26.2866
+  }, {
+    "id" : "cross-12014-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32141", "generated.course.12014.lesson.32142", "generated.course.12014.lesson.32141", "generated.course.12014.lesson.32142" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 35.4125
+  }, {
+    "id" : "cross-12016-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32161", "generated.course.12016.lesson.32161", "generated.course.12016.lesson.32161", "generated.course.12016.lesson.32161" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 26.738
+  }, {
+    "id" : "cross-12016-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32161", "generated.course.12016.lesson.32161", "generated.course.12016.lesson.32161" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 37.2787
+  }, {
+    "id" : "cross-12016-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32162", "generated.course.12016.lesson.32161" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 24.0266
+  }, {
+    "id" : "cross-12021-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "HYBRID",
+    "sourceKeys" : [ "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32211", "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32212" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 39.6611
+  }, {
+    "id" : "cross-12021-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "BM25",
+    "sourceKeys" : [ "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32211", "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32211", "generated.course.12021.lesson.32212" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 25.13
+  }, {
+    "id" : "cross-12021-01",
+    "category" : "CROSS_COURSE",
+    "mode" : "SEMANTIC",
+    "sourceKeys" : [ "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32212", "generated.course.12021.lesson.32211", "generated.course.12021.lesson.32211" ],
+    "firstExpectedRank" : 0,
+    "sourceCount" : 5,
+    "latencyMs" : 30.9934
+  } ]
+}
