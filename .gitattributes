@@ -1,1 +1,2 @@
 services/mem0/init-memory.sh text eol=lf
+deploy/init-course-vector.sh text eol=lf
