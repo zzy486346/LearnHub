@@ -1,0 +1,26 @@
+{
+  "migrationDate": "2026-10-20",
+  "firstRun": {
+    "uploadedThisRun": 63,
+    "totalBytes": 117921619,
+    "protectedMediaUnchanged": true,
+    "courses": 21,
+    "headChecks": 63,
+    "coversVerified": 21,
+    "remainingLocalMediaReferences": 0,
+    "httpChecks": 63,
+    "videosVerified": 42
+  },
+  "idempotentRun": {
+    "remainingLocalMediaReferences": 0,
+    "coversVerified": 21,
+    "headChecks": 63,
+    "courses": 21,
+    "protectedMediaUnchanged": true,
+    "totalBytes": 117921619,
+    "uploadedThisRun": 0,
+    "videosVerified": 42,
+    "httpChecks": 63
+  },
+  "localMediaContainerRemoved": true
+}

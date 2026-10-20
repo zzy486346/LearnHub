@@ -15,7 +15,6 @@
 | memory-pg | Mem0 学习偏好的向量数据库 | 与 memory-api 配套 |
 | memory-bridge | 为 Mem0 提供本地 BGE 向量编码 | 与 memory-api 配套 |
 | memory-loopback | 将宿主机回环端口 18280 转发到私网 Mem0 API | 宿主机运行 Java 并使用 Mem0 时保留 |
-| course-media | Nginx 提供本地课程封面和视频，属于 demo profile | 课程资料引用本地媒体时保留 |
 | kibana | ES 可视化调试界面，业务服务不依赖 | 默认关闭，tools profile 按需启动 |
 
 Kibana 已改为可选服务。普通 `up -d` 不会新启动它；已有运行容器需明确停止。停止不会删除数据卷，后续需要 ES 管理界面时可恢复：
@@ -25,7 +24,9 @@ docker compose -p deploy -f deploy/docker-compose.yml stop kibana
 docker compose -p deploy -f deploy/docker-compose.yml --profile tools up -d kibana
 ```
 
-`memory-*` 的四个容器构成一项长期记忆功能，不能只删除其中一个。若整项不用，先在 `.env` 将 `LEARNHUB_ASSISTANT_MEMORY_ENABLED=false`，正常重启后端后，再按 [记忆服务说明](../services/mem0/README.md) 停止四个容器；保留数据卷。课程向量库与记忆库用途和模型编码约定不同，本次不做数据库合并。`course-media` 已属于按需启动的 demo profile；已有课程资源仍可能依赖它，健康检查失败应另行定位。
+`memory-*` 的四个容器构成一项长期记忆功能，不能只删除其中一个。若整项不用，先在 `.env` 将 `LEARNHUB_ASSISTANT_MEMORY_ENABLED=false`，正常重启后端后，再按 [记忆服务说明](../services/mem0/README.md) 停止四个容器；保留数据卷。课程向量库与记忆库用途和模型编码约定不同，本次不做数据库合并。
+
+2026-10-20 已将原本依赖本地 Nginx 的 21 个封面和 42 个视频迁移至 OSS，数据库中 8091 引用为 0；`course-media` 容器、Compose 服务和 Nginx 配置已移除，后端通过媒体资源 ID 生成访问地址。见 [媒体迁移记录](../docs/COURSE_MEDIA_OSS_MIGRATION_20261020.md)。
 
 ## 课程向量数据库
 
