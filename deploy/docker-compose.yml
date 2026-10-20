@@ -88,6 +88,7 @@ services:
 
   kibana:
     image: docker.elastic.co/kibana/kibana:8.15.3
+    profiles: ["tools"]
     restart: unless-stopped
     environment:
       TZ: Asia/Shanghai
