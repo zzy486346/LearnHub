@@ -13,7 +13,7 @@ services:
       - course-vector-data:/var/lib/postgresql/data
       - ./init-course-vector.sh:/docker-entrypoint-initdb.d/10-course-vector.sh:ro
       - ../sql/postgres/001_course_embeddings.sql:/bootstrap/001_course_embeddings.sql:ro
-    networks: [vector-private]
+    networks: [vector-private, vector-host]
     healthcheck:
       test: [CMD-SHELL, "PGPASSWORD=$$POSTGRES_PASSWORD psql -h 127.0.0.1 -U postgres -d learnhub_vector -tAc \"SELECT to_regclass('learnhub_rag.course_embeddings_bge_zh_v1') IS NOT NULL AND EXISTS(SELECT 1 FROM pg_extension WHERE extname='vector')\" | grep -qx t"]
       interval: 5s
@@ -24,6 +24,8 @@ services:
 
 networks:
   vector-private: {internal: true}
+  # Docker Desktop 的 internal 网络不提供宿主机端口映射；专用桥接网络承载回环端口。
+  vector-host: {}
 
 volumes:
   course-vector-data: {}
