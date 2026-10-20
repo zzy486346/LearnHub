@@ -18,9 +18,12 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 只展示已经完整解析且通过引用校验的段落；原始 JSON 永不传给浏览器。 */
 public final class GroundedAnswerStream implements AutoCloseable {
+    private static final Logger log = LoggerFactory.getLogger(GroundedAnswerStream.class);
     private static final Pattern EXTERNAL_LINK = Pattern.compile(
             "(?i)(https?://|www\\.|\\]\\s*\\(|(?:javascript|data|file|ftp):|//[a-z0-9])");
     private final JsonParser parser;
@@ -88,7 +91,8 @@ public final class GroundedAnswerStream implements AutoCloseable {
             }
         } catch (IOException | RuntimeException failure) {
             close();
-            throw failure instanceof BusinessException business ? business : invalid();
+            throw failure instanceof BusinessException business ? business
+                    : invalid(failure instanceof IOException ? "JSON_SYNTAX" : "STREAM_PROCESSING");
         }
     }
 
@@ -179,7 +183,7 @@ public final class GroundedAnswerStream implements AutoCloseable {
                     else {
                         require(token == JsonToken.VALUE_STRING && evidenceIds.size() < 5);
                         String id = parser.getText();
-                        require(!evidenceIds.contains(id) && book.contains(id));
+                        require(!evidenceIds.contains(id) && book.contains(id), "UNKNOWN_OR_DUPLICATE_CITATION");
                         evidenceIds.add(id);
                     }
                 }
@@ -189,12 +193,15 @@ public final class GroundedAnswerStream implements AutoCloseable {
     }
 
     private void emitSegment() {
-        require(segmentFields.size() == 3 && text != null && !text.isBlank() && text.length() <= 1_200
-                && bodyLength + text.length() <= 4_000 && wellFormedUnicode(text) && !EXTERNAL_LINK.matcher(text).find()
-                && !GroundedAnswers.hasInlineCitation(text)
-                && evidenceIds != null && !evidenceIds.isEmpty() && Set.of("FACT", "SUGGESTION").contains(kind));
+        require(segmentFields.size() == 3 && text != null && kind != null && evidenceIds != null, "MISSING_SEGMENT_FIELD");
+        require(!text.isBlank() && text.length() <= 1_200 && bodyLength + text.length() <= 4_000, "TEXT_LIMIT");
+        require(wellFormedUnicode(text), "INVALID_UNICODE");
+        require(!EXTERNAL_LINK.matcher(text).find(), "EXTERNAL_LINK");
+        require(!GroundedAnswers.hasInlineCitation(text), "INLINE_CITATION");
+        require(!evidenceIds.isEmpty(), "EMPTY_CITATIONS");
+        require(Set.of("FACT", "SUGGESTION").contains(kind), "INVALID_SEGMENT_KIND");
         if ("SUGGESTION".equals(kind)) require(evidenceIds.stream().anyMatch(id -> "PROGRESS".equals(book.kind(id)))
-                && evidenceIds.stream().anyMatch(id -> "OUTLINE".equals(book.kind(id))));
+                && evidenceIds.stream().anyMatch(id -> "OUTLINE".equals(book.kind(id))), "SUGGESTION_MISSING_EVIDENCE");
         checkpoint.run();
         book.check();
         var segment = new GroundedAnswer.Segment(text, List.copyOf(evidenceIds), kind);
@@ -223,8 +230,13 @@ public final class GroundedAnswerStream implements AutoCloseable {
     }
 
     private void requireOpen() { if (closed || finished) throw invalid(); }
-    private static void require(boolean condition) { if (!condition) throw invalid(); }
-    private static BusinessException invalid() {
+    private void require(boolean condition) { require(condition, "JSON_STRUCTURE"); }
+    private void require(boolean condition, String reason) { if (!condition) throw invalid(reason); }
+    private BusinessException invalid() { return invalid("JSON_STRUCTURE"); }
+    private BusinessException invalid(String reason) {
+        // 仅记录固定原因、状态和计数；不记录问题、模型正文、引用正文或异常详情。
+        log.warn("Assistant streamed output rejected reason={} state={} completedSegments={} receivedBytes={}",
+                reason, state, segments.size(), bytes);
         return new BusinessException("ASSISTANT_OUTPUT_INVALID", "模型增量段落未通过校验");
     }
     @Override public void close() {

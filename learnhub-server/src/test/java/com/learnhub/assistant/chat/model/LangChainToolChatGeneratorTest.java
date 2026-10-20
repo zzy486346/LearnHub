@@ -150,6 +150,9 @@ class LangChainToolChatGeneratorTest {
         var answer = prepare(text -> { deltas.add(text); visible.countDown(); }, statuses::add);
 
         assertThat(server.requests).hasSize(2);
+        for (String body : server.requests) {
+            assertThat(mapper.readTree(body).path("response_format").path("type").asText()).isEqualTo("json_object");
+        }
         assertThat(finalScript.firstVisibleBeforeFinish.get()).isTrue();
         assertThat(String.join("", deltas)).isEqualTo(answer.text())
                 .isEqualTo("已学习30秒，建议继续互斥锁重建。 [E2][E3]\n\n互斥锁限制并发重建。 [E1]");
@@ -170,12 +173,14 @@ class LangChainToolChatGeneratorTest {
         assertThat(request).doesNotContain("900", "local_mock_only");
     }
 
-    @Test void modelMayFinishWithoutUsingAnyTool() {
+    @Test void modelMayFinishWithoutUsingAnyTool() throws Exception {
         server.enqueue(Script.answer(List.of("{\"insufficientEvidence\":false,\"answerSegments\":[" + fact() + "]}"), true, null));
         List<String> deltas = new ArrayList<>();
         var answer = prepare(deltas::add, ignored -> fail("不得假报工具执行"));
         assertThat(answer.text()).isEqualTo("互斥锁限制并发重建。 [E1]");
         assertThat(server.requests).hasSize(1);
+        assertThat(mapper.readTree(server.requests.get(0)).path("response_format").path("type").asText())
+                .isEqualTo("json_object");
         verifyNoInteractions(executions);
         verify(guard).recordUsage(10, 5, 15);
     }

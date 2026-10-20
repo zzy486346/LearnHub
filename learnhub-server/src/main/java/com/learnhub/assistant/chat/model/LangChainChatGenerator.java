@@ -64,7 +64,7 @@ import jakarta.annotation.PreDestroy;
 @Service
 @ConditionalOnProperty(prefix = "learnhub.assistant", name = "langchain-enabled", havingValue = "true")
 public class LangChainChatGenerator implements AutoCloseable {
-    static final String PROMPT_VERSION = "learnhub-chat-grounded-preferences-v4";
+    static final String PROMPT_VERSION = "learnhub-chat-grounded-preferences-v5";
     static final String INSUFFICIENT = "现有课程资料不足以回答这个问题。";
     static final String GREETING = "你好，我可以结合课程资料帮助你学习。你想了解哪个知识点？";
     private static final URI DEEPSEEK_ENDPOINT = URI.create("https://api.deepseek.com/v1");
@@ -318,6 +318,7 @@ public class LangChainChatGenerator implements AutoCloseable {
         try (var transport = transport(); var rendered = new GroundedAnswerStream(mapper, book, checkpoint, delta, INSUFFICIENT)) {
             var model = OpenAiStreamingChatModel.builder().httpClientBuilder(transport)
                     .baseUrl(endpoint.toString()).apiKey(properties.getApiKey().trim()).modelName(properties.getModel())
+                    .responseFormat("json_object")
                     .maxTokens(outputTokens).timeout(min(properties.getRequestTimeout(), guard.remaining(), io.remaining()))
                     .accumulateToolCallId(false).returnThinking(false).sendThinking(false)
                     .customParameters(Map.of("thinking", Map.of("type", "disabled")))

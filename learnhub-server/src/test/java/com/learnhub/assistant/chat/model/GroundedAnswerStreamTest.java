@@ -13,6 +13,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 class GroundedAnswerStreamTest {
     private final ObjectMapper mapper = new ObjectMapper();
@@ -99,6 +102,19 @@ class GroundedAnswerStreamTest {
             assertThat(stream.complete(verified(true))).isEqualTo("资料不足");
             assertThat(deltas).containsExactly("资料不足");
         }
+    }
+
+    @Test @ExtendWith(OutputCaptureExtension.class)
+    void rejectionLogsOnlyFixedReasonAndStateWithoutModelOrCourseContent(CapturedOutput output) throws Exception {
+        String privateText = "PRIVATE_COURSE_BODY_DO_NOT_LOG [E1]";
+        String raw = mapper.writeValueAsString(java.util.Map.of("insufficientEvidence", false,
+                "answerSegments", List.of(fact(privateText))));
+        try (var stream = stream()) {
+            assertThatThrownBy(() -> stream.accept(raw)).isInstanceOf(BusinessException.class);
+            assertThat(deltas).isEmpty();
+        }
+        assertThat(output.getAll()).contains("reason=INLINE_CITATION", "state=SEGMENT_FIELDS")
+                .doesNotContain("PRIVATE_COURSE_BODY_DO_NOT_LOG", raw);
     }
 
     @Test void revocationBeforeCompletedSegmentSuppressesIt() {
