@@ -1,0 +1,410 @@
+[
+  {
+    "courseId": "1001",
+    "lessonId": "3001",
+    "courseTitle": "Spring Boot 3 实战",
+    "freePreview": 1,
+    "lessonTitle": "创建第一个 Spring Boot 项目",
+    "chapterTitle": "第一章：工程起步"
+  },
+  {
+    "courseId": "1001",
+    "lessonId": "3002",
+    "courseTitle": "Spring Boot 3 实战",
+    "freePreview": 0,
+    "lessonTitle": "配置分层架构与环境参数",
+    "chapterTitle": "第一章：工程起步"
+  },
+  {
+    "courseId": "1001",
+    "lessonId": "3003",
+    "courseTitle": "Spring Boot 3 实战",
+    "freePreview": 0,
+    "lessonTitle": "设计 REST API 与统一响应",
+    "chapterTitle": "第二章：接口与数据访问"
+  },
+  {
+    "courseId": "1001",
+    "lessonId": "3004",
+    "courseTitle": "Spring Boot 3 实战",
+    "freePreview": 0,
+    "lessonTitle": "使用 MyBatis-Plus 完成数据访问",
+    "chapterTitle": "第二章：接口与数据访问"
+  },
+  {
+    "courseId": "1002",
+    "lessonId": "3005",
+    "courseTitle": "大模型应用开发入门",
+    "freePreview": 1,
+    "lessonTitle": "理解 Token 与上下文窗口",
+    "chapterTitle": "第一章：大模型基础"
+  },
+  {
+    "courseId": "1002",
+    "lessonId": "3006",
+    "courseTitle": "大模型应用开发入门",
+    "freePreview": 0,
+    "lessonTitle": "从 Prompt 到结构化输出",
+    "chapterTitle": "第一章：大模型基础"
+  },
+  {
+    "courseId": "1002",
+    "lessonId": "3007",
+    "courseTitle": "大模型应用开发入门",
+    "freePreview": 0,
+    "lessonTitle": "构建文档切分与向量索引",
+    "chapterTitle": "第二章：RAG 工程实践"
+  },
+  {
+    "courseId": "1002",
+    "lessonId": "3008",
+    "courseTitle": "大模型应用开发入门",
+    "freePreview": 0,
+    "lessonTitle": "评估检索质量与回答效果",
+    "chapterTitle": "第二章：RAG 工程实践"
+  },
+  {
+    "courseId": "12001",
+    "lessonId": "32011",
+    "courseTitle": "Java 编程基础入门短课",
+    "freePreview": 1,
+    "lessonTitle": "变量和方法怎样配合",
+    "chapterTitle": "从输入到计算结果"
+  },
+  {
+    "courseId": "12001",
+    "lessonId": "32012",
+    "courseTitle": "Java 编程基础入门短课",
+    "freePreview": 1,
+    "lessonTitle": "对象如何表达业务职责",
+    "chapterTitle": "让代码接近业务语言"
+  },
+  {
+    "courseId": "12002",
+    "lessonId": "32021",
+    "courseTitle": "Java 并发编程入门短课",
+    "freePreview": 1,
+    "lessonTitle": "库存为何会被重复扣减",
+    "chapterTitle": "识别共享状态竞争"
+  },
+  {
+    "courseId": "12002",
+    "lessonId": "32022",
+    "courseTitle": "Java 并发编程入门短课",
+    "freePreview": 1,
+    "lessonTitle": "线程池如何承接异步任务",
+    "chapterTitle": "控制并发而非堆线程"
+  },
+  {
+    "courseId": "12003",
+    "lessonId": "32031",
+    "courseTitle": "JVM 运行原理入门短课",
+    "freePreview": 1,
+    "lessonTitle": "对象在内存里经历什么",
+    "chapterTitle": "从创建到被回收"
+  },
+  {
+    "courseId": "12003",
+    "lessonId": "32032",
+    "courseTitle": "JVM 运行原理入门短课",
+    "freePreview": 1,
+    "lessonTitle": "内存持续上涨怎么查",
+    "chapterTitle": "用证据定位保留链"
+  },
+  {
+    "courseId": "12004",
+    "lessonId": "32041",
+    "courseTitle": "MySQL 数据库基础入门短课",
+    "freePreview": 1,
+    "lessonTitle": "订单表如何表达事实",
+    "chapterTitle": "字段、约束与关系"
+  },
+  {
+    "courseId": "12004",
+    "lessonId": "32042",
+    "courseTitle": "MySQL 数据库基础入门短课",
+    "freePreview": 1,
+    "lessonTitle": "转账为什么需要事务",
+    "chapterTitle": "让多步操作共同成败"
+  },
+  {
+    "courseId": "12005",
+    "lessonId": "32051",
+    "courseTitle": "MySQL 索引优化入门短课",
+    "freePreview": 1,
+    "lessonTitle": "联合索引怎样匹配查询",
+    "chapterTitle": "围绕访问路径设计"
+  },
+  {
+    "courseId": "12005",
+    "lessonId": "32052",
+    "courseTitle": "MySQL 索引优化入门短课",
+    "freePreview": 1,
+    "lessonTitle": "执行计划告诉了什么",
+    "chapterTitle": "验证而不是猜优化"
+  },
+  {
+    "courseId": "12006",
+    "lessonId": "32061",
+    "courseTitle": "Redis 数据结构入门短课",
+    "freePreview": 1,
+    "lessonTitle": "签到记录怎么存更紧凑",
+    "chapterTitle": "位图表达真假状态"
+  },
+  {
+    "courseId": "12006",
+    "lessonId": "32062",
+    "courseTitle": "Redis 数据结构入门短课",
+    "freePreview": 1,
+    "lessonTitle": "积分排行榜如何更新",
+    "chapterTitle": "有序集合维护名次"
+  },
+  {
+    "courseId": "12007",
+    "lessonId": "32071",
+    "courseTitle": "Redis 缓存治理入门短课",
+    "freePreview": 1,
+    "lessonTitle": "热点键过期时发生什么",
+    "chapterTitle": "避免请求同时回源"
+  },
+  {
+    "courseId": "12007",
+    "lessonId": "32072",
+    "courseTitle": "Redis 缓存治理入门短课",
+    "freePreview": 1,
+    "lessonTitle": "更新商品如何保持一致",
+    "chapterTitle": "让缓存接受短暂延迟"
+  },
+  {
+    "courseId": "12008",
+    "lessonId": "32081",
+    "courseTitle": "RabbitMQ 消息队列入门短课",
+    "freePreview": 1,
+    "lessonTitle": "订单消息如何到达消费者",
+    "chapterTitle": "交换机与队列协作"
+  },
+  {
+    "courseId": "12008",
+    "lessonId": "32082",
+    "courseTitle": "RabbitMQ 消息队列入门短课",
+    "freePreview": 1,
+    "lessonTitle": "重复消息如何安全处理",
+    "chapterTitle": "确认与幂等共同兜底"
+  },
+  {
+    "courseId": "12009",
+    "lessonId": "32091",
+    "courseTitle": "Docker 容器化入门短课",
+    "freePreview": 1,
+    "lessonTitle": "镜像如何封装应用",
+    "chapterTitle": "构建可重复交付物"
+  },
+  {
+    "courseId": "12009",
+    "lessonId": "32092",
+    "courseTitle": "Docker 容器化入门短课",
+    "freePreview": 1,
+    "lessonTitle": "多个服务怎样一起启动",
+    "chapterTitle": "Compose 描述本地拓扑"
+  },
+  {
+    "courseId": "12010",
+    "lessonId": "32101",
+    "courseTitle": "Linux 服务排查入门短课",
+    "freePreview": 1,
+    "lessonTitle": "接口连不上先查哪里",
+    "chapterTitle": "从网络入口逐层确认"
+  },
+  {
+    "courseId": "12010",
+    "lessonId": "32102",
+    "courseTitle": "Linux 服务排查入门短课",
+    "freePreview": 1,
+    "lessonTitle": "资源升高怎样缩小范围",
+    "chapterTitle": "把现象关联到进程"
+  },
+  {
+    "courseId": "12011",
+    "lessonId": "32111",
+    "courseTitle": "Git 协作基础入门短课",
+    "freePreview": 1,
+    "lessonTitle": "一次提交应该装什么",
+    "chapterTitle": "构造清晰可回退历史"
+  },
+  {
+    "courseId": "12011",
+    "lessonId": "32112",
+    "courseTitle": "Git 协作基础入门短课",
+    "freePreview": 1,
+    "lessonTitle": "冲突怎样安全解决",
+    "chapterTitle": "理解双方意图再合并"
+  },
+  {
+    "courseId": "12012",
+    "lessonId": "32121",
+    "courseTitle": "Vue 3 组件开发入门短课",
+    "freePreview": 1,
+    "lessonTitle": "筛选条件如何驱动列表",
+    "chapterTitle": "建立响应式数据流"
+  },
+  {
+    "courseId": "12012",
+    "lessonId": "32122",
+    "courseTitle": "Vue 3 组件开发入门短课",
+    "freePreview": 1,
+    "lessonTitle": "卡片组件如何与页面通信",
+    "chapterTitle": "单向数据与事件上报"
+  },
+  {
+    "courseId": "12013",
+    "lessonId": "32131",
+    "courseTitle": "TypeScript 类型建模入门短课",
+    "freePreview": 1,
+    "lessonTitle": "课程状态如何避免魔法字符串",
+    "chapterTitle": "用联合类型收紧取值"
+  },
+  {
+    "courseId": "12013",
+    "lessonId": "32132",
+    "courseTitle": "TypeScript 类型建模入门短课",
+    "freePreview": 1,
+    "lessonTitle": "接口响应怎样安全进入页面",
+    "chapterTitle": "区分外部数据与内部类型"
+  },
+  {
+    "courseId": "12014",
+    "lessonId": "32141",
+    "courseTitle": "前端网络请求入门短课",
+    "freePreview": 1,
+    "lessonTitle": "实时搜索为何会结果倒退",
+    "chapterTitle": "控制并发请求竞态"
+  },
+  {
+    "courseId": "12014",
+    "lessonId": "32142",
+    "courseTitle": "前端网络请求入门短课",
+    "freePreview": 1,
+    "lessonTitle": "登录失效怎样统一处理",
+    "chapterTitle": "在请求边界恢复会话"
+  },
+  {
+    "courseId": "12015",
+    "lessonId": "32151",
+    "courseTitle": "Elasticsearch 搜索入门短课",
+    "freePreview": 1,
+    "lessonTitle": "倒排索引怎样找到课程",
+    "chapterTitle": "从文档转为词项清单"
+  },
+  {
+    "courseId": "12015",
+    "lessonId": "32152",
+    "courseTitle": "Elasticsearch 搜索入门短课",
+    "freePreview": 1,
+    "lessonTitle": "相关性为何不只看热度",
+    "chapterTitle": "让文本匹配主导排序"
+  },
+  {
+    "courseId": "12016",
+    "lessonId": "32161",
+    "courseTitle": "Python 自动化入门短课",
+    "freePreview": 1,
+    "lessonTitle": "日志文件怎样逐行处理",
+    "chapterTitle": "小内存完成大文件解析"
+  },
+  {
+    "courseId": "12016",
+    "lessonId": "32162",
+    "courseTitle": "Python 自动化入门短课",
+    "freePreview": 1,
+    "lessonTitle": "统计报告如何稳定生成",
+    "chapterTitle": "聚合、排序与原子写入"
+  },
+  {
+    "courseId": "12017",
+    "lessonId": "32171",
+    "courseTitle": "提示词工程入门短课",
+    "freePreview": 1,
+    "lessonTitle": "怎样写清课程摘要任务",
+    "chapterTitle": "补齐目标、输入与约束"
+  },
+  {
+    "courseId": "12017",
+    "lessonId": "32172",
+    "courseTitle": "提示词工程入门短课",
+    "freePreview": 1,
+    "lessonTitle": "工单分类提示怎样评测",
+    "chapterTitle": "用样本而非感觉迭代"
+  },
+  {
+    "courseId": "12018",
+    "lessonId": "32181",
+    "courseTitle": "RAG 知识问答入门短课",
+    "freePreview": 1,
+    "lessonTitle": "长文档怎样变成可检索片段",
+    "chapterTitle": "切分时保留语义上下文"
+  },
+  {
+    "courseId": "12018",
+    "lessonId": "32182",
+    "courseTitle": "RAG 知识问答入门短课",
+    "freePreview": 1,
+    "lessonTitle": "回答如何做到有依据",
+    "chapterTitle": "检索、筛选与引用"
+  },
+  {
+    "courseId": "12019",
+    "lessonId": "32191",
+    "courseTitle": "AI Agent 工作流入门短课",
+    "freePreview": 1,
+    "lessonTitle": "选课助理怎样调用工具",
+    "chapterTitle": "从意图到结构化动作"
+  },
+  {
+    "courseId": "12019",
+    "lessonId": "32192",
+    "courseTitle": "AI Agent 工作流入门短课",
+    "freePreview": 1,
+    "lessonTitle": "高风险动作为何要确认",
+    "chapterTitle": "给 Agent 设置权限边界"
+  },
+  {
+    "courseId": "12020",
+    "lessonId": "32201",
+    "courseTitle": "软件测试实践入门短课",
+    "freePreview": 1,
+    "lessonTitle": "优惠券规则如何写单元测试",
+    "chapterTitle": "围绕行为覆盖边界"
+  },
+  {
+    "courseId": "12020",
+    "lessonId": "32202",
+    "courseTitle": "软件测试实践入门短课",
+    "freePreview": 1,
+    "lessonTitle": "领取接口怎样做集成验证",
+    "chapterTitle": "检查跨层真实协作"
+  },
+  {
+    "courseId": "12021",
+    "lessonId": "32211",
+    "courseTitle": "系统设计基础入门短课",
+    "freePreview": 1,
+    "lessonTitle": "课程详情请求经过哪些层",
+    "chapterTitle": "先画清核心读链路"
+  },
+  {
+    "courseId": "12021",
+    "lessonId": "32212",
+    "courseTitle": "系统设计基础入门短课",
+    "freePreview": 1,
+    "lessonTitle": "学习进度如何异步扩展",
+    "chapterTitle": "用事件隔离附加功能"
+  },
+  {
+    "courseId": "8900835210",
+    "lessonId": "3009",
+    "courseTitle": "Redis Lua 原子操作入门",
+    "freePreview": 0,
+    "lessonTitle": "Lua 库存预扣基础",
+    "chapterTitle": "第一章：原子操作与库存预扣"
+  }
+]

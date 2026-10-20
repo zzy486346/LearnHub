@@ -1,0 +1,426 @@
+{
+  "documents": 51,
+  "createdOrUpdated": 51,
+  "unchanged": 0,
+  "indexQueriesPassed": 51,
+  "authorizedQueriesPassed": 48,
+  "lockedLessonsConfirmed": 3,
+  "previousMaterialRowsPreserved": 18,
+  "supplierCalls": 0,
+  "results": [
+    {
+      "sourceKey": "generated.course.1001.lesson.3001",
+      "courseTitle": "Spring Boot 3 实战",
+      "lessonTitle": "创建第一个 Spring Boot 项目",
+      "question": "一个适配 JDK 17 的 Spring Boot 3 项目从启动类到接收 HTTP 请求需要哪些关键组成？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.1001.lesson.3002",
+      "courseTitle": "Spring Boot 3 实战",
+      "lessonTitle": "配置分层架构与环境参数",
+      "question": "Spring Boot 项目怎样用分层架构和 Profile 隔离本地与生产环境配置？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": false
+    },
+    {
+      "sourceKey": "generated.course.1001.lesson.3003",
+      "courseTitle": "Spring Boot 3 实战",
+      "lessonTitle": "设计 REST API 与统一响应",
+      "question": "设计 REST API 时怎样选择 HTTP 方法、状态码并统一错误响应？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": false
+    },
+    {
+      "sourceKey": "generated.course.1001.lesson.3004",
+      "courseTitle": "Spring Boot 3 实战",
+      "lessonTitle": "使用 MyBatis-Plus 完成数据访问",
+      "question": "使用 MyBatis-Plus 查询课程时如何完成实体映射、条件构造和分页保护？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": false
+    },
+    {
+      "sourceKey": "generated.course.1002.lesson.3005",
+      "courseTitle": "大模型应用开发入门",
+      "lessonTitle": "理解 Token 与上下文窗口",
+      "question": "Token、上下文窗口和输出上限会怎样共同影响一次大模型请求？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.1002.lesson.3006",
+      "courseTitle": "大模型应用开发入门",
+      "lessonTitle": "从 Prompt 到结构化输出",
+      "question": "怎样设计 Prompt 和校验流程，才能让模型输出可被程序可靠消费的 JSON？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.1002.lesson.3007",
+      "courseTitle": "大模型应用开发入门",
+      "lessonTitle": "构建文档切分与向量索引",
+      "question": "构建 RAG 索引时为什么要切分文档，并且怎样保留可追溯的版本和位置元数据？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.1002.lesson.3008",
+      "courseTitle": "大模型应用开发入门",
+      "lessonTitle": "评估检索质量与回答效果",
+      "question": "评估 RAG 时怎样分别衡量检索是否找对和最终回答是否有依据？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12001.lesson.32011",
+      "courseTitle": "Java 编程基础入门短课",
+      "lessonTitle": "变量和方法怎样配合",
+      "question": "在 Java 中，变量、参数、返回值怎样配合完成一次价格计算？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12001.lesson.32012",
+      "courseTitle": "Java 编程基础入门短课",
+      "lessonTitle": "对象如何表达业务职责",
+      "question": "如何把订单状态变化规则放进对象中，而不是散落在条件判断里？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12002.lesson.32021",
+      "courseTitle": "Java 并发编程入门短课",
+      "lessonTitle": "库存为何会被重复扣减",
+      "question": "两个线程同时扣减最后一件库存为什么可能都成功，怎样用原子条件更新避免超卖？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12002.lesson.32022",
+      "courseTitle": "Java 并发编程入门短课",
+      "lessonTitle": "线程池如何承接异步任务",
+      "question": "线程池的核心线程、队列、最大线程和拒绝策略如何共同控制异步任务？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12003.lesson.32031",
+      "courseTitle": "JVM 运行原理入门短课",
+      "lessonTitle": "对象在内存里经历什么",
+      "question": "一个 Java 对象从 new 创建到可被垃圾回收，通常经历哪些关键步骤？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12003.lesson.32032",
+      "courseTitle": "JVM 运行原理入门短课",
+      "lessonTitle": "内存持续上涨怎么查",
+      "question": "Java 进程堆内存持续上涨时，应怎样用监控、堆转储和引用链定位问题？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12004.lesson.32041",
+      "courseTitle": "MySQL 数据库基础入门短课",
+      "lessonTitle": "订单表如何表达事实",
+      "question": "设计订单表时，哪些字段和约束可以保证金额、用户归属与业务单号表达清楚？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12004.lesson.32042",
+      "courseTitle": "MySQL 数据库基础入门短课",
+      "lessonTitle": "转账为什么需要事务",
+      "question": "账户转账为什么必须把扣款和入账放进同一事务，回滚与并发锁分别解决什么问题？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12005.lesson.32051",
+      "courseTitle": "MySQL 索引优化入门短课",
+      "lessonTitle": "联合索引怎样匹配查询",
+      "question": "联合索引 (user_id, status, created_at) 能怎样支持订单查询，为什么列顺序重要？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12005.lesson.32052",
+      "courseTitle": "MySQL 索引优化入门短课",
+      "lessonTitle": "执行计划告诉了什么",
+      "question": "MySQL 执行计划中的 type、key 和 rows 分别能帮助我们判断什么？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12006.lesson.32061",
+      "courseTitle": "Redis 数据结构入门短课",
+      "lessonTitle": "签到记录怎么存更紧凑",
+      "question": "如何用 Redis Bitmap 保存用户一个月的签到状态并统计签到天数？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12006.lesson.32062",
+      "courseTitle": "Redis 数据结构入门短课",
+      "lessonTitle": "积分排行榜如何更新",
+      "question": "Redis 有序集合如何完成积分增加、排名查询和同分处理？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12007.lesson.32071",
+      "courseTitle": "Redis 缓存治理入门短课",
+      "lessonTitle": "热点键过期时发生什么",
+      "question": "热点缓存失效为什么会造成缓存击穿，常见治理方法有哪些？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12007.lesson.32072",
+      "courseTitle": "Redis 缓存治理入门短课",
+      "lessonTitle": "更新商品如何保持一致",
+      "question": "更新商品时为什么常采用先更新数据库再删除缓存，失败时怎样补偿？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12008.lesson.32081",
+      "courseTitle": "RabbitMQ 消息队列入门短课",
+      "lessonTitle": "订单消息如何到达消费者",
+      "question": "RabbitMQ 中生产者、交换机、绑定、队列和消费者如何协作传递订单消息？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12008.lesson.32082",
+      "courseTitle": "RabbitMQ 消息队列入门短课",
+      "lessonTitle": "重复消息如何安全处理",
+      "question": "RabbitMQ 为什么可能重复投递，消费者怎样利用业务幂等安全处理？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12009.lesson.32091",
+      "courseTitle": "Docker 容器化入门短课",
+      "lessonTitle": "镜像如何封装应用",
+      "question": "Docker 镜像通过哪些机制让应用能够被重复构建和运行？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12009.lesson.32092",
+      "courseTitle": "Docker 容器化入门短课",
+      "lessonTitle": "多个服务怎样一起启动",
+      "question": "Docker Compose 如何描述应用、数据库和缓存之间的启动与网络关系？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12010.lesson.32101",
+      "courseTitle": "Linux 服务排查入门短课",
+      "lessonTitle": "接口连不上先查哪里",
+      "question": "Linux 上接口无法访问时，应怎样从域名、端口、进程到应用逐层排查？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12010.lesson.32102",
+      "courseTitle": "Linux 服务排查入门短课",
+      "lessonTitle": "资源升高怎样缩小范围",
+      "question": "Linux 服务器 CPU、内存或磁盘资源升高时，如何定位到具体进程和原因？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12011.lesson.32111",
+      "courseTitle": "Git 协作基础入门短课",
+      "lessonTitle": "一次提交应该装什么",
+      "question": "怎样判断一个 Git 提交是否足够原子、清晰并且便于回退？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12011.lesson.32112",
+      "courseTitle": "Git 协作基础入门短课",
+      "lessonTitle": "冲突怎样安全解决",
+      "question": "Git 合并冲突发生后，怎样理解双方修改并安全完成解决？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12012.lesson.32121",
+      "courseTitle": "Vue 3 组件开发入门短课",
+      "lessonTitle": "筛选条件如何驱动列表",
+      "question": "Vue 3 中怎样用响应式状态和计算属性让筛选条件自动驱动列表？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12012.lesson.32122",
+      "courseTitle": "Vue 3 组件开发入门短课",
+      "lessonTitle": "卡片组件如何与页面通信",
+      "question": "Vue 3 中父页面和课程卡片组件应如何通过 props 与 emits 通信？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12013.lesson.32131",
+      "courseTitle": "TypeScript 类型建模入门短课",
+      "lessonTitle": "课程状态如何避免魔法字符串",
+      "question": "TypeScript 如何用字符串字面量联合类型避免课程状态中的魔法字符串？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12013.lesson.32132",
+      "courseTitle": "TypeScript 类型建模入门短课",
+      "lessonTitle": "接口响应怎样安全进入页面",
+      "question": "为什么 TypeScript 接口响应应先按 unknown 接收，再校验并转换为页面内部类型？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12014.lesson.32141",
+      "courseTitle": "前端网络请求入门短课",
+      "lessonTitle": "实时搜索为何会结果倒退",
+      "question": "实时搜索中，为什么后发请求的结果可能被先发请求覆盖，应该怎样避免？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12014.lesson.32142",
+      "courseTitle": "前端网络请求入门短课",
+      "lessonTitle": "登录失效怎样统一处理",
+      "question": "前端遇到多个并发请求同时返回未登录时，怎样统一恢复会话并避免重复跳转？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12015.lesson.32151",
+      "courseTitle": "Elasticsearch 搜索入门短课",
+      "lessonTitle": "倒排索引怎样找到课程",
+      "question": "倒排索引如何从查询词定位到包含该词的课程文档？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12015.lesson.32152",
+      "courseTitle": "Elasticsearch 搜索入门短课",
+      "lessonTitle": "相关性为何不只看热度",
+      "question": "课程搜索排序为什么应以文本相关性为主，并限制热度对得分的影响？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12016.lesson.32161",
+      "courseTitle": "Python 自动化入门短课",
+      "lessonTitle": "日志文件怎样逐行处理",
+      "question": "Python 处理超大日志时为什么应逐行迭代，而不是一次性 readlines？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12016.lesson.32162",
+      "courseTitle": "Python 自动化入门短课",
+      "lessonTitle": "统计报告如何稳定生成",
+      "question": "生成统计报告时，怎样保证排序稳定并避免失败后留下半份文件？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12017.lesson.32171",
+      "courseTitle": "提示词工程入门短课",
+      "lessonTitle": "怎样写清课程摘要任务",
+      "question": "一个可执行的课程摘要提示词应明确哪些信息？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12017.lesson.32172",
+      "courseTitle": "提示词工程入门短课",
+      "lessonTitle": "工单分类提示怎样评测",
+      "question": "评测工单分类提示词时，为什么要准备固定标注集和混淆矩阵？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12018.lesson.32181",
+      "courseTitle": "RAG 知识问答入门短课",
+      "lessonTitle": "长文档怎样变成可检索片段",
+      "question": "RAG 切分长文档时，怎样兼顾片段可检索性和语义完整性？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12018.lesson.32182",
+      "courseTitle": "RAG 知识问答入门短课",
+      "lessonTitle": "回答如何做到有依据",
+      "question": "RAG 系统怎样从检索候选到生成带有效引用的回答？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12019.lesson.32191",
+      "courseTitle": "AI Agent 工作流入门短课",
+      "lessonTitle": "选课助理怎样调用工具",
+      "question": "选课助理从用户意图到调用课程搜索工具，一般经历哪些步骤？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12019.lesson.32192",
+      "courseTitle": "AI Agent 工作流入门短课",
+      "lessonTitle": "高风险动作为何要确认",
+      "question": "Agent 执行删除、付款等高风险动作前，确认步骤应展示并绑定哪些信息？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12020.lesson.32201",
+      "courseTitle": "软件测试实践入门短课",
+      "lessonTitle": "优惠券规则如何写单元测试",
+      "question": "优惠券规则的单元测试应该覆盖哪些等价类和边界值？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12020.lesson.32202",
+      "courseTitle": "软件测试实践入门短课",
+      "lessonTitle": "领取接口怎样做集成验证",
+      "question": "优惠券领取接口的集成测试为什么要使用真实数据库事务与并发场景？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12021.lesson.32211",
+      "courseTitle": "系统设计基础入门短课",
+      "lessonTitle": "课程详情请求经过哪些层",
+      "question": "一个课程详情读取请求通常经过哪些层，各层分别负责什么？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.12021.lesson.32212",
+      "courseTitle": "系统设计基础入门短课",
+      "lessonTitle": "学习进度如何异步扩展",
+      "question": "学习进度更新后，怎样用事件异步扩展通知和统计功能并处理重复消费？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    },
+    {
+      "sourceKey": "generated.course.8900835210.lesson.3009",
+      "courseTitle": "Redis Lua 原子操作入门",
+      "lessonTitle": "Lua 库存预扣基础",
+      "question": "Redis Lua 库存预扣脚本应检查哪些条件，原子执行又不能保证什么？",
+      "indexed": true,
+      "hasExistingAuthorizedReader": true
+    }
+  ],
+  "bodyCharacters": 51188,
+  "corpusSha256": {
+    "lectures-a.json": "98bd500319f93cac1d0cc614a0af146cd19e47242a5be722af784f0a23884bdb",
+    "lectures-c.json": "7df5a583bc8d1e8c8a51490fd63acad87238a979317a7a4b370f1bd5f019a909",
+    "lectures-b.json": "9a4ce4281899110e8174a27d8f9f0cc5aa06384ddbf76416247831d1b8648f26"
+  }
+}
