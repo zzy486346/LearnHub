@@ -24,6 +24,8 @@ public class AssistantLimits {
     private int dailyModelCalls = 20;
     private int dailyReservedTokens = 120_000;
     private int maxInputBytes = 16_000;
+    private int modelWindowTokens;
+    private int contextSafetyMarginTokens = 256;
 
     @AssertTrue(message = "learnhub.assistant 配置超出安全范围")
     public boolean isValidConfiguration() {
@@ -40,7 +42,10 @@ public class AssistantLimits {
                 && between(dailyModelCalls, 1, 10_000)
                 && between(dailyReservedTokens, 1, 100_000_000)
                 && maxRunTokens <= dailyReservedTokens
-                && between(maxInputBytes, 1, 1_000_000);
+                && between(maxInputBytes, 1, 1_000_000)
+                && between(contextSafetyMarginTokens, 0, 100_000)
+                && (modelWindowTokens == 0 || (between(modelWindowTokens, 1, 10_000_000)
+                    && (long) maxOutputTokens + contextSafetyMarginTokens < modelWindowTokens));
     }
 
     private static boolean between(@NotNull Duration value, Duration minimum, Duration maximum) {
@@ -75,4 +80,8 @@ public class AssistantLimits {
     public void setDailyReservedTokens(int dailyReservedTokens) { this.dailyReservedTokens = dailyReservedTokens; }
     public int getMaxInputBytes() { return maxInputBytes; }
     public void setMaxInputBytes(int maxInputBytes) { this.maxInputBytes = maxInputBytes; }
+    public int getModelWindowTokens() { return modelWindowTokens; }
+    public void setModelWindowTokens(int value) { modelWindowTokens = value; }
+    public int getContextSafetyMarginTokens() { return contextSafetyMarginTokens; }
+    public void setContextSafetyMarginTokens(int value) { contextSafetyMarginTokens = value; }
 }

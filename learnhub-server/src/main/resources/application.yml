@@ -65,6 +65,8 @@ learnhub:
     daily-model-calls: ${LEARNHUB_ASSISTANT_DAILY_MODEL_CALLS:20}
     daily-reserved-tokens: ${LEARNHUB_ASSISTANT_DAILY_RESERVED_TOKENS:120000}
     max-input-bytes: ${LEARNHUB_ASSISTANT_MAX_INPUT_BYTES:16000}
+    model-window-tokens: ${LEARNHUB_ASSISTANT_MODEL_WINDOW_TOKENS:0}
+    context-safety-margin-tokens: ${LEARNHUB_ASSISTANT_CONTEXT_SAFETY_MARGIN_TOKENS:256}
     memory:
       enabled: ${LEARNHUB_ASSISTANT_MEMORY_ENABLED:false}
       auto-extract-enabled: ${LEARNHUB_ASSISTANT_MEMORY_AUTO_EXTRACT_ENABLED:false}

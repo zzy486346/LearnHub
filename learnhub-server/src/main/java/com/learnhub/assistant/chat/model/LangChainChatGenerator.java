@@ -192,7 +192,8 @@ public class LangChainChatGenerator implements AutoCloseable {
         var planner = new ChatContextPlanner(mapper);
         int inputLimit = Math.min(limits.getMaxInputBytes(), properties.getMaxInputBytes());
         int outputTokens = Math.min(properties.getMaxOutputTokens(), limits.getMaxOutputTokens());
-        int capacity = planner.capacity(inputLimit, limits.getMaxRunTokens(), guard.summary().reservedTokens(), outputTokens);
+        int capacity = Math.min(inputLimit, AssistantRunGuard.remainingInputReservation(
+                limits.getMaxRunTokens(), guard.summary().reservedTokens(), outputTokens));
         int required = planner.bytes(List.of(SystemMessage.from(tools == null ? SYSTEM : AGENT_SYSTEM),
                 currentMessage(conversation.courseId(), stored.message(), book, List.of())), tools == null ? null : tools.definitions());
         List<HistoryRound> rounds = admitHistory(candidates, book, planner, planner.historyAllowance(capacity, required));
@@ -235,8 +236,15 @@ public class LangChainChatGenerator implements AutoCloseable {
         messages.add(SystemMessage.from(SYSTEM));
         messages.addAll(memory.messages());
         var plan = planner.fit(messages, null, inputLimit, capacity);
+        log.info("Assistant context mode=PLAIN plannedInputBytes={} capacity={} droppedRounds={} droppedSummaryEntries={} evidence={} reasons={}",
+                plan.inputBytes(), capacity, plan.droppedRounds(), plan.droppedSummaryEntries(),
+                book.context().size(), plan.selectionReasons());
         messages = plan.messages();
         int inputBytes = plan.inputBytes();
+        var inputMeter = new ChatInputMeter(mapper, owner + ":" + conversation.courseId() + ":"
+                + stored.conversationId() + ":" + properties.getModel(),
+                limits.getModelWindowTokens(), limits.getContextSafetyMarginTokens());
+        inputMeter.expectRequest(inputBytes, inputLimit, outputTokens);
         guard.reserveModel(inputBytes, outputTokens);
         persistence.recordUsage(owner, stored.id(), stored.leaseOwner(), usageJson("RESERVED", guard, null));
         guard.check();
@@ -246,7 +254,7 @@ public class LangChainChatGenerator implements AutoCloseable {
         ArrayBlockingQueue<ModelEvent> events = new ArrayBlockingQueue<>(64);
         ChatResponse response;
         StringBuilder answer = new StringBuilder();
-        try (var transport = transport()) {
+        try (var transport = measuredTransport(inputMeter, () -> { guard.check(); book.check(); io.remaining(); })) {
             var model = OpenAiStreamingChatModel.builder()
                     .httpClientBuilder(transport)
                     .baseUrl(endpoint.toString())
@@ -267,6 +275,7 @@ public class LangChainChatGenerator implements AutoCloseable {
         }
 
         int[] usage = requiredUsage(response);
+        inputMeter.recordUsage(usage[0]);
         try {
             guard.recordUsage(usage[0], usage[1], usage[2]);
         } finally {
@@ -301,6 +310,8 @@ public class LangChainChatGenerator implements AutoCloseable {
         long[] totals = new long[3];
         int[] order = {0};
         int outputTokens = Math.min(properties.getMaxOutputTokens(), limits.getMaxOutputTokens());
+        var inputMeter = new ChatInputMeter(mapper, owner + ":" + courseId + ":" + stored.conversationId()
+                + ":" + properties.getModel(), limits.getModelWindowTokens(), limits.getContextSafetyMarginTokens());
         Map<ToolSpecification, ToolExecutor> executors = new LinkedHashMap<>();
         for (var definition : tools.definitions()) {
             var function = mapper.valueToTree(definition).path("function");
@@ -342,7 +353,8 @@ public class LangChainChatGenerator implements AutoCloseable {
             });
         }
 
-        try (var transport = transport(); var rendered = new GroundedAnswerStream(mapper, book, checkpoint, delta, INSUFFICIENT)) {
+        try (var transport = measuredTransport(inputMeter, checkpoint);
+             var rendered = new GroundedAnswerStream(mapper, book, checkpoint, delta, INSUFFICIENT)) {
             var model = OpenAiStreamingChatModel.builder().httpClientBuilder(transport)
                     .baseUrl(endpoint.toString()).apiKey(properties.getApiKey().trim()).modelName(properties.getModel())
                     .responseFormat("json_object")
@@ -362,17 +374,20 @@ public class LangChainChatGenerator implements AutoCloseable {
                 }
                 var planner = new ChatContextPlanner(mapper);
                 int inputLimit = Math.min(properties.getMaxInputBytes(), limits.getMaxInputBytes());
-                int capacity = planner.capacity(inputLimit, limits.getMaxRunTokens(), guard.summary().reservedTokens(), outputTokens);
+                int capacity = Math.min(inputLimit, AssistantRunGuard.remainingInputReservation(
+                        limits.getMaxRunTokens(), guard.summary().reservedTokens(), outputTokens));
                 var plan = planner.fit(messages, tools.definitions(), inputLimit, capacity);
-                log.info("Assistant context modelRound={} inputBytes={} capacity={} droppedRounds={} droppedSummaryEntries={} evidence={}",
+                log.info("Assistant context modelRound={} plannedInputBytes={} capacity={} droppedRounds={} droppedSummaryEntries={} evidence={} reasons={}",
                         guard.summary().modelCalls() + 1, plan.inputBytes(), capacity, plan.droppedRounds(),
-                        plan.droppedSummaryEntries(), book.context().size());
+                        plan.droppedSummaryEntries(), book.context().size(), plan.selectionReasons());
+                inputMeter.expectRequest(plan.inputBytes(), inputLimit, outputTokens);
                 guard.reserveModel(plan.inputBytes(), outputTokens);
                 persistence.recordUsage(owner, stored.id(), stored.leaseOwner(), usageJson("RESERVED", guard, null));
                 checkpoint.run();
                 return request.toBuilder().messages(plan.messages()).build();
             }, response -> {
                 int[] usage = requiredUsage(response);
+                inputMeter.recordUsage(usage[0]);
                 try { guard.recordUsage(usage[0], usage[1], usage[2]); }
                 finally {
                     for (int i = 0; i < totals.length; i++) totals[i] += usage[i];
@@ -416,7 +431,13 @@ public class LangChainChatGenerator implements AutoCloseable {
             String text = rendered.complete(verified);
             checkpoint.run();
             var extractor = extractionServices == null ? null : extractionServices.getIfAvailable();
-            var extracted = extractor == null ? null : extractor.extract(owner, stored, guard, checkpoint, transport, endpoint);
+            // 自动偏好提取已有独立预留，不能消费回答工具循环的待发 plan。
+            PreferenceExtractionService.Result extracted = null;
+            if (extractor != null) {
+                try (var extractionTransport = transport()) {
+                    extracted = extractor.extract(owner, stored, guard, checkpoint, extractionTransport, endpoint);
+                }
+            }
             if (extracted != null && extracted.usageKnown()) {
                 totals[0] += extracted.prompt(); totals[1] += extracted.completion(); totals[2] += extracted.total();
             }
@@ -601,6 +622,17 @@ public class LangChainChatGenerator implements AutoCloseable {
         return new BoundedJdkHttpClientBuilder(sharedTransport)
                 .readTimeout(properties.getRequestTimeout())
                 .maxResponseBytes(Math.min(properties.getMaxResponseBytes(), 262_144));
+    }
+
+    private BoundedJdkHttpClientBuilder measuredTransport(ChatInputMeter meter, Runnable checkpoint) {
+        return transport().beforeRequest(body -> {
+            checkpoint.run();
+            var measured = meter.beforeSend(body);
+            log.info("Assistant input requestBytes={} estimatedInputTokens={} conservativeReservation={} outputReservation={} messages={} estimateSource={}",
+                    measured.requestBytes(), measured.estimatedInputTokens(), measured.conservativeInputReservation(),
+                    measured.outputReservation(), measured.messageCount(), measured.estimateSource());
+            checkpoint.run();
+        });
     }
 
     @Override

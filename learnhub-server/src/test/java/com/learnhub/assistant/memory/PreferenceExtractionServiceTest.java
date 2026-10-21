@@ -41,6 +41,7 @@ class PreferenceExtractionServiceTest {
     Runnable onRequest = () -> { };
 
     @BeforeEach void setup() throws Exception {
+        limits.setModelWindowTokens(24000); // 本地 HTTP Mock 的显式窗口。
         properties.setMode("DEEPSEEK"); properties.setApiKey("mock-only"); properties.setModel("deepseek-flash");
         properties.setMaxOutputTokens(512); properties.setRequestTimeout(Duration.ofSeconds(3));
         when(guard.remaining()).thenReturn(Duration.ofSeconds(5));
@@ -86,6 +87,20 @@ class PreferenceExtractionServiceTest {
         assertThat(extract(service(true, true), "我喜欢密码123456").attempted()).isFalse();
         assertThat(extract(service(true, true), "我喜欢" + "例".repeat(200)).attempted()).isFalse();
         assertThat(requests).isEmpty(); verifyNoInteractions(attempts, preferences, persistence);
+    }
+
+    @Test void explicitWindowLimitRejectsSerializedExtractionBeforeHttpAndKeepsItsReservation() {
+        limits.setMaxOutputTokens(512);
+        limits.setModelWindowTokens(800);
+        limits.setContextSafetyMarginTokens(256);
+        assertThat(limits.isValidConfiguration()).isTrue();
+        assertThatThrownBy(() -> extract(service(true, true), "我喜欢先看例子"))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        failure -> assertThat(failure.getCode()).isEqualTo("AI_MODEL_CONTEXT_WINDOW_EXCEEDED"));
+        assertThat(requests).isEmpty();
+        verify(guard).reserveModel(anyInt(), eq(128));
+        verify(attempts).reserved(eq(7L), eq("run"), anyInt());
+        verify(guard, never()).recordUsage(anyLong(), anyLong(), anyLong());
     }
     @Test void literalPreferenceIsChargedAndWrittenWithOwnedConversationOnly() throws Exception {
         output = "{\"items\":[{\"category\":\"STYLE\",\"text\":\"先看例子\"}]}";

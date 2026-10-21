@@ -1,0 +1,60 @@
+{
+  "stage": "A",
+  "testedBaseHead": "5a50633",
+  "testedWorktree": "stage-A implementation in the commit containing this report",
+  "scenarioVersion": "learnhub-assistant-context-redesign-20261021",
+  "scenarioFileSha256": "a3f25ffb54723484a4ff47e36204d4d4ec3ae1c76f6e98eaa17575b498a67ead",
+  "batchExecutionStatus": "NOT_RUN",
+  "configuration": {
+    "mockModelWindowTokens": 24000,
+    "mockSafetyMarginTokens": 256,
+    "localExplicitModelWindowTokens": 1048576,
+    "localWindowSource": "https://api-docs.deepseek.com/api/list-models/",
+    "localBackendRestarted": false,
+    "paidGenerationCalls": 0,
+    "semanticSummaryCalls": 0
+  },
+  "checks": [
+    {"name": "baseline targeted", "tests": 88, "executed": 88, "skipped": 0, "failures": 0, "errors": 0},
+    {"name": "frozen regressions targeted", "tests": 90, "executed": 90, "skipped": 0, "failures": 0, "errors": 0},
+    {"name": "expanded targeted before final cost-anchor assertion", "tests": 123, "executed": 123, "skipped": 0, "failures": 0, "errors": 0},
+    {"name": "final meter/preflight/extraction targeted", "tests": 28, "executed": 28, "skipped": 0, "failures": 0, "errors": 0},
+    {"name": "root mvn test", "tests": 636, "executed": 522, "skipped": 114, "failures": 0, "errors": 0},
+    {"name": "final root mvn verify", "tests": 636, "executed": 522, "skipped": 114, "failures": 0, "errors": 0}
+  ],
+  "fixtures": [
+    {
+      "test": "ChatRequestPreflightTest.syncAndStreamingHardFailuresReachNoHttpEndpointAndDoNotRefundReservations",
+      "combinations": 4,
+      "httpRequests": 0,
+      "reservedModelCalls": 4,
+      "reservedTokens": 12050,
+      "usageKnown": false
+    },
+    {
+      "test": "ChatRequestPreflightTest.exactUsageCalibrationCannotReduceAccumulatedRunOrDailyReservations",
+      "measuredRequests": 2,
+      "httpRequests": 0,
+      "reservedTokens": 11024,
+      "actualMockTokens": 16,
+      "dailyReservations": [5512, 5512]
+    }
+  ],
+  "coverageBoundary": {
+    "C01": "existing ordinary/tool HTTP Mock regressions, not batch score",
+    "C06": "exact-request usage anchor, changed payload/scope invalidation, cost unchanged",
+    "C07": "complete groups only; projection/readback NOT_IMPLEMENTED",
+    "C08": "existing cancellation/deadline regressions; checkpoint NOT_IMPLEMENTED",
+    "C13": "existing guard/tool/input limits; semantic compression NOT_IMPLEMENTED",
+    "C14": "negative semantic-support probe retained; answer quality NOT_VERIFIED",
+    "otherCases": "NOT_RUN as a batch; stages B-F pending"
+  },
+  "limitations": [
+    "UTF-8 estimate is conservative policy, not an exact tokenizer or supplier guarantee",
+    "no cross-run anchor recovery or speculative prefix increment estimation",
+    "no semantic summary, task state, durable checkpoint, authorized result readback or clarification implementation",
+    "isolated database checkpoint acceptance and real generation quality not run",
+    "no Java LSP/ast-grep available; Maven compilation and independent read-only review performed",
+    "new and old scenario batches and historical reports were not overwritten"
+  ]
+}

@@ -85,6 +85,13 @@ public class AssistantRunGuard {
         } catch (RuntimeException exception) { throw unavailable(exception); }
     }
 
+    /** 成本账的剩余输入预留额度；与模型窗口/本次输入占用无关，不修改累计预留。 */
+    public static int remainingInputReservation(int runLimit, long reservedTokens, int outputTokens) {
+        if (runLimit < 0 || reservedTokens < 0 || outputTokens < 0)
+            throw new IllegalArgumentException("Invalid model cost budget");
+        return (int) Math.max(0, (long) runLimit - reservedTokens - outputTokens);
+    }
+
     public final class Run implements AutoCloseable {
         private final String requestId;
         private final String userHash;

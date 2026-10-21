@@ -32,3 +32,39 @@
 冻结增量：新增工具批次顺序/结构变化两项回归后，同一专项命令 90 项全部实际通过。新场景文件 `assistant-context-redesign-20261021.json` 包含 C01—C14，明确标为 `REGRESSION_DEV_SEEN/NOT_RUN`，实际批次结果另存；JSON 解析及 `git diff --check` 通过。本次冻结提交不改变生产逻辑，根全量回归在阶段 A 生产实现后执行。
 
 阶段 B—F 尚未实施；任务状态、语义摘要、持久检查点、工具结果回读及歧义澄清不属于上述基线能力。冻结场景是验收规范，不能据此报告批次通过或真实回答质量。
+
+## 阶段 A：实现与验证
+
+- `ChatInputMeter` 拆出规划估算与实际 SDK 正文测量：规划估算沿用旧算法和 2048 字节协议余量；同步/SSE 的 `HttpClient` SPI 在任何网络发送前测量完整序列化 UTF-8 正文。若正文超过本地硬限或已预留规划量，立即拒绝，已扣成本不退款，也不自动追加预留或重试。
+- `AssistantRunGuard.remainingInputReservation` 负责剩余成本容量；规划器只接收外部容量，不再接受运行累计成本参数。实际扣账仍通过原 `reserveModel/recordUsage`、每日额度和 deadline/取消保护。上下文变小、usage 校准均不减少累计预留。
+- 新增完整消息组解析：普通历史对成组，当前工具多调用/结果按 ID 与工具名配对，拒绝孤立、重复、错名和缺失结果。阶段 A 仍只淘汰旧普通历史组，工具组保留；固定半额和 `user-extract-v1` 未替换。普通及工具路径均输出计数和枚举选择原因，不输出问题/摘要正文。
+- usage 锚点只存在本 run 的 meter 内，保存范围/完整请求 hash、消息数与实际 input usage。只有**完整请求完全相同**才采用该占用估计；system/schema/证据/偏好/摘要/顺序/模型或消息边界变化均重新估计。没有实现猜测性的追加前缀算法，也不跨 run 或用户共享锚点；规划阶段不能证明与最终 SDK 请求相同，因此继续保守估算。该限制是有意保留的，不宣称已优化压缩选择。
+- 自动偏好提取使用独立 meter/plan 和既有 guard，同样校验实际正文和窗口，不能消费回答工具循环的 plan。摘要功能尚未接入，不会新增隐藏调用。
+- 新增显式 `model-window-tokens` 与 `context-safety-margin-tokens`；未配置窗口（0）允许关闭模型/Fake 场景启动，但需要生成时在 claim/预留/HTTP 前拒绝。配置后始终检查 `estimatedInput + outputReservation + safetyMargin <= modelWindow`，不从模型名推断。
+
+### 模型窗口配置依据
+
+2026-10-21 阅读 [DeepSeek 官方 Models API 文档](https://api-docs.deepseek.com/api/list-models/)：示例分别明确 `deepseek-flash`、`deepseek-v4-pro` 的 `context_window=1048576`，并定义该值包含输入与输出。示例及本地被忽略 `.env` 显式配置 `1048576`，安全余量 `256`；不增加原输入字节、运行 Token、调用次数或日额度。官方文档核验不是已调用当前账号 `/models` 的证据。切换模型或供应商后须重新核验并显式更新。
+
+没有重启用户后端；当前已运行 JVM 是否加载新配置不属于本次证据。示例填写已核验值，应用属性的缺省值仍为 0，避免未显式配置时静默猜测。
+
+### 测试证据与边界
+
+1. 先运行新增 meter 行为测试，因缺少类而编译失败（预期的实现前红灯）；实现后第一次专项 116/116 通过。新增传输测试第一次因 `AssistantRunStore` 包可见性编译失败，已将测试移入 runtime 包修复，未改变生产可见性以迁就测试。
+2. 包含窗口、完整组、普通/工具流式、取消、证据/偏好失效、guard 的扩展专项 123/123 通过，失败/错误/跳过 0。最后补累计/日预留不受 usage 锚点影响的断言并完善提取测试后，相关三类专项 28/28 通过。
+3. 根 `mvn test`：636 项，522 实际执行、114 条件跳过，失败/错误 0。根 `mvn verify` 同样通过；补齐普通路径计数/原因日志后，最终根 `mvn verify` 仍为 636 项、522 实际执行、114 条件跳过、失败/错误 0，退出 0。
+4. 同步及 SSE 真实本机随机端口 Mock 接收计数均为 0，覆盖实际正文超硬限/超预留的四种组合；真实 guard 累计保留 4 次调用、12,050 预留 Token，usage 未知不退款。独立 accepted-body Mock 证明测量字节与服务端接收字节相同。相同请求 usage 锚点两轮测试累计预留 11,024，实际 usage 合计 16，日预留仍扣两次各 5,512；这些是 fixture 数值，不是供应商成本成绩。
+5. 窗口未配置时工具生成路径零预留/零 HTTP；偏好提取窗口超限在 HTTP 前拒绝且保留已有预留。模型/摘要/证据/偏好内容变化均不能复用旧锚点。
+6. 独立代码审查最终未发现阻断问题；`git diff --check` 通过。没有可用的 Java LSP/ast-grep，未把 Maven 编译冒充独立静态分析。未改前端，未运行前端构建。
+
+专项命令：
+
+```powershell
+& 'D:\Android\apache-maven-3.9.10\bin\mvn.cmd' -pl learnhub-server -am '-Dtest=ChatRequestPreflightTest,ChatInputMeterTest,ChatMessageGroupsTest,ChatContextPlannerTest,LangChainChatGeneratorTest,LangChainToolChatGeneratorTest,LangChainChatGeneratorContextTest,ToolStreamingSessionTest,ChatEvidenceCodecTest,EvidenceBookTest,AssistantRunGuardTest,PreferenceExtractionServiceTest' '-Dsurefire.failIfNoSpecifiedTests=false' test
+& 'D:\Android\apache-maven-3.9.10\bin\mvn.cmd' test
+& 'D:\Android\apache-maven-3.9.10\bin\mvn.cmd' verify
+```
+
+原 16 题、真实质量报告和付费台账未覆盖。新 C01—C14 整批执行器尚未实现，不能用这些组件回归为整批或真实模型质量打分；C09/C10 持久检查点隔离数据库证据属于阶段 C，当前没有新表/游标。弱证据与错误合法引用负向探针保留，结构测试通过不等于事实支持通过。
+
+阶段 A 机器可读证据见 [报告](assistant-context-redesign-a-20261021.json)。最终只读核验台账仍 `calls=3/reservedTokens=11592`，Maven/Surefire JVM 已退出，无本次遗留测试后端；没有停止用户服务。

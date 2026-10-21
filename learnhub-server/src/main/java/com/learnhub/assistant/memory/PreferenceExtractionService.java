@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learnhub.assistant.chat.application.ChatPersistenceService;
+import com.learnhub.assistant.chat.model.ChatInputMeter;
 import com.learnhub.assistant.chat.model.transport.BoundedJdkHttpClientBuilder;
 import com.learnhub.assistant.model.AiProperties;
 import com.learnhub.assistant.runtime.AssistantIoScope;
@@ -77,12 +78,20 @@ public class PreferenceExtractionService {
             validateEndpoint(endpoint);
             properties.validateForDeepSeek();
             if (properties.resolvedMode() != AiProperties.Mode.DEEPSEEK) return Result.skipped();
+            var inputMeter = new ChatInputMeter(json, owner + ":" + stored.conversationId() + ":EXTRACTION:" + properties.getModel(),
+                    limits.getModelWindowTokens(), limits.getContextSafetyMarginTokens());
+            inputMeter.expectRequest(input, Math.min(limits.getMaxInputBytes(), properties.getMaxInputBytes()), OUTPUT);
             if (!attempts.claim(owner, stored, properties.getModel(), PROMPT_VERSION, input)) return Result.skipped();
             claimed = true;
             guard.reserveModel(input, OUTPUT);
             attempts.reserved(owner, stored.id(), input + OUTPUT);
             saveRunUsage(owner, stored, guard, "RESERVED");
             checkpoint.run(); guard.check(); scope.remaining();
+            transport.beforeRequest(body -> {
+                checkpoint.run(); guard.check(); scope.remaining();
+                inputMeter.beforeSend(body);
+                checkpoint.run(); guard.check(); scope.remaining();
+            });
             Duration timeout = min(properties.getRequestTimeout(), min(guard.remaining(), scope.remaining()));
             var model = OpenAiChatModel.builder().httpClientBuilder(transport.maxResponseBytes(16384))
                     .baseUrl(endpoint.toString()).apiKey(properties.getApiKey().trim()).modelName(properties.getModel())
@@ -95,6 +104,7 @@ public class PreferenceExtractionService {
                     || usage.inputTokenCount() < 0 || usage.outputTokenCount() < 0
                     || usage.totalTokenCount() < usage.inputTokenCount() + (long) usage.outputTokenCount()) throw invalid();
             prompt = usage.inputTokenCount(); completion = usage.outputTokenCount(); total = usage.totalTokenCount();
+            inputMeter.recordUsage(prompt);
             known = true;
             // 即使输出不合法也记录实际计费；guard 超额异常也不得丢已知计费。
             try { guard.recordUsage(prompt, completion, total); }

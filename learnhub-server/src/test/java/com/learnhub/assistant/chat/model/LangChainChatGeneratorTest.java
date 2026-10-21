@@ -67,6 +67,7 @@ class LangChainChatGeneratorTest {
 
     @BeforeEach
     void setup() throws Exception {
+        limits.setModelWindowTokens(24000); // 本地 HTTP Mock 的显式窗口，不是供应商规格。
         server = new LocalSseServer();
         properties.setMode("DEEPSEEK");
         properties.setApiKey("local_mock_key");

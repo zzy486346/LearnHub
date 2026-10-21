@@ -5,6 +5,7 @@ import dev.langchain4j.http.client.HttpClientBuilder;
 import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 /**
  * 可迁移到生产配置的 LangChain4j HTTP SPI builder。
@@ -17,6 +18,7 @@ public final class BoundedJdkHttpClientBuilder implements HttpClientBuilder, Aut
     private final Set<BoundedJdkHttpClient> clients = ConcurrentHashMap.newKeySet();
     private Duration readTimeout = Duration.ofSeconds(45);
     private int maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES;
+    private Consumer<String> beforeRequest;
     private boolean closed;
 
     public BoundedJdkHttpClientBuilder(SharedJdkHttpTransport shared) {
@@ -53,13 +55,33 @@ public final class BoundedJdkHttpClientBuilder implements HttpClientBuilder, Aut
         return this;
     }
 
+    /** 回调在完整 SDK 正文交给传输前同步运行，不传入 headers，禁止记录正文。 */
+    public BoundedJdkHttpClientBuilder beforeRequest(Consumer<String> callback) {
+        this.beforeRequest = java.util.Objects.requireNonNull(callback);
+        return this;
+    }
+
     @Override
     public synchronized HttpClient build() {
         if (closed) throw new IllegalStateException("LangChain4j HTTP builder is closed");
         BoundedJdkHttpClient client = shared.borrow(readTimeout, maxResponseBytes);
         clients.add(client);
         client.onClose(clients::remove);
-        return client;
+        Consumer<String> check = beforeRequest;
+        if (check == null) return client;
+        return new HttpClient() {
+            @Override public dev.langchain4j.http.client.SuccessfulHttpResponse execute(
+                    dev.langchain4j.http.client.HttpRequest request) {
+                check.accept(request.body());
+                return client.execute(request);
+            }
+            @Override public void execute(dev.langchain4j.http.client.HttpRequest request,
+                    dev.langchain4j.http.client.sse.ServerSentEventParser parser,
+                    dev.langchain4j.http.client.sse.ServerSentEventListener listener) {
+                check.accept(request.body());
+                client.execute(request, parser, listener);
+            }
+        };
     }
 
     @Override

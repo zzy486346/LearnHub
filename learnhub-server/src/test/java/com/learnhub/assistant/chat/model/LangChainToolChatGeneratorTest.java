@@ -88,6 +88,7 @@ class LangChainToolChatGeneratorTest {
     private final AssistantLimits limits = new AssistantLimits();
 
     @BeforeEach void setup() throws Exception {
+        limits.setModelWindowTokens(24000); // 本地 HTTP Mock 的显式窗口。
         server = new MockEndpoint();
         when(guard.remaining()).thenReturn(Duration.ofSeconds(8));
         when(guard.requestId()).thenReturn(stored.id());
@@ -136,6 +137,15 @@ class LangChainToolChatGeneratorTest {
         assertThatThrownBy(() -> prepare(ignored -> { }, ignored -> { }))
                 .isInstanceOf(BusinessException.class)
                 .extracting(failure -> ((BusinessException) failure).getCode()).isEqualTo("AI_MODEL_INPUT_TOO_LARGE");
+        assertThat(server.requests).isEmpty();
+        verify(guard, never()).reserveModel(anyInt(), anyInt());
+    }
+
+    @Test void missingVerifiedWindowRejectsBeforeReservationAndHttp() {
+        limits.setModelWindowTokens(0);
+        assertThatThrownBy(() -> prepare(ignored -> { }, ignored -> { }))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        e -> assertThat(e.getCode()).isEqualTo("AI_MODEL_CONTEXT_WINDOW_UNCONFIGURED"));
         assertThat(server.requests).isEmpty();
         verify(guard, never()).reserveModel(anyInt(), anyInt());
     }

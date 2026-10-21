@@ -13,8 +13,8 @@ class ChatContextPlannerTest {
     private final ChatContextPlanner planner = new ChatContextPlanner(new ObjectMapper());
 
     @Test void reservesOutputAndPreviouslyReservedCallsConservatively() {
-        assertThat(planner.capacity(16000, 24000, 10000, 1200)).isEqualTo(12800);
-        assertThat(planner.capacity(16000, 24000, 23999, 1200)).isZero();
+        assertThat(com.learnhub.assistant.runtime.AssistantRunGuard.remainingInputReservation(24000, 10000, 1200)).isEqualTo(12800);
+        assertThat(com.learnhub.assistant.runtime.AssistantRunGuard.remainingInputReservation(24000, 23999, 1200)).isZero();
         assertThat(planner.historyAllowance(16000, 8000)).isEqualTo(4000);
     }
 
