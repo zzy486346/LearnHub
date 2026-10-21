@@ -313,7 +313,7 @@ class VectorProjectionInfrastructureIntegrationTest {
                 @SuppressWarnings("unchecked") ObjectProvider<KnowledgeVectorSearch> vectors = mock(ObjectProvider.class);
                 when(vectors.getIfAvailable()).thenReturn(vectorSearch);
                 var bm25 = new KnowledgeRetrievalService(store, gateway, permissions);
-                var hybrid = new KnowledgeRetrievalService(store, gateway, permissions, vectors);
+                var hybrid = new KnowledgeRetrievalService(store, gateway, permissions, vectors, 0);
                 List<Map<String, Object>> rows = new ArrayList<>();
                 for (JsonNode testCase : development.withArray("cases")) {
                     DevelopmentCourse course = courses.get(testCase.path("courseId").asText());

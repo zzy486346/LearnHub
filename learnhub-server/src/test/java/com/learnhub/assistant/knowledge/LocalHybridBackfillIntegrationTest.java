@@ -123,7 +123,8 @@ class LocalHybridBackfillIntegrationTest {
             };
             var factory = new StaticListableBeanFactory(Map.of("vector", vector));
             var bm25 = new KnowledgeRetrievalService(knowledge, gateway, courses);
-            var hybrid = new KnowledgeRetrievalService(knowledge, gateway, courses, factory.getBeanProvider(KnowledgeVectorSearch.class));
+            // 2026-10-20首次无门槛基线：新门槛另由标定集成测试验收，不能改写旧成绩。
+            var hybrid = new KnowledgeRetrievalService(knowledge, gateway, courses, factory.getBeanProvider(KnowledgeVectorSearch.class), 0);
             List<Long> users = jdbc.queryForList("SELECT id FROM user WHERE status='ACTIVE' AND deleted=0 ORDER BY id", Long.class);
             assertThat(users).isNotEmpty();
             Map<Long, String> sourceKeys = new LinkedHashMap<>();

@@ -6,6 +6,7 @@ import com.learnhub.assistant.knowledge.vector.KnowledgeVectorSearch;
 import com.learnhub.course.service.CourseService;
 import com.learnhub.search.SearchUnavailableException;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
@@ -68,5 +69,88 @@ class KnowledgeHybridRetrievalTest {
                 .thenReturn(List.of(new KnowledgeSearchGateway.Hit(30, 99, 2, 0.99)));
         assertThat(service.retrieve(7L, 1, "课程", 5).sources()).isEmpty();
         verify(store).currentChunks(List.of());
+    }
+
+    @Test void rejectsWeakSemanticEvidenceEvenWhenBm25AndRrfRankItFirst() {
+        when(bm25.search(1, List.of(20L), "课程", 100))
+                .thenReturn(List.of(new KnowledgeSearchGateway.Hit(30, 10, 2, 10000)));
+        when(vector.search(1, List.of(20L), "课程", 100))
+                .thenReturn(List.of(new KnowledgeSearchGateway.Hit(30, 10, 2, 0.814999)));
+        var result = service.retrieve(7L, 1, "课程", 5);
+        assertThat(result.retrievalMode()).isEqualTo("HYBRID");
+        assertThat(result.noRelevantMaterials()).isTrue();
+        assertThat(result.sources()).isEmpty();
+    }
+
+    @Test void exactSemanticBoundaryPassesAndScoreRemainsTheOriginalRrfScore() {
+        when(vector.search(1, List.of(20L), "课程", 100))
+                .thenReturn(List.of(new KnowledgeSearchGateway.Hit(30, 10, 2, 0.815)));
+        assertThat(service.retrieve(7L, 1, "课程", 5).sources()).singleElement()
+                .satisfies(source -> assertThat(source.score()).isCloseTo(2.0 / 61, within(1e-9)));
+    }
+
+    @Test void removingFirstCandidateDoesNotPromoteRemainingCandidatesRrfRank() {
+        var weak = new KnowledgeSearchGateway.Hit(30, 10, 2, 0.8);
+        var strong = new KnowledgeSearchGateway.Hit(31, 11, 2, 0.83);
+        when(bm25.search(1, List.of(20L), "课程", 100)).thenReturn(List.of(weak, strong));
+        when(vector.search(1, List.of(20L), "课程", 100)).thenReturn(List.of(weak, strong));
+        when(store.currentChunks(List.of(31L))).thenReturn(List.of(
+                new CurrentKnowledgeChunk(31, 11, 2, 1, 20, "材料", 1, "小节", "有效正文")));
+        assertThat(service.retrieve(7L, 1, "课程", 5).sources()).singleElement().satisfies(source -> {
+            assertThat(source.chunkId()).isEqualTo("31");
+            assertThat(source.score()).isCloseTo(2.0 / 62, within(1e-9));
+        });
+    }
+
+    @Test void invalidSemanticScoresCannotBecomeEvidence() {
+        for (double score : List.of(Double.NaN, Double.POSITIVE_INFINITY, -1.0, 1.01)) {
+            when(vector.search(1, List.of(20L), "课程", 100))
+                    .thenReturn(List.of(new KnowledgeSearchGateway.Hit(30, 10, 2, score)));
+            assertThat(service.retrieve(7L, 1, "课程", 5).sources()).isEmpty();
+        }
+    }
+
+    @Test void bm25OnlyCandidateCannotBypassHybridSemanticThreshold() {
+        when(vector.search(1, List.of(20L), "课程", 100)).thenReturn(List.of());
+        assertThat(service.retrieve(7L, 1, "课程", 5).sources()).isEmpty();
+        assertThat(withThreshold(0).retrieve(7L, 1, "课程", 5).sources()).hasSize(1);
+    }
+
+    @Test void strongSemanticOnlyCandidateCanPass() {
+        when(bm25.search(1, List.of(20L), "课程", 100)).thenReturn(List.of());
+        assertThat(service.retrieve(7L, 1, "课程", 5).sources()).hasSize(1);
+    }
+
+    @Test void filteringDoesNotHideThatTheCandidateLimitWasReached() {
+        var hundred = java.util.stream.LongStream.range(30, 130).mapToObj(id ->
+                new KnowledgeSearchGateway.Hit(id, 10, 2, id == 30 ? 0.9 : 0.8)).toList();
+        when(bm25.search(1, List.of(20L), "课程", 100)).thenReturn(hundred);
+        when(vector.search(1, List.of(20L), "课程", 100)).thenReturn(hundred);
+        var result = service.retrieve(7L, 1, "课程", 5);
+        assertThat(result.sources()).hasSize(1);
+        assertThat(result.candidateLimitReached()).isTrue();
+    }
+
+    @Test void weakBm25RemainsAvailableWhenVectorIsDisabledOrUnavailable() {
+        when(bm25.search(1, List.of(20L), "课程", 100))
+                .thenReturn(List.of(new KnowledgeSearchGateway.Hit(30, 10, 2, 0.01)));
+        when(vector.hybridEnabled()).thenReturn(false);
+        assertThat(service.retrieve(7L, 1, "课程", 5).sources()).hasSize(1);
+        when(vector.hybridEnabled()).thenReturn(true);
+        when(vector.search(1, List.of(20L), "课程", 100)).thenThrow(new IllegalStateException());
+        var fallback = service.retrieve(7L, 1, "课程", 5);
+        assertThat(fallback.retrievalMode()).isEqualTo("BM25_FALLBACK");
+        assertThat(fallback.sources()).hasSize(1);
+    }
+
+    @Test void rejectsInvalidThresholdConfiguration() {
+        Stream.of(-0.1, 1.01, Double.NaN, Double.POSITIVE_INFINITY).forEach(threshold ->
+                assertThatThrownBy(() -> withThreshold(threshold)).isInstanceOf(IllegalArgumentException.class));
+    }
+
+    @SuppressWarnings("unchecked") private KnowledgeRetrievalService withThreshold(double threshold) {
+        ObjectProvider<KnowledgeVectorSearch> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(vector);
+        return new KnowledgeRetrievalService(store, bm25, courses, provider, threshold);
     }
 }

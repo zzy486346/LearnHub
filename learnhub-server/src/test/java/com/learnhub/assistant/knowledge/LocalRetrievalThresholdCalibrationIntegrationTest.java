@@ -44,6 +44,8 @@ class LocalRetrievalThresholdCalibrationIntegrationTest {
     @Autowired KnowledgeSearchGateway gateway;
     @Autowired KnowledgeVectorSearch vector;
     @Autowired CourseService courses;
+    @Autowired KnowledgeRetrievalService retrieval;
+    @Autowired org.springframework.core.env.Environment environment;
 
     @Test void recordsUnfilteredChannelScoresForTheAlreadySeenDataset() throws Exception {
         var root = CatalogMaterialCorpusTest.ROOT;
@@ -78,13 +80,21 @@ class LocalRetrievalThresholdCalibrationIntegrationTest {
             row.put("expectedSourceKeys", item.path("expectedSourceKeys"));
             row.put("bm25", scores(bm25, sourceKeys)); row.put("semantic", scores(semantic, sourceKeys));
             row.put("rrf", scores(fused, sourceKeys)); rows.add(row);
+            var filtered = retrieval.retrieve(reader, course, query, 5);
+            assertThat(filtered.retrievalMode()).isEqualTo("HYBRID");
+            var actual = filtered.sources().stream().map(source -> Map.<String, Object>of(
+                    "chunkId", Long.parseLong(source.chunkId()), "sourceKey", sourceKeys.get(Long.parseLong(source.documentId())),
+                    "score", source.score())).toList();
+            row.put("filtered", actual);
         }
         assertThat(rows).hasSize(72);
         Files.createDirectories(root.resolve(".local"));
-        Files.writeString(root.resolve(".local/retrieval-threshold-baseline-20261021.json"),
+        Files.writeString(root.resolve(".local/retrieval-threshold-validation-20261021.json"),
                 CatalogMaterialCorpusTest.JSON.writerWithDefaultPrettyPrinter().writeValueAsString(Map.of(
                         "datasetId", dataset.path("datasetId").asText(), "usage", "already-seen calibration data",
-                        "rankConstant", 60, "supplierCalls", 0, "results", rows)));
+                        "rankConstant", 60, "supplierCalls", 0,
+                        "minSemanticScore", environment.getRequiredProperty("learnhub.vector.min-semantic-score", Double.class),
+                        "results", rows)));
     }
 
     private List<KnowledgeSearchGateway.Hit> verified(List<KnowledgeSearchGateway.Hit> hits, long reader, long course) {

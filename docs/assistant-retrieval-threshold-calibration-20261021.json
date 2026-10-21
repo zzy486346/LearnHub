@@ -1,0 +1,1148 @@
+{
+  "datasetId": "learnhub-local-hybrid-20261020",
+  "usage": "already-seen calibration, not an independent holdout",
+  "rawScoresSha256": "609b5cb0e709635398612fdc27673c6b1d244931bd98fa6260cecb1b71c51941",
+  "rankConstant": 60,
+  "scoreDefinition": "semantic=(1+cosineSimilarity)/2; RRF score is rank-only",
+  "selectedThreshold": 0.815,
+  "selectedCosineThreshold": 0.63,
+  "distributions": {
+    "ANSWERABLE": {
+      "bm25": {
+        "min": 18.004704,
+        "median": 33.9263035,
+        "max": 66.66118
+      },
+      "semantic": {
+        "min": 0.8093269879027022,
+        "median": 0.8564978731386005,
+        "max": 0.9214416225053348
+      },
+      "rrf": {
+        "min": 0.03200204813108039,
+        "median": 0.03278688524590164,
+        "max": 0.03278688524590164
+      }
+    },
+    "NO_EVIDENCE": {
+      "bm25": {
+        "min": 3.87225,
+        "median": 7.46512625,
+        "max": 22.526772
+      },
+      "semantic": {
+        "min": 0.7354993416370927,
+        "median": 0.7904668525078266,
+        "max": 0.8497451156226372
+      },
+      "rrf": {
+        "min": 0.031544957774465976,
+        "median": 0.03252247488101534,
+        "max": 0.03278688524590164
+      }
+    },
+    "CROSS_COURSE": {
+      "bm25": {
+        "min": 3.470654,
+        "median": 8.475541499999999,
+        "max": 17.1829
+      },
+      "semantic": {
+        "min": 0.7388873164851064,
+        "median": 0.7684601833329865,
+        "max": 0.7962063264231907
+      },
+      "rrf": {
+        "min": 0.03125763125763126,
+        "median": 0.03213825356953993,
+        "max": 0.03278688524590164
+      }
+    }
+  },
+  "sweep": [
+    {
+      "threshold": 0,
+      "metrics": {
+        "ANSWERABLE": {
+          "queries": 48,
+          "queriesWithSources": 48,
+          "returnedChunks": 240,
+          "sourceHitsAt5": 48,
+          "sourceMrrAt5": 0.9583333333333334,
+          "missedCaseIds": []
+        },
+        "NO_EVIDENCE": {
+          "queries": 12,
+          "queriesWithSources": 12,
+          "returnedChunks": 60
+        },
+        "CROSS_COURSE": {
+          "queries": 12,
+          "queriesWithSources": 12,
+          "returnedChunks": 60
+        }
+      }
+    },
+    {
+      "threshold": 0.8,
+      "metrics": {
+        "ANSWERABLE": {
+          "queries": 48,
+          "queriesWithSources": 48,
+          "returnedChunks": 200,
+          "sourceHitsAt5": 48,
+          "sourceMrrAt5": 0.9583333333333334,
+          "missedCaseIds": []
+        },
+        "NO_EVIDENCE": {
+          "queries": 12,
+          "queriesWithSources": 6,
+          "returnedChunks": 7
+        },
+        "CROSS_COURSE": {
+          "queries": 12,
+          "queriesWithSources": 0,
+          "returnedChunks": 0
+        }
+      }
+    },
+    {
+      "threshold": 0.809,
+      "metrics": {
+        "ANSWERABLE": {
+          "queries": 48,
+          "queriesWithSources": 48,
+          "returnedChunks": 183,
+          "sourceHitsAt5": 48,
+          "sourceMrrAt5": 0.9583333333333334,
+          "missedCaseIds": []
+        },
+        "NO_EVIDENCE": {
+          "queries": 12,
+          "queriesWithSources": 4,
+          "returnedChunks": 5
+        },
+        "CROSS_COURSE": {
+          "queries": 12,
+          "queriesWithSources": 0,
+          "returnedChunks": 0
+        }
+      }
+    },
+    {
+      "threshold": 0.81,
+      "metrics": {
+        "ANSWERABLE": {
+          "queries": 48,
+          "queriesWithSources": 47,
+          "returnedChunks": 179,
+          "sourceHitsAt5": 47,
+          "sourceMrrAt5": 0.9375,
+          "missedCaseIds": [
+            "ans-12006-01"
+          ]
+        },
+        "NO_EVIDENCE": {
+          "queries": 12,
+          "queriesWithSources": 3,
+          "returnedChunks": 4
+        },
+        "CROSS_COURSE": {
+          "queries": 12,
+          "queriesWithSources": 0,
+          "returnedChunks": 0
+        }
+      }
+    },
+    {
+      "threshold": 0.814,
+      "metrics": {
+        "ANSWERABLE": {
+          "queries": 48,
+          "queriesWithSources": 47,
+          "returnedChunks": 169,
+          "sourceHitsAt5": 47,
+          "sourceMrrAt5": 0.9375,
+          "missedCaseIds": [
+            "ans-12006-01"
+          ]
+        },
+        "NO_EVIDENCE": {
+          "queries": 12,
+          "queriesWithSources": 1,
+          "returnedChunks": 2
+        },
+        "CROSS_COURSE": {
+          "queries": 12,
+          "queriesWithSources": 0,
+          "returnedChunks": 0
+        }
+      }
+    },
+    {
+      "threshold": 0.815,
+      "metrics": {
+        "ANSWERABLE": {
+          "queries": 48,
+          "queriesWithSources": 47,
+          "returnedChunks": 167,
+          "sourceHitsAt5": 47,
+          "sourceMrrAt5": 0.9375,
+          "missedCaseIds": [
+            "ans-12006-01"
+          ]
+        },
+        "NO_EVIDENCE": {
+          "queries": 12,
+          "queriesWithSources": 1,
+          "returnedChunks": 2
+        },
+        "CROSS_COURSE": {
+          "queries": 12,
+          "queriesWithSources": 0,
+          "returnedChunks": 0
+        }
+      }
+    },
+    {
+      "threshold": 0.816,
+      "metrics": {
+        "ANSWERABLE": {
+          "queries": 48,
+          "queriesWithSources": 47,
+          "returnedChunks": 167,
+          "sourceHitsAt5": 47,
+          "sourceMrrAt5": 0.9375,
+          "missedCaseIds": [
+            "ans-12006-01"
+          ]
+        },
+        "NO_EVIDENCE": {
+          "queries": 12,
+          "queriesWithSources": 1,
+          "returnedChunks": 2
+        },
+        "CROSS_COURSE": {
+          "queries": 12,
+          "queriesWithSources": 0,
+          "returnedChunks": 0
+        }
+      }
+    },
+    {
+      "threshold": 0.817,
+      "metrics": {
+        "ANSWERABLE": {
+          "queries": 48,
+          "queriesWithSources": 47,
+          "returnedChunks": 165,
+          "sourceHitsAt5": 47,
+          "sourceMrrAt5": 0.9375,
+          "missedCaseIds": [
+            "ans-12006-01"
+          ]
+        },
+        "NO_EVIDENCE": {
+          "queries": 12,
+          "queriesWithSources": 1,
+          "returnedChunks": 2
+        },
+        "CROSS_COURSE": {
+          "queries": 12,
+          "queriesWithSources": 0,
+          "returnedChunks": 0
+        }
+      }
+    },
+    {
+      "threshold": 0.82,
+      "metrics": {
+        "ANSWERABLE": {
+          "queries": 48,
+          "queriesWithSources": 46,
+          "returnedChunks": 156,
+          "sourceHitsAt5": 46,
+          "sourceMrrAt5": 0.9270833333333334,
+          "missedCaseIds": [
+            "ans-12006-01",
+            "ans-12009-02"
+          ]
+        },
+        "NO_EVIDENCE": {
+          "queries": 12,
+          "queriesWithSources": 1,
+          "returnedChunks": 1
+        },
+        "CROSS_COURSE": {
+          "queries": 12,
+          "queriesWithSources": 0,
+          "returnedChunks": 0
+        }
+      }
+    },
+    {
+      "threshold": 0.85,
+      "metrics": {
+        "ANSWERABLE": {
+          "queries": 48,
+          "queriesWithSources": 29,
+          "returnedChunks": 70,
+          "sourceHitsAt5": 27,
+          "sourceMrrAt5": 0.5416666666666666,
+          "missedCaseIds": [
+            "ans-1001-02",
+            "ans-1002-01",
+            "ans-1002-02",
+            "ans-12001-01",
+            "ans-12001-02",
+            "ans-12002-01",
+            "ans-12003-01",
+            "ans-12006-01",
+            "ans-12008-01",
+            "ans-12009-02",
+            "ans-12010-02",
+            "ans-12011-02",
+            "ans-12013-01",
+            "ans-12013-02",
+            "ans-12016-02",
+            "ans-12017-02",
+            "ans-12018-01",
+            "ans-12018-02",
+            "ans-12019-02",
+            "ans-12020-01",
+            "ans-12021-01"
+          ]
+        },
+        "NO_EVIDENCE": {
+          "queries": 12,
+          "queriesWithSources": 0,
+          "returnedChunks": 0
+        },
+        "CROSS_COURSE": {
+          "queries": 12,
+          "queriesWithSources": 0,
+          "returnedChunks": 0
+        }
+      }
+    }
+  ],
+  "selectedMetrics": {
+    "ANSWERABLE": {
+      "queries": 48,
+      "queriesWithSources": 47,
+      "returnedChunks": 167,
+      "sourceHitsAt5": 47,
+      "sourceMrrAt5": 0.9375,
+      "missedCaseIds": [
+        "ans-12006-01"
+      ]
+    },
+    "NO_EVIDENCE": {
+      "queries": 12,
+      "queriesWithSources": 1,
+      "returnedChunks": 2
+    },
+    "CROSS_COURSE": {
+      "queries": 12,
+      "queriesWithSources": 0,
+      "returnedChunks": 0
+    }
+  },
+  "liveProductionPathMatchesReplay": true,
+  "supplierCalls": 0,
+  "cases": [
+    {
+      "id": "ans-1001-01",
+      "category": "ANSWERABLE",
+      "topBm25": 43.787884,
+      "topSemantic": 0.856069841619149,
+      "topRrf": 0.03252247488101534,
+      "selectedSourceKeys": [
+        "generated.course.1001.lesson.3001",
+        "generated.course.1001.lesson.3001"
+      ]
+    },
+    {
+      "id": "ans-1001-02",
+      "category": "ANSWERABLE",
+      "topBm25": 35.765472,
+      "topSemantic": 0.8339322210429163,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.1001.lesson.3001",
+        "generated.course.1001.lesson.3001"
+      ]
+    },
+    {
+      "id": "ans-1002-01",
+      "category": "ANSWERABLE",
+      "topBm25": 27.34033,
+      "topSemantic": 0.8334685365278454,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.1002.lesson.3005",
+        "generated.course.1002.lesson.3005"
+      ]
+    },
+    {
+      "id": "ans-1002-02",
+      "category": "ANSWERABLE",
+      "topBm25": 28.98218,
+      "topSemantic": 0.8477856581722121,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.1002.lesson.3005",
+        "generated.course.1002.lesson.3005"
+      ]
+    },
+    {
+      "id": "ans-12001-01",
+      "category": "ANSWERABLE",
+      "topBm25": 19.260815,
+      "topSemantic": 0.8274379156345023,
+      "topRrf": 0.03252247488101534,
+      "selectedSourceKeys": [
+        "generated.course.12001.lesson.32011"
+      ]
+    },
+    {
+      "id": "ans-12001-02",
+      "category": "ANSWERABLE",
+      "topBm25": 30.396877,
+      "topSemantic": 0.8441837449402407,
+      "topRrf": 0.032266458495966696,
+      "selectedSourceKeys": [
+        "generated.course.12001.lesson.32012",
+        "generated.course.12001.lesson.32012",
+        "generated.course.12001.lesson.32012",
+        "generated.course.12001.lesson.32012",
+        "generated.course.12001.lesson.32011"
+      ]
+    },
+    {
+      "id": "ans-12002-01",
+      "category": "ANSWERABLE",
+      "topBm25": 23.053133,
+      "topSemantic": 0.8634179262118515,
+      "topRrf": 0.032266458495966696,
+      "selectedSourceKeys": [
+        "generated.course.12002.lesson.32021",
+        "generated.course.12002.lesson.32021",
+        "generated.course.12002.lesson.32021",
+        "generated.course.12002.lesson.32021",
+        "catalog.java-concurrency.inventory-race"
+      ]
+    },
+    {
+      "id": "ans-12002-02",
+      "category": "ANSWERABLE",
+      "topBm25": 41.0437,
+      "topSemantic": 0.8586806677592591,
+      "topRrf": 0.032266458495966696,
+      "selectedSourceKeys": [
+        "generated.course.12002.lesson.32022",
+        "catalog.java-concurrency.thread-pool",
+        "catalog.java-concurrency.thread-pool",
+        "catalog.java-concurrency.thread-pool",
+        "generated.course.12002.lesson.32022"
+      ]
+    },
+    {
+      "id": "ans-12003-01",
+      "category": "ANSWERABLE",
+      "topBm25": 26.318455,
+      "topSemantic": 0.8410560516319483,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12003.lesson.32031",
+        "generated.course.12003.lesson.32031",
+        "generated.course.12003.lesson.32031"
+      ]
+    },
+    {
+      "id": "ans-12003-02",
+      "category": "ANSWERABLE",
+      "topBm25": 49.77738,
+      "topSemantic": 0.873196713948854,
+      "topRrf": 0.03252247488101534,
+      "selectedSourceKeys": [
+        "generated.course.12003.lesson.32032",
+        "generated.course.12003.lesson.32032",
+        "generated.course.12003.lesson.32032",
+        "generated.course.12003.lesson.32032"
+      ]
+    },
+    {
+      "id": "ans-12004-01",
+      "category": "ANSWERABLE",
+      "topBm25": 37.087803,
+      "topSemantic": 0.8514733096238138,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12004.lesson.32041",
+        "generated.course.12004.lesson.32041",
+        "generated.course.12004.lesson.32041",
+        "generated.course.12004.lesson.32041"
+      ]
+    },
+    {
+      "id": "ans-12004-02",
+      "category": "ANSWERABLE",
+      "topBm25": 28.148132,
+      "topSemantic": 0.856659088931311,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12004.lesson.32042",
+        "generated.course.12004.lesson.32042"
+      ]
+    },
+    {
+      "id": "ans-12005-01",
+      "category": "ANSWERABLE",
+      "topBm25": 39.709957,
+      "topSemantic": 0.9214416225053348,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12005.lesson.32052",
+        "generated.course.12005.lesson.32051",
+        "generated.course.12005.lesson.32051",
+        "generated.course.12005.lesson.32052",
+        "generated.course.12005.lesson.32051"
+      ]
+    },
+    {
+      "id": "ans-12005-02",
+      "category": "ANSWERABLE",
+      "topBm25": 23.329557,
+      "topSemantic": 0.8685933775639751,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12005.lesson.32052",
+        "generated.course.12005.lesson.32051",
+        "generated.course.12005.lesson.32051",
+        "generated.course.12005.lesson.32052",
+        "generated.course.12005.lesson.32051"
+      ]
+    },
+    {
+      "id": "ans-12006-01",
+      "category": "ANSWERABLE",
+      "topBm25": 31.458603,
+      "topSemantic": 0.8093269879027022,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "ans-12006-02",
+      "category": "ANSWERABLE",
+      "topBm25": 27.35713,
+      "topSemantic": 0.8683165531347135,
+      "topRrf": 0.03252247488101534,
+      "selectedSourceKeys": [
+        "generated.course.12006.lesson.32062",
+        "generated.course.12006.lesson.32062",
+        "generated.course.12006.lesson.32062",
+        "generated.course.12006.lesson.32062",
+        "generated.course.12006.lesson.32062"
+      ]
+    },
+    {
+      "id": "ans-12007-01",
+      "category": "ANSWERABLE",
+      "topBm25": 55.315193,
+      "topSemantic": 0.8812961295357059,
+      "topRrf": 0.03252247488101534,
+      "selectedSourceKeys": [
+        "generated.course.12007.lesson.32071",
+        "generated.course.12007.lesson.32071",
+        "catalog.redis-cache.hot-key-expiry",
+        "catalog.redis-cache.hot-key-expiry",
+        "generated.course.12007.lesson.32071"
+      ]
+    },
+    {
+      "id": "ans-12007-02",
+      "category": "ANSWERABLE",
+      "topBm25": 46.298534,
+      "topSemantic": 0.8778447800052691,
+      "topRrf": 0.032266458495966696,
+      "selectedSourceKeys": [
+        "generated.course.12007.lesson.32072",
+        "catalog.redis-cache.consistency",
+        "catalog.redis-cache.consistency",
+        "generated.course.12007.lesson.32072",
+        "generated.course.12007.lesson.32072"
+      ]
+    },
+    {
+      "id": "ans-12008-01",
+      "category": "ANSWERABLE",
+      "topBm25": 29.261461,
+      "topSemantic": 0.8427261412143805,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12008.lesson.32081",
+        "generated.course.12008.lesson.32081"
+      ]
+    },
+    {
+      "id": "ans-12008-02",
+      "category": "ANSWERABLE",
+      "topBm25": 30.809544,
+      "topSemantic": 0.8596034693009065,
+      "topRrf": 0.032018442622950824,
+      "selectedSourceKeys": [
+        "generated.course.12008.lesson.32082",
+        "generated.course.12008.lesson.32082",
+        "generated.course.12008.lesson.32081",
+        "generated.course.12008.lesson.32082",
+        "generated.course.12008.lesson.32082"
+      ]
+    },
+    {
+      "id": "ans-12009-01",
+      "category": "ANSWERABLE",
+      "topBm25": 63.786003,
+      "topSemantic": 0.8842828502823956,
+      "topRrf": 0.03252247488101534,
+      "selectedSourceKeys": [
+        "generated.course.12009.lesson.32091",
+        "generated.course.12009.lesson.32091",
+        "generated.course.12009.lesson.32091",
+        "generated.course.12009.lesson.32091",
+        "generated.course.12009.lesson.32091"
+      ]
+    },
+    {
+      "id": "ans-12009-02",
+      "category": "ANSWERABLE",
+      "topBm25": 35.05515,
+      "topSemantic": 0.8188619626586113,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12009.lesson.32092"
+      ]
+    },
+    {
+      "id": "ans-12010-01",
+      "category": "ANSWERABLE",
+      "topBm25": 66.66118,
+      "topSemantic": 0.8659380623606072,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12010.lesson.32101",
+        "generated.course.12010.lesson.32101",
+        "generated.course.12010.lesson.32101",
+        "generated.course.12010.lesson.32101"
+      ]
+    },
+    {
+      "id": "ans-12010-02",
+      "category": "ANSWERABLE",
+      "topBm25": 30.050707,
+      "topSemantic": 0.8253323435783386,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12010.lesson.32102"
+      ]
+    },
+    {
+      "id": "ans-12011-01",
+      "category": "ANSWERABLE",
+      "topBm25": 33.661266,
+      "topSemantic": 0.8563366573458899,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12011.lesson.32111",
+        "generated.course.12011.lesson.32111"
+      ]
+    },
+    {
+      "id": "ans-12011-02",
+      "category": "ANSWERABLE",
+      "topBm25": 35.102684,
+      "topSemantic": 0.8428497689128862,
+      "topRrf": 0.03252247488101534,
+      "selectedSourceKeys": [
+        "generated.course.12011.lesson.32112",
+        "generated.course.12011.lesson.32112",
+        "generated.course.12011.lesson.32112",
+        "generated.course.12011.lesson.32112"
+      ]
+    },
+    {
+      "id": "ans-12012-01",
+      "category": "ANSWERABLE",
+      "topBm25": 47.01706,
+      "topSemantic": 0.8594891107539178,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12012.lesson.32121"
+      ]
+    },
+    {
+      "id": "ans-12012-02",
+      "category": "ANSWERABLE",
+      "topBm25": 34.121452,
+      "topSemantic": 0.8594182334076668,
+      "topRrf": 0.03252247488101534,
+      "selectedSourceKeys": [
+        "generated.course.12012.lesson.32122",
+        "generated.course.12012.lesson.32122",
+        "generated.course.12012.lesson.32122",
+        "generated.course.12012.lesson.32122"
+      ]
+    },
+    {
+      "id": "ans-12013-01",
+      "category": "ANSWERABLE",
+      "topBm25": 25.90988,
+      "topSemantic": 0.8299891853345436,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12013.lesson.32131"
+      ]
+    },
+    {
+      "id": "ans-12013-02",
+      "category": "ANSWERABLE",
+      "topBm25": 26.71903,
+      "topSemantic": 0.8619804541427923,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12013.lesson.32131",
+        "generated.course.12013.lesson.32132",
+        "generated.course.12013.lesson.32131",
+        "generated.course.12013.lesson.32132",
+        "generated.course.12013.lesson.32132"
+      ]
+    },
+    {
+      "id": "ans-12014-01",
+      "category": "ANSWERABLE",
+      "topBm25": 31.30798,
+      "topSemantic": 0.8613388919032288,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12014.lesson.32141",
+        "generated.course.12014.lesson.32141",
+        "generated.course.12014.lesson.32142"
+      ]
+    },
+    {
+      "id": "ans-12014-02",
+      "category": "ANSWERABLE",
+      "topBm25": 43.07813,
+      "topSemantic": 0.8646087919733132,
+      "topRrf": 0.03252247488101534,
+      "selectedSourceKeys": [
+        "generated.course.12014.lesson.32142",
+        "generated.course.12014.lesson.32142",
+        "generated.course.12014.lesson.32142",
+        "generated.course.12014.lesson.32142",
+        "generated.course.12014.lesson.32142"
+      ]
+    },
+    {
+      "id": "ans-12015-01",
+      "category": "ANSWERABLE",
+      "topBm25": 44.61582,
+      "topSemantic": 0.8682908854831346,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12015.lesson.32151",
+        "catalog.elasticsearch.inverted-index",
+        "catalog.elasticsearch.inverted-index",
+        "catalog.elasticsearch.inverted-index",
+        "generated.course.12015.lesson.32151"
+      ]
+    },
+    {
+      "id": "ans-12015-02",
+      "category": "ANSWERABLE",
+      "topBm25": 41.25277,
+      "topSemantic": 0.8973606359050068,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "catalog.elasticsearch.relevance-ranking",
+        "generated.course.12015.lesson.32152",
+        "generated.course.12015.lesson.32152",
+        "generated.course.12015.lesson.32152",
+        "generated.course.12015.lesson.32151"
+      ]
+    },
+    {
+      "id": "ans-12016-01",
+      "category": "ANSWERABLE",
+      "topBm25": 33.731155,
+      "topSemantic": 0.8703063660312401,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12016.lesson.32161",
+        "generated.course.12016.lesson.32161",
+        "generated.course.12016.lesson.32161",
+        "generated.course.12016.lesson.32161",
+        "generated.course.12016.lesson.32161"
+      ]
+    },
+    {
+      "id": "ans-12016-02",
+      "category": "ANSWERABLE",
+      "topBm25": 30.728195,
+      "topSemantic": 0.8250890567951884,
+      "topRrf": 0.03252247488101534,
+      "selectedSourceKeys": [
+        "generated.course.12016.lesson.32162",
+        "generated.course.12016.lesson.32162",
+        "generated.course.12016.lesson.32162"
+      ]
+    },
+    {
+      "id": "ans-12017-01",
+      "category": "ANSWERABLE",
+      "topBm25": 42.085438,
+      "topSemantic": 0.8517969813709945,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12017.lesson.32171",
+        "generated.course.12017.lesson.32171",
+        "generated.course.12017.lesson.32171",
+        "generated.course.12017.lesson.32172"
+      ]
+    },
+    {
+      "id": "ans-12017-02",
+      "category": "ANSWERABLE",
+      "topBm25": 49.31153,
+      "topSemantic": 0.8387725141590824,
+      "topRrf": 0.03252247488101534,
+      "selectedSourceKeys": [
+        "generated.course.12017.lesson.32172",
+        "generated.course.12017.lesson.32172",
+        "generated.course.12017.lesson.32172",
+        "generated.course.12017.lesson.32172"
+      ]
+    },
+    {
+      "id": "ans-12018-01",
+      "category": "ANSWERABLE",
+      "topBm25": 19.663954,
+      "topSemantic": 0.838941505393614,
+      "topRrf": 0.03200204813108039,
+      "selectedSourceKeys": [
+        "generated.course.12018.lesson.32182",
+        "generated.course.12018.lesson.32181",
+        "generated.course.12018.lesson.32181"
+      ]
+    },
+    {
+      "id": "ans-12018-02",
+      "category": "ANSWERABLE",
+      "topBm25": 18.004704,
+      "topSemantic": 0.8377729630496253,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12018.lesson.32182",
+        "generated.course.12018.lesson.32182"
+      ]
+    },
+    {
+      "id": "ans-12019-01",
+      "category": "ANSWERABLE",
+      "topBm25": 39.748165,
+      "topSemantic": 0.8655093885682581,
+      "topRrf": 0.03252247488101534,
+      "selectedSourceKeys": [
+        "generated.course.12019.lesson.32191",
+        "generated.course.12019.lesson.32191",
+        "generated.course.12019.lesson.32191",
+        "generated.course.12019.lesson.32191",
+        "generated.course.12019.lesson.32192"
+      ]
+    },
+    {
+      "id": "ans-12019-02",
+      "category": "ANSWERABLE",
+      "topBm25": 31.773613,
+      "topSemantic": 0.8428403045439907,
+      "topRrf": 0.03200204813108039,
+      "selectedSourceKeys": [
+        "generated.course.12019.lesson.32192",
+        "generated.course.12019.lesson.32192"
+      ]
+    },
+    {
+      "id": "ans-12020-01",
+      "category": "ANSWERABLE",
+      "topBm25": 48.467323,
+      "topSemantic": 0.8304137193663665,
+      "topRrf": 0.03252247488101534,
+      "selectedSourceKeys": [
+        "generated.course.12020.lesson.32201",
+        "generated.course.12020.lesson.32201",
+        "generated.course.12020.lesson.32201"
+      ]
+    },
+    {
+      "id": "ans-12020-02",
+      "category": "ANSWERABLE",
+      "topBm25": 30.189316,
+      "topSemantic": 0.8519961795794713,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12020.lesson.32202",
+        "generated.course.12020.lesson.32202",
+        "generated.course.12020.lesson.32202",
+        "generated.course.12020.lesson.32202",
+        "generated.course.12020.lesson.32201"
+      ]
+    },
+    {
+      "id": "ans-12021-01",
+      "category": "ANSWERABLE",
+      "topBm25": 42.13028,
+      "topSemantic": 0.8270949732491428,
+      "topRrf": 0.032018442622950824,
+      "selectedSourceKeys": [
+        "generated.course.12021.lesson.32211",
+        "generated.course.12021.lesson.32211"
+      ]
+    },
+    {
+      "id": "ans-12021-02",
+      "category": "ANSWERABLE",
+      "topBm25": 37.282673,
+      "topSemantic": 0.8680259366020322,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.12021.lesson.32212",
+        "generated.course.12021.lesson.32212",
+        "generated.course.12021.lesson.32212",
+        "generated.course.12021.lesson.32212",
+        "generated.course.12021.lesson.32212"
+      ]
+    },
+    {
+      "id": "ans-8900835210-01",
+      "category": "ANSWERABLE",
+      "topBm25": 33.134693,
+      "topSemantic": 0.8924758317329133,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.8900835210.lesson.3009",
+        "generated.course.8900835210.lesson.3009",
+        "generated.course.8900835210.lesson.3009",
+        "generated.course.8900835210.lesson.3009",
+        "generated.course.8900835210.lesson.3009"
+      ]
+    },
+    {
+      "id": "ans-8900835210-02",
+      "category": "ANSWERABLE",
+      "topBm25": 38.357582,
+      "topSemantic": 0.8912774674430711,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.8900835210.lesson.3009",
+        "generated.course.8900835210.lesson.3009",
+        "generated.course.8900835210.lesson.3009",
+        "generated.course.8900835210.lesson.3009"
+      ]
+    },
+    {
+      "id": "none-1001-01",
+      "category": "NO_EVIDENCE",
+      "topBm25": 4.3654532,
+      "topSemantic": 0.7717204638193932,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "none-1002-01",
+      "category": "NO_EVIDENCE",
+      "topBm25": 5.227938,
+      "topSemantic": 0.8063819821845353,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "none-12003-01",
+      "category": "NO_EVIDENCE",
+      "topBm25": 6.7825375,
+      "topSemantic": 0.7750634469073043,
+      "topRrf": 0.032018442622950824,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "none-12004-01",
+      "category": "NO_EVIDENCE",
+      "topBm25": 5.417586,
+      "topSemantic": 0.7525431212731617,
+      "topRrf": 0.03252247488101534,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "none-12006-01",
+      "category": "NO_EVIDENCE",
+      "topBm25": 22.526772,
+      "topSemantic": 0.7732298159229097,
+      "topRrf": 0.03252247488101534,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "none-12008-01",
+      "category": "NO_EVIDENCE",
+      "topBm25": 10.615795,
+      "topSemantic": 0.7354993416370927,
+      "topRrf": 0.032266458495966696,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "none-12009-01",
+      "category": "NO_EVIDENCE",
+      "topBm25": 8.147715,
+      "topSemantic": 0.8137161118134428,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "none-12010-01",
+      "category": "NO_EVIDENCE",
+      "topBm25": 15.364098,
+      "topSemantic": 0.8110933714453362,
+      "topRrf": 0.032266458495966696,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "none-12012-01",
+      "category": "NO_EVIDENCE",
+      "topBm25": 10.382627,
+      "topSemantic": 0.8094537116399521,
+      "topRrf": 0.031544957774465976,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "none-12015-01",
+      "category": "NO_EVIDENCE",
+      "topBm25": 6.2582436,
+      "topSemantic": 0.8058702581083488,
+      "topRrf": 0.032266458495966696,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "none-12018-01",
+      "category": "NO_EVIDENCE",
+      "topBm25": 3.87225,
+      "topSemantic": 0.7730141580104906,
+      "topRrf": 0.03252247488101534,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "none-8900835210-01",
+      "category": "NO_EVIDENCE",
+      "topBm25": 17.852276,
+      "topSemantic": 0.8497451156226372,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": [
+        "generated.course.8900835210.lesson.3009",
+        "generated.course.8900835210.lesson.3009"
+      ]
+    },
+    {
+      "id": "cross-1001-01",
+      "category": "CROSS_COURSE",
+      "topBm25": 5.305151,
+      "topSemantic": 0.7612296018053051,
+      "topRrf": 0.032266458495966696,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "cross-1002-01",
+      "category": "CROSS_COURSE",
+      "topBm25": 3.470654,
+      "topSemantic": 0.7933482567380516,
+      "topRrf": 0.03200204813108039,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "cross-12001-01",
+      "category": "CROSS_COURSE",
+      "topBm25": 8.284543,
+      "topSemantic": 0.7642544541965632,
+      "topRrf": 0.032018442622950824,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "cross-12002-01",
+      "category": "CROSS_COURSE",
+      "topBm25": 4.3372154,
+      "topSemantic": 0.7419409237556851,
+      "topRrf": 0.03125763125763126,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "cross-12003-01",
+      "category": "CROSS_COURSE",
+      "topBm25": 5.6511326,
+      "topSemantic": 0.7916465749319306,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "cross-12004-01",
+      "category": "CROSS_COURSE",
+      "topBm25": 8.66654,
+      "topSemantic": 0.7726659124694099,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "cross-12006-01",
+      "category": "CROSS_COURSE",
+      "topBm25": 9.092344,
+      "topSemantic": 0.7388873164851064,
+      "topRrf": 0.032018442622950824,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "cross-12007-01",
+      "category": "CROSS_COURSE",
+      "topBm25": 17.1829,
+      "topSemantic": 0.7962063264231907,
+      "topRrf": 0.031754032258064516,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "cross-12011-01",
+      "category": "CROSS_COURSE",
+      "topBm25": 11.586471,
+      "topSemantic": 0.7775174444955455,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "cross-12014-01",
+      "category": "CROSS_COURSE",
+      "topBm25": 11.894467,
+      "topSemantic": 0.7474065266271125,
+      "topRrf": 0.03225806451612903,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "cross-12016-01",
+      "category": "CROSS_COURSE",
+      "topBm25": 4.8138647,
+      "topSemantic": 0.7791375088177632,
+      "topRrf": 0.03278688524590164,
+      "selectedSourceKeys": []
+    },
+    {
+      "id": "cross-12021-01",
+      "category": "CROSS_COURSE",
+      "topBm25": 9.21487,
+      "topSemantic": 0.7534951248794068,
+      "topRrf": 0.03177805800756621,
+      "selectedSourceKeys": []
+    }
+  ]
+}

@@ -16,20 +16,32 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class KnowledgeRetrievalService {
+    public static final double DEFAULT_MIN_SEMANTIC_SCORE = 0.815;
     private final KnowledgeStore store;
     private final KnowledgeSearchGateway gateway;
     private final CourseService courses;
     private final Supplier<KnowledgeVectorSearch> vectors;
+    private final double minSemanticScore;
     public KnowledgeRetrievalService(KnowledgeStore store, KnowledgeSearchGateway gateway, CourseService courses) {
         this.store = store; this.gateway = gateway; this.courses = courses; this.vectors = () -> null;
+        this.minSemanticScore = DEFAULT_MIN_SEMANTIC_SCORE;
+    }
+    public KnowledgeRetrievalService(KnowledgeStore store, KnowledgeSearchGateway gateway, CourseService courses,
+                                     ObjectProvider<KnowledgeVectorSearch> vectors) {
+        this(store, gateway, courses, vectors, DEFAULT_MIN_SEMANTIC_SCORE);
     }
     @Autowired
     public KnowledgeRetrievalService(KnowledgeStore store, KnowledgeSearchGateway gateway, CourseService courses,
-                                     ObjectProvider<KnowledgeVectorSearch> vectors) {
+                                     ObjectProvider<KnowledgeVectorSearch> vectors,
+                                     @Value("${learnhub.vector.min-semantic-score:0.815}") double minSemanticScore) {
+        if (!Double.isFinite(minSemanticScore) || minSemanticScore < 0 || minSemanticScore > 1)
+            throw new IllegalArgumentException("语义分数门槛须为0至1之间的有限数值");
         this.store = store; this.gateway = gateway; this.courses = courses; this.vectors = vectors::getIfAvailable;
+        this.minSemanticScore = minSemanticScore;
     }
 
     public Result retrieve(Long userId, long courseId, String question, int limit) {
@@ -57,7 +69,7 @@ public class KnowledgeRetrievalService {
                     chunk.chunkOrder(), chunk.content(), hit.score()));
             if (sources.size() == limit) break;
         }
-        return result(sources, hits.size() == 100, candidates.mode());
+        return result(sources, candidates.candidateLimitReached(), candidates.mode());
     }
 
     private Candidates candidates(long courseId, List<Long> readable, String question) {
@@ -68,18 +80,37 @@ public class KnowledgeRetrievalService {
         try { bm25 = gateway.search(courseId, readable, question, 100); }
         // 向量回填可能只完成部分资料；ES 不可用时不能用不完整投影证明“资料不足”。
         catch (SearchUnavailableException failure) { throw new SearchUnavailableException(null); }
+        List<KnowledgeSearchGateway.Hit> semantic;
+        List<KnowledgeSearchGateway.Hit> fused;
         try {
-            var semantic = vector.search(courseId, readable, question, 100);
-            return new Candidates(ReciprocalRankFusion.fuse(bm25, semantic, 100), "HYBRID");
+            semantic = vector.search(courseId, readable, question, 100);
+            fused = ReciprocalRankFusion.fuse(bm25, semantic, 100);
         } catch (RuntimeException failure) {
             return new Candidates(bm25, "BM25_FALLBACK");
         }
+        boolean candidateLimitReached = fused.size() == 100;
+        // RRF只表达名次；先保留原融合排序，再以同身份的原始语义分数过滤弱证据。
+        // 0为显式关闭门槛，便于回退及复现历史基线；不影响BM25及向量异常降级。
+        if (minSemanticScore > 0) {
+            var qualified = semantic.stream()
+                    .filter(hit -> Double.isFinite(hit.score()) && hit.score() >= minSemanticScore && hit.score() <= 1)
+                    .collect(Collectors.toMap(hit -> new Identity(hit.chunkId(), hit.documentId(), hit.sourceVersion()),
+                            hit -> hit.score(), Math::max));
+            fused = fused.stream().filter(hit -> qualified.containsKey(
+                    new Identity(hit.chunkId(), hit.documentId(), hit.sourceVersion()))).toList();
+        }
+        return new Candidates(fused, "HYBRID", candidateLimitReached);
     }
 
     private Result result(List<Source> sources, boolean candidateLimitReached, String mode) {
         return new Result(UUID.randomUUID().toString(), List.copyOf(sources), sources.isEmpty(), candidateLimitReached, mode);
     }
-    private record Candidates(List<KnowledgeSearchGateway.Hit> hits, String mode) {}
+    private record Candidates(List<KnowledgeSearchGateway.Hit> hits, String mode, boolean candidateLimitReached) {
+        private Candidates(List<KnowledgeSearchGateway.Hit> hits, String mode) {
+            this(hits, mode, hits.size() == 100);
+        }
+    }
+    private record Identity(long chunkId, long documentId, long sourceVersion) {}
     public record Result(String requestId, List<Source> sources, boolean noRelevantMaterials,
                          boolean candidateLimitReached, String retrievalMode) {
         public Result(String requestId, List<Source> sources, boolean noRelevantMaterials, boolean candidateLimitReached) {
