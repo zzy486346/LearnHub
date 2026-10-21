@@ -140,6 +140,31 @@ class LangChainToolChatGeneratorTest {
         verify(guard, never()).reserveModel(anyInt(), anyInt());
     }
 
+    @Test void secondRoundHttpBurstSurvivesSlowCheckpointsAndAccountsBothResponses() {
+        server.enqueue(Script.tools(true, outline("burst-a"), progress("burst-b")));
+        String body = "互斥锁限制并发重建。".repeat(20);
+        String raw = "{\"insufficientEvidence\":false,\"answerSegments\":[{\"text\":\"" + body
+                + "\",\"evidenceIds\":[\"E1\"],\"kind\":\"FACT\"}]}";
+        Script burst = Script.answer(raw.codePoints().mapToObj(cp -> new String(Character.toChars(cp))).toList(), true, null);
+        server.enqueue(burst);
+        var waited = new AtomicBoolean();
+        doAnswer(ignored -> {
+            if (server.requests.size() == 2 && waited.compareAndSet(false, true)) {
+                assertThat(burst.finished.await(3, TimeUnit.SECONDS)).isTrue();
+                // 模拟数据库/Redis复核较慢，允许读取线程先积累小分片。
+                Thread.sleep(150);
+            }
+            return null;
+        }).when(guard).check();
+        List<String> deltas = new ArrayList<>();
+        var answer = prepare(deltas::add, ignored -> { });
+        assertThat(waited).isTrue();
+        assertThat(answer.text()).isEqualTo(body + " [E1]").isEqualTo(String.join("", deltas));
+        assertThat(server.requests).hasSize(2);
+        verify(guard, times(2)).recordUsage(10, 5, 15);
+        assertThat(answer.usageJson()).contains("MODEL_ANSWER_WITH_VALID_REFERENCES");
+    }
+
     @Test void nonemptyWeakEvidenceRefusalPublishesNoSourcesAndRetainsRevalidationEnvelope() {
         server.enqueue(Script.answer(List.of("{\"insufficientEvidence\":true,\"answerSegments\":[]}"), true, null));
         var answer = prepare(ignored -> { }, ignored -> { });
@@ -442,6 +467,7 @@ class LangChainToolChatGeneratorTest {
         final boolean usage;
         final CountDownLatch firstVisible;
         final AtomicBoolean firstVisibleBeforeFinish = new AtomicBoolean();
+        final CountDownLatch finished = new CountDownLatch(1);
         Script(List<ToolCall> calls, List<String> deltas, boolean usage, CountDownLatch firstVisible) {
             this.calls = calls; this.deltas = deltas; this.usage = usage; this.firstVisible = firstVisible;
         }
@@ -492,6 +518,7 @@ class LangChainToolChatGeneratorTest {
                         Map.of("prompt_tokens", 10, "completion_tokens", 5, "total_tokens", 15))));
                 output.write("data: [DONE]\n\n".getBytes(StandardCharsets.UTF_8)); output.flush();
             } catch (IOException disconnected) { /* 取消测试主动断开连接。 */ }
+            finally { script.finished.countDown(); }
         }
         private String chunk(Map<String, Object> delta, String finish) throws IOException {
             var choice = mapper.createObjectNode().put("index", 0);

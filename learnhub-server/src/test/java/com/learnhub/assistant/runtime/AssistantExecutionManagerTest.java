@@ -9,6 +9,11 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 class AssistantExecutionManagerTest {
+    @Test void streamOverloadIsAServiceErrorRatherThanACancellationConflict() {
+        var response = AssistantExecutionManager.failure(new com.learnhub.common.exception.BusinessException(
+                "ASSISTANT_STREAM_OVERLOADED", "模型流式缓冲过载"));
+        assertThat(response.getStatusCode().value()).isEqualTo(503);
+    }
     @Test void cancellationCannotReplaceCommittedSuccess() throws Exception {
         var guard = mock(AssistantRunGuard.class);
         var run = mock(AssistantRunGuard.Run.class);

@@ -44,13 +44,9 @@ public final class ToolStreamingSession {
         if (maxTrips < 1 || maxTrips > 10 || AssistantIoScope.current() != io)
             throw new IllegalArgumentException("invalid tool streaming scope or round limit");
 
-        var pending = new ArrayBlockingQueue<Event>(64);
-        var closed = new AtomicBoolean();
+        var pending = new EventQueue(io);
         var state = new State();
-        Runnable check = () -> { io.remaining(); checkpoint.run(); io.remaining(); };
-        Consumer<Event> enqueue = event -> {
-            if (!closed.get() && !pending.offer(event)) io.cancel();
-        };
+        Runnable check = () -> { pending.checkFailure(); io.remaining(); checkpoint.run(); pending.checkFailure(); io.remaining(); };
         StreamingChatModel guarded = new StreamingChatModel() {
             @Override public ChatRequestParameters defaultRequestParameters() {
                 return delegate.defaultRequestParameters();
@@ -60,14 +56,15 @@ public final class ToolStreamingSession {
                 check.run();
                 ChatRequest checked = Objects.requireNonNull(beforeRound.apply(request));
                 check.run();
+                var firstPartial = new AtomicBoolean(true);
                 delegate.chat(checked, new StreamingChatResponseHandler() {
                     @Override public void onPartialResponse(String text) {
-                        enqueue.accept(new Partial(handler, text));
+                        pending.add(new Partial(handler, text, firstPartial.getAndSet(false)));
                     }
 
                     // 顺序模式在完整响应中执行工具；绝不转发可能提前执行工具的分片事件。
                     @Override public void onCompleteResponse(ChatResponse response) {
-                        enqueue.accept(new Action(() -> {
+                        pending.add(new Action(() -> {
                             afterRound.accept(response);
                             check.run();
                             state.lastRawResponse = response;
@@ -76,7 +73,7 @@ public final class ToolStreamingSession {
                     }
 
                     @Override public void onError(Throwable error) {
-                        enqueue.accept(new Action(() -> handler.onError(error)));
+                        pending.add(new Action(() -> handler.onError(error)));
                     }
                 });
             }
@@ -153,10 +150,11 @@ public final class ToolStreamingSession {
             return new Result(state.text.toString(), response);
         } catch (RuntimeException | Error failure) {
             io.cancel();
+            // 回调可能在检查与remaining()之间失败；退出时也保留原始缓冲错误。
+            if (failure instanceof RuntimeException) pending.checkFailure();
             throw failure;
         } finally {
-            closed.set(true);
-            pending.clear();
+            pending.close();
         }
     }
 
@@ -171,9 +169,81 @@ public final class ToolStreamingSession {
     }
 
     interface Assistant { TokenStream chat(@UserMessage String question); }
-    private sealed interface Event permits Partial, Action { }
-    private record Partial(StreamingChatResponseHandler handler, String text) implements Event { }
+    private sealed interface Event permits Partial, BufferedPartial, Action { }
+    private record Partial(StreamingChatResponseHandler handler, String text, boolean first) implements Event { }
     private record Action(Runnable callback) implements Event { }
+
+    /** 在网络回调侧合并相邻分片；总正文仍限16000字符，控制事件队列仍限64条。 */
+    private static final class EventQueue {
+        private final ArrayBlockingQueue<Event> events = new ArrayBlockingQueue<>(64);
+        private final AssistantIoScope io;
+        private volatile RuntimeException failure;
+        private boolean closed;
+        private BufferedPartial tail;
+        private int receivedChars;
+
+        EventQueue(AssistantIoScope io) { this.io = io; }
+
+        void add(Event event) {
+            synchronized (this) {
+                if (closed || failure != null) return;
+                Event queued = event;
+                if (event instanceof Partial partial) {
+                    if (partial.text() == null || partial.text().length() > 16_000 - receivedChars) {
+                        failure = invalid();
+                    } else {
+                        receivedChars += partial.text().length();
+                        if (!partial.first() && tail != null && tail.handler == partial.handler()) {
+                            tail.text.append(partial.text());
+                            return;
+                        }
+                        // 首分片单独保留，避免合并推迟首次展示或吞掉首分片后的取消边界。
+                        tail = partial.first() ? null : new BufferedPartial(partial.handler(), partial.text());
+                        queued = tail == null ? partial : tail;
+                    }
+                } else {
+                    // 完成/错误事件是不可跨越的边界，不能与下一回合的文本混合。
+                    tail = null;
+                }
+                if (failure == null && !events.offer(queued))
+                    failure = new BusinessException("ASSISTANT_STREAM_OVERLOADED", "模型流式事件超过本地处理缓冲上限，请重试");
+                if (failure == null) return;
+            }
+            // 先发布原始错误，再中断下游；消费者优先报告错误，不把过载误报成用户取消。
+            io.cancel();
+        }
+
+        Event poll(long timeout, TimeUnit unit) throws InterruptedException {
+            Event event = events.poll(timeout, unit);
+            if (event instanceof BufferedPartial partial) {
+                synchronized (this) {
+                    if (tail == partial) tail = null;
+                    return new Partial(partial.handler, partial.text.toString(), false);
+                }
+            }
+            return event;
+        }
+
+        void checkFailure() {
+            RuntimeException error = failure;
+            if (error != null) throw error;
+        }
+
+        synchronized void close() {
+            closed = true;
+            tail = null;
+            events.clear();
+        }
+    }
+
+    private static final class BufferedPartial implements Event {
+        private final StreamingChatResponseHandler handler;
+        private final StringBuilder text;
+        BufferedPartial(StreamingChatResponseHandler handler, String text) {
+            this.handler = handler;
+            this.text = new StringBuilder(text);
+        }
+    }
     private static final class State {
         private final StringBuilder text = new StringBuilder();
         private ChatResponse lastRawResponse;

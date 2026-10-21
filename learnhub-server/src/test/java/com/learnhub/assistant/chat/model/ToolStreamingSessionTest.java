@@ -143,8 +143,8 @@ class ToolStreamingSessionTest {
         List<String> received = new ArrayList<>();
         var model = async((round, handler) -> {
             handler.onPartialResponse("第一段");
-            handler.onPartialResponse("禁止迟到");
-            handler.onCompleteResponse(text("第一段禁止迟到"));
+            for (int i = 0; i < 1000; i++) handler.onPartialResponse("禁止迟到");
+            handler.onCompleteResponse(text("第一段" + "禁止迟到".repeat(1000)));
         });
         assertThatThrownBy(() -> ToolStreamingSession.run(model, memory(), Map.of(), "问题", request -> request,
                 response -> fail("取消后不得接收完整响应"), delta -> { received.add(delta); io.cancel(); },
@@ -196,15 +196,57 @@ class ToolStreamingSessionTest {
                 .isInstanceOf(BusinessException.class).hasMessageContaining("不一致");
     }
 
-    @Test void queueOverflowCancelsWithoutUnboundedBuffering() {
+    @Test void synchronousBurstOfSmallPartialsCompletesWithoutCancellingTheRun() {
+        String expected = "片段".repeat(1000);
         StreamingChatModel synchronous = new StreamingChatModel() {
             @Override public void doChat(ChatRequest request, StreamingChatResponseHandler handler) {
-                for (int i = 0; i < 100; i++) handler.onPartialResponse("片段");
+                for (int i = 0; i < 1000; i++) handler.onPartialResponse("片段");
+                handler.onCompleteResponse(text(expected));
+            }
+        };
+        StringBuilder received = new StringBuilder();
+        var result = ToolStreamingSession.run(synchronous, memory(), Map.of(), "问题", request -> request,
+                response -> { }, received::append, () -> { }, io, 3);
+        assertThat(result.text()).isEqualTo(expected).isEqualTo(received.toString());
+        assertThat(io.remaining()).isPositive();
+    }
+
+    @Test void coalescedPartialsStillRespectTheCumulativeRawProtocolLimit() {
+        StreamingChatModel synchronous = new StreamingChatModel() {
+            @Override public void doChat(ChatRequest request, StreamingChatResponseHandler handler) {
+                for (int i = 0; i < 16_001; i++) handler.onPartialResponse("字");
             }
         };
         assertThatThrownBy(() -> ToolStreamingSession.run(synchronous, memory(), Map.of(), "问题", request -> request,
+                response -> { }, delta -> fail("超限时不得继续发送"), () -> { }, io, 3))
+                .isInstanceOfSatisfying(BusinessException.class, error ->
+                        assertThat(error.getCode()).isEqualTo("ASSISTANT_OUTPUT_INVALID"));
+    }
+
+    @Test void excessiveControlEventsReportOverloadInsteadOfUserCancellation() {
+        StreamingChatModel invalidProvider = new StreamingChatModel() {
+            @Override public void doChat(ChatRequest request, StreamingChatResponseHandler handler) {
+                for (int i = 0; i < 100; i++) handler.onCompleteResponse(text("重复完成事件"));
+            }
+        };
+        assertThatThrownBy(() -> ToolStreamingSession.run(invalidProvider, memory(), Map.of(), "问题", request -> request,
                 response -> { }, delta -> { }, () -> { }, io, 3))
-                .isInstanceOf(BusinessException.class).hasMessageContaining("取消");
+                .isInstanceOfSatisfying(BusinessException.class, error ->
+                        assertThat(error.getCode()).isEqualTo("ASSISTANT_STREAM_OVERLOADED"));
+    }
+
+    @Test void waitingForProviderStillHonorsScopeDeadline() {
+        io.close();
+        try (var shortScope = new AssistantIoScope(Duration.ofMillis(100))) {
+            shortScope.attach();
+            StreamingChatModel silent = new StreamingChatModel() {
+                @Override public void doChat(ChatRequest request, StreamingChatResponseHandler handler) { }
+            };
+            assertThatThrownBy(() -> ToolStreamingSession.run(silent, memory(), Map.of(), "问题", request -> request,
+                    response -> { }, delta -> { }, () -> { }, shortScope, 3))
+                    .isInstanceOfSatisfying(BusinessException.class, error ->
+                            assertThat(error.getCode()).isEqualTo("ASSISTANT_DEADLINE_EXCEEDED"));
+        }
     }
 
     private StreamingChatModel async(BiConsumer<Integer, StreamingChatResponseHandler> script) {
