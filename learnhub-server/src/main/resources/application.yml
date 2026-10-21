@@ -65,6 +65,9 @@ learnhub:
     daily-model-calls: ${LEARNHUB_ASSISTANT_DAILY_MODEL_CALLS:20}
     daily-reserved-tokens: ${LEARNHUB_ASSISTANT_DAILY_RESERVED_TOKENS:120000}
     max-input-bytes: ${LEARNHUB_ASSISTANT_MAX_INPUT_BYTES:16000}
+    memory:
+      enabled: ${LEARNHUB_ASSISTANT_MEMORY_ENABLED:false}
+      auto-extract-enabled: ${LEARNHUB_ASSISTANT_MEMORY_AUTO_EXTRACT_ENABLED:false}
   ai:
     mode: ${LEARNHUB_AI_MODE:DISABLED}
     api-key: ${LEARNHUB_DEEPSEEK_API_KEY:${DEEPSEEK_API_KEY:}}
