@@ -70,13 +70,26 @@ public class ChatConversationService {
 
     public ChatPersistenceService.Run commitAnswer(long owner, ChatPersistenceService.Run stored, String response,
                                                   String sourcesJson, String usageJson) {
+        return commitAnswer(owner, stored, response, sourcesJson, usageJson, null);
+    }
+
+    public ChatPersistenceService.Run commitAnswer(long owner, ChatPersistenceService.Run stored, String response,
+            String sourcesJson, String usageJson, ContextCheckpoint.Pending pendingCheckpoint) {
         var conversation = history.require(owner, stored.conversationId());
         if (!"[]".equals(sourcesJson)) {
             var checked = history.verify(owner, conversation.courseId(), new ChatPersistenceService.Message(
                     "pending", 0, "ASSISTANT", response, "COMPLETED", stored.id(), sourcesJson));
             if (checked.restricted()) throw new BusinessException("ASSISTANT_EVIDENCE_CHANGED", "资料或权限已变化，本次回答已废弃");
         }
-        if (!persistence.complete(owner, stored.id(), stored.leaseOwner(), response, sourcesJson, usageJson))
+        if (pendingCheckpoint != null) {
+            var checked = history.verify(owner, conversation.courseId(), new ChatPersistenceService.Message(
+                    "checkpoint", 0, "ASSISTANT", "上下文检查点", "COMPLETED", stored.id(), pendingCheckpoint.dependenciesJson()));
+            if (checked.restricted()) throw new BusinessException("ASSISTANT_EVIDENCE_CHANGED", "资料或权限已变化，本次回答已废弃");
+        }
+        boolean completed = pendingCheckpoint == null
+                ? persistence.complete(owner, stored.id(), stored.leaseOwner(), response, sourcesJson, usageJson)
+                : persistence.complete(owner, stored.id(), stored.leaseOwner(), response, sourcesJson, usageJson, pendingCheckpoint);
+        if (!completed)
             throw new BusinessException("ASSISTANT_CANCELLED", "本次会话运行已终止");
         return new ChatPersistenceService.Run(stored.id(), stored.conversationId(), stored.ownerUserId(),
                 stored.clientRequestId(), "COMPLETED", null, stored.message());

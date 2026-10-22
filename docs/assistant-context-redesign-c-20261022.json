@@ -1,0 +1,47 @@
+{
+  "stage": "C",
+  "testedBaseHead": "7eec1d3",
+  "testedWorktree": "stage-C implementation in the commit containing this report",
+  "scenarioVersion": "learnhub-assistant-context-redesign-20261021",
+  "batchExecutionStatus": "NOT_RUN",
+  "configuration": {
+    "contextRedesignDefault": false,
+    "recoveryPageSize": 48,
+    "recoveryMaxMessagesDefault": 400,
+    "recoveryMaxBytesDefault": 131072,
+    "provenanceMaxSeqs": 128,
+    "provenanceMaxUtf8Bytes": 32768,
+    "paidCalls": 0,
+    "backendRestarted": false,
+    "businessDatabaseMigrated": false
+  },
+  "checks": [
+    {"name": "final related targeted", "tests": 174, "executed": 174, "skipped": 0, "failures": 0, "errors": 0},
+    {"name": "final isolated actual MySQL", "tests": 18, "executed": 18, "skipped": 0, "failures": 0, "errors": 0},
+    {"name": "root mvn test", "tests": 691, "executed": 569, "skipped": 122, "failures": 0, "errors": 0},
+    {"name": "root mvn verify", "tests": 691, "executed": 569, "skipped": 122, "failures": 0, "errors": 0}
+  ],
+  "negativeRuns": [
+    "First compile exposed incomplete helpers after a subagent usage-limit interruption; completed directly before test execution.",
+    "First 80-test execution had two errors: malformed-history gap incorrectly triggered a summary, and rolling Mock fixture lacked declared input capacity. Fixed boundary and explicit fixture before rerunning.",
+    "Review identified disabled-mode deletion retaining installed checkpoints; added schema-presence cleanup and both migrated/unmigrated rollback-mode tests before final validation."
+  ],
+  "evidence": {
+    "C03": "HTTP Mock rolling summary retains referenced old USER provenance and adds only contiguous new raw events; durable incremental hash tested in MySQL",
+    "C08": "cancelled and expired publishing runs cannot advance checkpoint; no real supplier retry",
+    "C09": "actual MySQL outer rollback, tampered proof rollback, stale revision/hash CAS skip with answer success",
+    "C10": "new generator and new persistence service instances restore checked database/Mock snapshot; full backend process restart NOT_RUN",
+    "C11": "revoked material discards entire checkpoint; old summary sentinel and old source text absent from subsequent HTTP body",
+    "paging": "53 raw events with 52 eligible messages cross a 48-event boundary; terminal orphan not sent as semantic input",
+    "migration": "schema and migration repeated with persisted row; comments and unique index verified; disabled-mode deletion tested with table present and absent"
+  },
+  "boundaries": [
+    "C01-C14 are not executed as a batch; old 16-case holdout remains NOT_RUN.",
+    "No tool result projection/readback or ambiguity clarification implementation yet.",
+    "Immutable formal history is assumed; future editing requires history revision or invalidation.",
+    "Bounded rebuilding may degrade to verified recent groups without replacing a newer cursor; no claim of unbounded-history reconstruction in one run.",
+    "Dependencies conservatively retain all summary input dependencies, so any invalid item invalidates the entire snapshot.",
+    "No real-model semantic fidelity or factual-support score. Ledger remains calls=3/reservedTokens=11592.",
+    "Both mysql:8.4 containers used cached images, random loopback ports, no volumes, and were removed in finally after label checks."
+  ]
+}

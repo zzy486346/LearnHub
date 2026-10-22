@@ -20,6 +20,28 @@ class ChatConversationServiceTest {
     final ChatConversationService service = new ChatConversationService(persistence, history, courses, properties);
     final ChatPersistenceService.Run stored = new ChatPersistenceService.Run("run", "conversation", 7, "request", "RUNNING", "lease", "它有什么局限？");
 
+    @Test void pendingCheckpointUsesSameCompletionAndRechecksItsWholeDependencyEnvelope() {
+        var pending = mock(ContextCheckpoint.Pending.class);
+        when(pending.dependenciesJson()).thenReturn("{\"version\":1,\"entries\":[]}");
+        when(history.require(7, "conversation")).thenReturn(new ChatPersistenceService.Conversation("conversation", 7, 1, "Redis", 9));
+        when(history.verify(eq(7L), eq(1L), any())).thenReturn(new ChatHistoryService.HistoryMessage(
+                "checkpoint", 0, "ASSISTANT", "", "COMPLETED", "run", List.of(), false));
+        when(persistence.complete(7, "run", "lease", "回答", "[]", "{}", pending)).thenReturn(true);
+        assertThat(service.commitAnswer(7, stored, "回答", "[]", "{}", pending).status()).isEqualTo("COMPLETED");
+        verify(history).verify(eq(7L), eq(1L), argThat(message -> message.sourcesJson().equals(pending.dependenciesJson())));
+        verify(persistence).complete(7, "run", "lease", "回答", "[]", "{}", pending);
+    }
+
+    @Test void revokedCheckpointDependencyCannotCommitAnswerOrPublishCheckpoint() {
+        var pending = mock(ContextCheckpoint.Pending.class);
+        when(pending.dependenciesJson()).thenReturn("{\"version\":1,\"entries\":[]}");
+        when(history.require(7, "conversation")).thenReturn(new ChatPersistenceService.Conversation("conversation", 7, 1, "Redis", 9));
+        when(history.verify(eq(7L), eq(1L), any())).thenReturn(new ChatHistoryService.HistoryMessage(
+                "checkpoint", 0, "ASSISTANT", "", "COMPLETED", "run", List.of(), true));
+        assertThatThrownBy(() -> service.commitAnswer(7, stored, "回答", "[]", "{}", pending)).hasMessageContaining("资料或权限已变化");
+        verify(persistence, never()).complete(anyLong(), anyString(), anyString(), anyString(), anyString(), anyString(), any());
+    }
+
     @Test void fakeFollowupUsesPersistedPreviousQuestionAndGuard() {
         properties.setMode("FAKE");
         when(history.require(7, "conversation")).thenReturn(new ChatPersistenceService.Conversation("conversation", 7, 1, "Redis", 3));

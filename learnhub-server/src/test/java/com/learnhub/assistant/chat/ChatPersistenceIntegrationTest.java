@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learnhub.assistant.chat.application.ChatPersistenceService;
+import com.learnhub.assistant.chat.application.ContextCheckpoint;
+import com.learnhub.assistant.runtime.AssistantLimits;
 import com.learnhub.assistant.chat.application.ChatEvidenceCodec;
 import com.learnhub.assistant.knowledge.KnowledgeRetrievalService;
 import com.learnhub.assistant.knowledge.KnowledgeStore;
@@ -71,7 +73,8 @@ class ChatPersistenceIntegrationTest {
             jdbc = new JdbcTemplate(dataSource);
             PlatformTransactionManager transactionManager = new DataSourceTransactionManager(dataSource);
             transactions = new TransactionTemplate(transactionManager);
-            service = new ChatPersistenceService(jdbc, transactionManager);
+            var limits = new AssistantLimits(); limits.setContextRedesignEnabled(true);
+            service = new ChatPersistenceService(jdbc, transactionManager, limits);
             assertThat(jdbc.queryForObject("SELECT DATABASE()", String.class)).isEqualTo(databaseName);
         } catch (Exception error) {
             dropDatabaseAfterFailure(error);
@@ -81,6 +84,7 @@ class ChatPersistenceIntegrationTest {
 
     @BeforeEach
     void cleanChatTables() {
+        jdbc.update("DELETE FROM assistant_context_checkpoint");
         jdbc.update("DELETE FROM assistant_tool_execution");
         jdbc.update("DELETE FROM assistant_message_source");
         jdbc.update("DELETE FROM assistant_message");
@@ -101,7 +105,7 @@ class ChatPersistenceIntegrationTest {
                 ORDER BY TABLE_NAME
                 """, String.class);
         assertThat(tables).containsExactly(
-                "assistant_conversation", "assistant_learning_preference", "assistant_message", "assistant_message_source",
+                "assistant_context_checkpoint", "assistant_conversation", "assistant_learning_preference", "assistant_message", "assistant_message_source",
                 "assistant_preference_extraction_attempt", "assistant_run", "assistant_tool_execution");
 
         Integer uncommentedTables = jdbc.queryForObject("""
@@ -394,10 +398,150 @@ class ChatPersistenceIntegrationTest {
         assertBusinessCode("CHAT_NOT_FOUND", () -> service.delete(OWNER_B, conversation.id()));
     }
 
+    @Test void checkpointPublishesInAnswerTransactionAndRestoresAcrossServiceInstances() throws Exception {
+        var conversation = service.createConversation(OWNER_A, COURSE_ID, "检查点");
+        completedRound(conversation.id(), "history");
+        var pending = pending(conversation.id(), null, 2);
+        var publishing = service.start(OWNER_A, conversation.id(), "publish", "继续", Duration.ofSeconds(30)).run();
+        assertThat(service.complete(OWNER_A, publishing.id(), publishing.leaseOwner(), "回答", "[]", "{}", pending)).isTrue();
+        var snapshot = service.contextCheckpoint(OWNER_A, conversation.id(), COURSE_ID);
+        assertThat(snapshot.revision()).isOne();
+        assertThat(snapshot.coveredThroughSeq()).isEqualTo(2);
+        assertThat(snapshot.sourceRunId()).isEqualTo(publishing.id());
+        assertThat(jdbc.queryForObject("SELECT JSON_UNQUOTE(JSON_EXTRACT(usage_json, '$.checkpointOutcome')) FROM assistant_run WHERE id=?", String.class, publishing.id())).isEqualTo("PUBLISHED");
+        assertThat(snapshot.coveredInputHash()).isEqualTo(ContextCheckpoint.inputHash(
+                conversation.id(), 0, ContextCheckpoint.GENESIS, pending.events()));
+        var limits = new AssistantLimits(); limits.setContextRedesignEnabled(true);
+        var restarted = new ChatPersistenceService(new JdbcTemplate(dataSource), new DataSourceTransactionManager(dataSource), limits);
+        assertThat(restarted.contextCheckpoint(OWNER_A, conversation.id(), COURSE_ID)).isEqualTo(snapshot);
+        assertBusinessCode("CHAT_NOT_FOUND", () -> restarted.contextCheckpoint(OWNER_B, conversation.id(), COURSE_ID));
+        assertBusinessCode("CHAT_NOT_FOUND", () -> restarted.contextCheckpoint(OWNER_A, conversation.id(), COURSE_ID + 1));
+        executeIsolatedSql(findProjectFile(Path.of("sql", "migrations", "20261022_assistant_context_checkpoint.sql")), false, "repeat with data");
+        assertThat(service.contextCheckpoint(OWNER_A, conversation.id(), COURSE_ID)).isEqualTo(snapshot);
+        assertThat(showCreateTable("assistant_context_checkpoint")).contains("UNIQUE KEY", "conversation_id", "COMMENT");
+        var increment = pending(conversation.id(), snapshot, 4);
+        var secondPublisher = service.start(OWNER_A, conversation.id(), "second-publisher", "滚动", Duration.ofSeconds(30)).run();
+        assertThat(service.complete(OWNER_A, secondPublisher.id(), secondPublisher.leaseOwner(), "新回答", "[]", "{}", increment)).isTrue();
+        var rolled = service.contextCheckpoint(OWNER_A, conversation.id(), COURSE_ID);
+        assertThat(rolled.revision()).isEqualTo(2);
+        assertThat(rolled.coveredFromSeq()).isOne();
+        assertThat(rolled.coveredInputHash()).isEqualTo(ContextCheckpoint.inputHash(
+                conversation.id(), 0, snapshot.coveredInputHash(), increment.events()));
+        var legacy = new ChatPersistenceService(new JdbcTemplate(dataSource), new DataSourceTransactionManager(dataSource));
+        legacy.delete(OWNER_A, conversation.id()); // 回退后删除仍清理已经安装的检查点存储。
+        assertThat(jdbc.queryForObject("SELECT deleted FROM assistant_context_checkpoint WHERE conversation_id = ?", Integer.class, conversation.id())).isOne();
+    }
+
+    @Test void checkpointRollbackAndTamperedRawProofRollbackAnswerTogether() {
+        var conversation = service.createConversation(OWNER_A, COURSE_ID, "回滚");
+        completedRound(conversation.id(), "history");
+        var pending = pending(conversation.id(), null, 2);
+        var publishing = service.start(OWNER_A, conversation.id(), "publish", "继续", Duration.ofSeconds(30)).run();
+        assertThatThrownBy(() -> transactions.executeWithoutResult(tx -> {
+            assertThat(service.complete(OWNER_A, publishing.id(), publishing.leaseOwner(), "回答", "[]", "{}", pending)).isTrue();
+            throw new IllegalStateException("synthetic rollback");
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(service.run(OWNER_A, publishing.id()).status()).isEqualTo("RUNNING");
+        assertThat(service.contextCheckpoint(OWNER_A, conversation.id(), COURSE_ID)).isNull();
+        var events = new java.util.ArrayList<>(pending.events());
+        var original = events.get(0);
+        var raw = original.message();
+        events.set(0, new ContextCheckpoint.Event(new ChatPersistenceService.Message(raw.id(), raw.seq(), raw.role(),
+                "tampered", raw.status(), raw.runId(), raw.sourcesJson()), original.runStatus(), original.userMessageId(), original.assistantMessageId()));
+        var tampered = new ContextCheckpoint.Pending(0, ContextCheckpoint.GENESIS, 0, 0, 1, 2,
+                "{}", "[]", pending.provenanceJson(), 1, "p", "m", "NONE", events);
+        assertThatThrownBy(() -> service.complete(OWNER_A, publishing.id(), publishing.leaseOwner(), "回答", "[]", "{}", tampered))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(service.run(OWNER_A, publishing.id()).status()).isEqualTo("RUNNING");
+        assertThat(service.messages(OWNER_A, conversation.id(), Long.MAX_VALUE, 100)).hasSize(3);
+    }
+
+    @Test void staleCheckpointCasSkipsPublicationButCommitsAnswerAndNeverOverwritesNewerCursor() {
+        var conversation = service.createConversation(OWNER_A, COURSE_ID, "CAS");
+        completedRound(conversation.id(), "history");
+        var first = service.start(OWNER_A, conversation.id(), "first", "继续", Duration.ofSeconds(30)).run();
+        assertThat(service.complete(OWNER_A, first.id(), first.leaseOwner(), "回答", "[]", "{}", pending(conversation.id(), null, 2))).isTrue();
+        var old = service.contextCheckpoint(OWNER_A, conversation.id(), COURSE_ID);
+        var stale = pending(conversation.id(), old, 4);
+        String newerHash = ContextCheckpoint.inputHash(conversation.id(), 0, old.coveredInputHash(), stale.events());
+        jdbc.update("UPDATE assistant_context_checkpoint SET revision=2, covered_through_seq=4, covered_input_hash=?, provenance_json=? WHERE conversation_id=?", newerHash, stale.provenanceJson(), conversation.id());
+        var next = service.start(OWNER_A, conversation.id(), "next", "下一步", Duration.ofSeconds(30)).run();
+        assertThat(service.complete(OWNER_A, next.id(), next.leaseOwner(), "新回答", "[]", "{}", stale)).isTrue();
+        var retained = service.contextCheckpoint(OWNER_A, conversation.id(), COURSE_ID);
+        assertThat(retained.revision()).isEqualTo(2);
+        assertThat(retained.coveredThroughSeq()).isEqualTo(4);
+        assertThat(retained.coveredInputHash()).isEqualTo(newerHash);
+        assertThat(jdbc.queryForObject("SELECT JSON_UNQUOTE(JSON_EXTRACT(usage_json, '$.checkpointOutcome')) FROM assistant_run WHERE id=?", String.class, next.id())).isEqualTo("CAS_SKIPPED");
+    }
+
+    @Test void terminalOrphansRemainInHashWithoutPreventingLaterCompleteGroupCoverage() {
+        var conversation = service.createConversation(OWNER_A, COURSE_ID, "孤立用户消息");
+        var cancelled = service.start(OWNER_A, conversation.id(), "cancel", "取消问题", Duration.ofSeconds(30)).run();
+        service.cancel(OWNER_A, cancelled.id());
+        completedRound(conversation.id(), "success");
+        var pending = pending(conversation.id(), null, 3);
+        assertThat(pending.events()).hasSize(3);
+        assertThat(pending.coveredFromSeq()).isEqualTo(2);
+        var next = service.start(OWNER_A, conversation.id(), "next", "下一步", Duration.ofSeconds(30)).run();
+        assertThat(service.complete(OWNER_A, next.id(), next.leaseOwner(), "回答", "[]", "{}", pending)).isTrue();
+        var snapshot = service.contextCheckpoint(OWNER_A, conversation.id(), COURSE_ID);
+        assertThat(snapshot.coveredThroughSeq()).isEqualTo(3);
+        assertThat(snapshot.coveredFromSeq()).isEqualTo(2);
+        assertThat(service.contextEvents(OWNER_A, conversation.id(), 1, 1)).extracting(event -> event.message().role()).containsExactly("USER");
+        assertThat(service.contextEvents(OWNER_A, conversation.id(), 2, 1)).extracting(event -> event.message().role()).containsExactly("ASSISTANT");
+    }
+
+    @Test void cancelledOrExpiredPublishingRunCannotAdvanceCheckpoint() {
+        var conversation = service.createConversation(OWNER_A, COURSE_ID, "取消发布");
+        completedRound(conversation.id(), "history");
+        var pending = pending(conversation.id(), null, 2);
+        var cancelled = service.start(OWNER_A, conversation.id(), "cancel", "取消", Duration.ofSeconds(30)).run();
+        service.cancel(OWNER_A, cancelled.id());
+        assertThat(service.complete(OWNER_A, cancelled.id(), cancelled.leaseOwner(), "迟到", "[]", "{}", pending)).isFalse();
+        var expired = service.start(OWNER_A, conversation.id(), "expire", "超时", Duration.ofSeconds(30)).run();
+        jdbc.update("UPDATE assistant_run SET lease_expires_at=DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 1 SECOND) WHERE id=?", expired.id());
+        assertThat(service.complete(OWNER_A, expired.id(), expired.leaseOwner(), "迟到", "[]", "{}", pending)).isFalse();
+        assertThat(service.contextCheckpoint(OWNER_A, conversation.id(), COURSE_ID)).isNull();
+    }
+
+    @Test void disabledContextCanDeleteConversationBeforeCheckpointMigrationIsInstalled() throws Exception {
+        jdbc.execute("DROP TABLE assistant_context_checkpoint"); // 仅本测试随机隔离库，finally恢复结构。
+        try {
+            var legacy = new ChatPersistenceService(new JdbcTemplate(dataSource), new DataSourceTransactionManager(dataSource));
+            var conversation = legacy.createConversation(OWNER_A, COURSE_ID, "旧库");
+            assertThat(legacy.contextCheckpoint(OWNER_A, conversation.id(), COURSE_ID)).isNull();
+            assertThat(legacy.delete(OWNER_A, conversation.id())).isEmpty();
+        } finally {
+            executeIsolatedSql(findProjectFile(Path.of("sql", "migrations", "20261022_assistant_context_checkpoint.sql")), false, "restore isolated checkpoint table");
+        }
+    }
+
+    private void completedRound(String conversation, String request) {
+        var run = service.start(OWNER_A, conversation, request, "问题", Duration.ofSeconds(30)).run();
+        assertThat(service.complete(OWNER_A, run.id(), run.leaseOwner(), "答案", "[]", "{}")).isTrue();
+    }
+
+    private ContextCheckpoint.Pending pending(String conversation, ContextCheckpoint.Snapshot previous, long through) {
+        long base = previous == null ? 0 : previous.coveredThroughSeq();
+        var events = service.contextEvents(OWNER_A, conversation, base, 1000).stream().filter(event -> event.message().seq() <= through).toList();
+        long from = previous == null ? events.stream().filter(event -> "USER".equals(event.message().role())
+                && "COMPLETED".equals(event.runStatus())).mapToLong(event -> event.message().seq()).min().orElseThrow() : previous.coveredFromSeq();
+        String provenance;
+        try { provenance = new ObjectMapper().writeValueAsString(java.util.Map.of("version", 1, "sources", List.of(),
+                "barrier", com.fasterxml.jackson.databind.node.NullNode.instance,
+                "boundary", ContextCheckpoint.boundaryProof(events.get(events.size() - 1)))); }
+        catch (Exception impossible) { throw new IllegalStateException(impossible); }
+        return new ContextCheckpoint.Pending(previous == null ? 0 : previous.revision(), previous == null ? ContextCheckpoint.GENESIS : previous.coveredInputHash(),
+                base, 0, from, through, "{}", "[]", provenance, 1, "p", "m", "NONE", events);
+    }
+
     private void initializeSchema() throws Exception {
         executeIsolatedSql(schemaPath(), true, "isolated copy of sql/schema.sql");
         executeIsolatedSql(migrationPath(), false, "isolated copy of assistant chat migration");
         executeIsolatedSql(migrationPath(), false, "second isolated copy of assistant chat migration");
+        Path contextMigration = findProjectFile(Path.of("sql", "migrations", "20261022_assistant_context_checkpoint.sql"));
+        executeIsolatedSql(contextMigration, false, "isolated context checkpoint migration");
+        executeIsolatedSql(contextMigration, false, "repeated isolated context checkpoint migration");
     }
 
     private void executeIsolatedSql(Path path, boolean schema, String description) throws Exception {

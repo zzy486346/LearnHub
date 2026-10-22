@@ -123,6 +123,14 @@ class SemanticSummaryCallTest {
         order.verify(saveUsage).run();
     }
 
+    @Test void summaryEstimateOutsideExplicitWindowSkipsBeforeDailyReservation() {
+        limits.setModelWindowTokens(2000);
+        var guard = guard(0, 0);
+        assertThat(invoke(new SemanticSummaryCall(mapper, properties, limits), guard, () -> { }).reason()).isEqualTo("SUMMARY_INPUT");
+        assertThat(requests).hasValue(0);
+        verify(guard, never()).tryReserveSummary(anyInt(), anyInt(), anyInt(), anyInt());
+    }
+
     @Test void httpFailureAndUnknownUsageKeepReservationAndNeverRetry() {
         for (boolean supplierFailure : new boolean[] {true, false}) {
             requests.set(0);

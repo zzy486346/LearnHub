@@ -45,6 +45,11 @@ final class SemanticSummaryCall {
         this.limits = limits;
     }
 
+    static int inputBytes(ObjectMapper mapper, String sourceJson) {
+        return new ChatInputMeter(mapper, "SUMMARY_SELECTION").estimateBytes(
+                List.of(SystemMessage.from(SYSTEM), UserMessage.from(sourceJson)), null);
+    }
+
     Result summarize(long owner, ChatPersistenceService.Run stored, AssistantRunGuard.Run guard, Runnable checkpoint,
             BoundedJdkHttpClientBuilder transport, URI endpoint, String sourceJson, int answerInputReservation,
             int summaryOutputTokens, Runnable saveUsage) {
@@ -63,6 +68,8 @@ final class SemanticSummaryCall {
         int inputLimit = Math.min(properties.getMaxInputBytes(), limits.getMaxInputBytes());
         int answerOutput = Math.min(properties.getMaxOutputTokens(), limits.getMaxOutputTokens());
         if (input > inputLimit) return skipped("SUMMARY_INPUT");
+        if ((long) input + summaryOutputTokens + limits.getContextSafetyMarginTokens() > limits.getModelWindowTokens())
+            return skipped("SUMMARY_INPUT");
         if (summaryOutputTokens < 1 || summaryOutputTokens > answerOutput
                 || (long) input + summaryOutputTokens + answerInputReservation + answerOutput
                 > limits.getMaxRunTokens() - guard.summary().reservedTokens()) return skipped("SUMMARY_BUDGET");

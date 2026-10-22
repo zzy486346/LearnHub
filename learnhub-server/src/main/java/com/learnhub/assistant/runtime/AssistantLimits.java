@@ -31,6 +31,8 @@ public class AssistantLimits {
     private double contextTargetPressure = 0.55;
     private int summaryOutputTokens = 512;
     private int toolObservationReserveBytes = 1024;
+    private int contextRecoveryMaxMessages = 400;
+    private int contextRecoveryMaxBytes = 131072;
 
     @AssertTrue(message = "learnhub.assistant 配置超出安全范围")
     public boolean isValidConfiguration() {
@@ -55,6 +57,8 @@ public class AssistantLimits {
                 && contextTargetPressure > 0 && contextTargetPressure < contextSoftPressure && contextSoftPressure < 1
                 && between(summaryOutputTokens, 1, 2048)
                 && between(toolObservationReserveBytes, 0, 16000)
+                && between(contextRecoveryMaxMessages, 4, 1000)
+                && between(contextRecoveryMaxBytes, 4096, 1_000_000)
                 && (!contextRedesignEnabled || (modelWindowTokens > 0 && summaryOutputTokens <= maxOutputTokens));
     }
 
@@ -104,4 +108,8 @@ public class AssistantLimits {
     public void setSummaryOutputTokens(int value) { summaryOutputTokens = value; }
     public int getToolObservationReserveBytes() { return toolObservationReserveBytes; }
     public void setToolObservationReserveBytes(int value) { toolObservationReserveBytes = value; }
+    public int getContextRecoveryMaxMessages() { return contextRecoveryMaxMessages; }
+    public void setContextRecoveryMaxMessages(int value) { contextRecoveryMaxMessages = value; }
+    public int getContextRecoveryMaxBytes() { return contextRecoveryMaxBytes; }
+    public void setContextRecoveryMaxBytes(int value) { contextRecoveryMaxBytes = value; }
 }

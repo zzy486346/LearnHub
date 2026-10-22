@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learnhub.assistant.chat.application.ChatHistoryService;
 import com.learnhub.assistant.chat.application.ChatPersistenceService;
+import com.learnhub.assistant.chat.application.ContextCheckpoint;
 import com.learnhub.assistant.knowledge.CurrentKnowledgeChunk;
 import com.learnhub.assistant.knowledge.KnowledgeRetrievalService;
 import com.learnhub.assistant.knowledge.KnowledgeStore;
@@ -105,6 +106,84 @@ class LangChainChatGeneratorTest {
         assertThat(answer.usageJson()).contains("SUMMARY_FAILED", "\"summaryCalls\":1");
         assertThat(mapper.readTree(answer.usageJson()).path("actual").path("totalTokens").asInt()).isEqualTo(10);
         verify(guard, org.mockito.Mockito.times(2)).recordUsage(3, 2, 5);
+    }
+
+    @Test void freshGeneratorRestoresValidatedCheckpointWithoutSendingCoveredRawTextAgain() throws Exception {
+        semanticHistory();
+        server.enqueueSummary(semanticSummary(), true);
+        server.enqueue(List.of("首次回答。[E1]"), "stop", true, 0);
+        var initial = prepare(ignored -> { });
+        assertThat(initial.pendingCheckpoint()).isNotNull();
+        publishMockCheckpoint(initial.pendingCheckpoint());
+        generator.close();
+        generator = new LangChainChatGenerator(persistence, new ChatHistoryService(persistence, courses, qa, mapper),
+                retrieval, qa, mapper, properties, limits, server.endpoint());
+        server.enqueue(List.of("恢复后回答。[E1]"), "stop", true, 0);
+        var restored = prepare(ignored -> { });
+        assertThat(server.requests()).hasSize(3);
+        assertThat(server.requests().get(2)).contains("每天30分钟", "第二步练习").doesNotContain("OLD_PREFIX_MARKER");
+        assertThat(restored.pendingCheckpoint()).isNull();
+        assertThat(restored.usageJson()).contains("CHECKPOINT_RESTORED", "\"summaryCalls\":0", "\"coveredThroughSeq\":4");
+    }
+
+    @Test void rollingSummaryAcceptsOnlyReferencedOldProvenanceAndNewContinuousPrefix() throws Exception {
+        semanticHistory();
+        server.enqueueSummary(semanticSummary(), true);
+        server.enqueue(List.of("首次回答。[E1]"), "stop", true, 0);
+        var initial = prepare(ignored -> { });
+        var checkpoint = publishMockCheckpoint(initial.pendingCheckpoint());
+        limits.setMaxInputBytes(32000); properties.setMaxInputBytes(32000);
+        limits.setModelWindowTokens(64000); limits.setContextSoftPressure(0.1);
+        var expanded = new ArrayList<>(persistence.messages(7, "conversation", Long.MAX_VALUE, 48));
+        String dependencies = mapper.writeValueAsString(List.of(source));
+        expanded.add(message(9, "USER", "新近期问题一", "new-1", "[]"));
+        expanded.add(message(10, "ASSISTANT", "新近期回答一。[E1]", "new-1", dependencies));
+        expanded.add(message(11, "USER", "新近期问题二", "new-2", "[]"));
+        expanded.add(message(12, "ASSISTANT", "新近期回答二。[E1]", "new-2", dependencies));
+        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 48)).thenReturn(expanded);
+        server.enqueueSummary(semanticSummary(), true); // 保留旧 USER seq=3 的修正来源。
+        server.enqueue(List.of("滚动回答。[E1]"), "stop", true, 0);
+        var rolling = prepare(ignored -> { });
+        assertThat(server.requests().get(2)).contains("previousSummary", "每天30分钟", "第二步练习").doesNotContain("OLD_PREFIX_MARKER");
+        assertThat(rolling.pendingCheckpoint().expectedRevision()).isOne();
+        assertThat(rolling.pendingCheckpoint().expectedHash()).isEqualTo(checkpoint.coveredInputHash());
+        assertThat(rolling.pendingCheckpoint().baseThroughSeq()).isEqualTo(4);
+        assertThat(rolling.pendingCheckpoint().coveredThroughSeq()).isEqualTo(8);
+        assertThat(rolling.pendingCheckpoint().events()).extracting(event -> event.message().seq()).containsExactly(5L, 6L, 7L, 8L);
+        assertThat(rolling.pendingCheckpoint().provenanceJson()).contains("\"seq\":3").doesNotContain("\"seq\":1");
+        assertThat(server.requests().get(3)).contains("新近期回答一", "新近期回答二").doesNotContain("OLD_PREFIX_MARKER");
+    }
+
+    private ContextCheckpoint.Snapshot publishMockCheckpoint(ContextCheckpoint.Pending pending) {
+        assertThat(pending).isNotNull();
+        var checkpoint = new ContextCheckpoint.Snapshot(1, pending.floorSeq(), pending.coveredFromSeq(), pending.coveredThroughSeq(),
+                ContextCheckpoint.inputHash("conversation", pending.floorSeq(), ContextCheckpoint.GENESIS, pending.events()),
+                pending.summaryJson(), pending.dependenciesJson(), pending.provenanceJson(), pending.schemaVersion(),
+                pending.promptVersion(), pending.modelIdentity(), "published-run", pending.gapReason());
+        when(persistence.contextCheckpoint(7, "conversation", 1)).thenReturn(checkpoint);
+        when(persistence.run(7, "published-run")).thenReturn(new ChatPersistenceService.Run(
+                "published-run", "conversation", 7, "published-request", "COMPLETED", null, "旧请求"));
+        return checkpoint;
+    }
+
+    @Test void revokedCheckpointIsEntirelyDiscardedBeforeAnySubsequentHttpBody() throws Exception {
+        semanticHistory();
+        server.enqueueSummary(semanticSummary().replace("每天30分钟", "STALE_CHECKPOINT_SENTINEL"), true);
+        server.enqueue(List.of("首次回答。[E1]"), "stop", true, 0);
+        var initial = prepare(ignored -> { });
+        publishMockCheckpoint(initial.pendingCheckpoint());
+        when(store.currentChunks(List.of(11L))).thenReturn(List.of());
+        var current = new KnowledgeRetrievalService.Source("10", 2, "12", "1", "2", "新材料", "新版本", 0, "新版本只使用当前授权材料。", 1);
+        when(store.currentChunks(List.of(12L))).thenReturn(List.of(new CurrentKnowledgeChunk(
+                12, 10, 2, 1, 2, current.title(), 0, current.heading(), current.text())));
+        when(retrieval.retrieve(eq(7L), eq(1L), anyString(), anyInt())).thenReturn(
+                new KnowledgeRetrievalService.Result("current", List.of(current), false, false));
+        server.enqueue(List.of("使用新版本回答。[E1]"), "stop", true, 0);
+        var answer = prepare(ignored -> { });
+        assertThat(server.requests()).hasSize(3);
+        assertThat(server.requests().get(2)).contains(current.text()).doesNotContain("STALE_CHECKPOINT_SENTINEL", "OLD_PREFIX_MARKER", source.text());
+        assertThat(answer.pendingCheckpoint()).isNull();
+        assertThat(answer.usageJson()).doesNotContain("CHECKPOINT_RESTORED");
     }
 
     @Test void unknownSummaryUsageDegradesOnceAndRemainsPartialAfterAnswer() throws Exception {
@@ -242,6 +321,15 @@ class LangChainChatGeneratorTest {
                 stored.id(), 1, 0, 0, 4096, 3, 2, 5, true, "RUNNING", 1));
         when(persistence.conversation(7, "conversation")).thenReturn(
                 new ChatPersistenceService.Conversation("conversation", 7, 1, "缓存", 5));
+        when(persistence.contextEvents(eq(7L), eq("conversation"), anyLong(), anyInt())).thenAnswer(call -> {
+            long after = call.getArgument(2); int limit = call.getArgument(3);
+            var rows = persistence.messages(7, "conversation", Long.MAX_VALUE, 48);
+            return rows.stream().filter(row -> row.seq() > after).limit(limit).map(row -> {
+                var user = rows.stream().filter(item -> item.runId().equals(row.runId()) && "USER".equals(item.role())).findFirst().orElse(row);
+                var assistant = rows.stream().filter(item -> item.runId().equals(row.runId()) && "ASSISTANT".equals(item.role())).findFirst().orElse(null);
+                return new ContextCheckpoint.Event(row, assistant == null ? "CANCELLED" : assistant.status(), user.id(), assistant == null ? null : assistant.id());
+            }).toList();
+        });
         when(courses.readableLessonIds(7L, 1L)).thenReturn(List.of(2L));
         when(store.currentChunks(List.of(11L))).thenReturn(List.of(currentChunk()));
         when(qa.evidenceBook(7L, 1L)).thenAnswer(call -> new EvidenceBook(7L, 1, store, courses, mapper));

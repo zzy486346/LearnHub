@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learnhub.assistant.chat.application.ChatEvidenceCodec;
 import com.learnhub.assistant.chat.application.ChatHistoryService;
 import com.learnhub.assistant.chat.application.ChatPersistenceService;
+import com.learnhub.assistant.chat.application.ContextCheckpoint;
 import com.learnhub.assistant.chat.application.ChatToolExecutionStore;
 import com.learnhub.assistant.knowledge.CurrentKnowledgeChunk;
 import com.learnhub.assistant.knowledge.KnowledgeRetrievalService;
@@ -97,6 +98,15 @@ class LangChainToolChatGeneratorTest {
         when(persistence.conversation(7, stored.conversationId())).thenReturn(
                 new ChatPersistenceService.Conversation(stored.conversationId(), 7, 1, "课程", 1));
         when(persistence.messages(7, stored.conversationId(), Long.MAX_VALUE, 48)).thenReturn(List.of());
+        when(persistence.contextEvents(eq(7L), eq(stored.conversationId()), anyLong(), anyInt())).thenAnswer(call -> {
+            long after = call.getArgument(2); int limit = call.getArgument(3);
+            var rows = persistence.messages(7, stored.conversationId(), Long.MAX_VALUE, 48);
+            return rows.stream().filter(row -> row.seq() > after).limit(limit).map(row -> {
+                var user = rows.stream().filter(item -> item.runId().equals(row.runId()) && "USER".equals(item.role())).findFirst().orElse(row);
+                var assistant = rows.stream().filter(item -> item.runId().equals(row.runId()) && "ASSISTANT".equals(item.role())).findFirst().orElse(null);
+                return new ContextCheckpoint.Event(row, assistant == null ? "CANCELLED" : assistant.status(), user.id(), assistant == null ? null : assistant.id());
+            }).toList();
+        });
         when(courses.readableLessonIds(7L, 1L)).thenReturn(List.of(2L));
         when(store.currentChunks(List.of(11L))).thenReturn(List.of(
                 new CurrentKnowledgeChunk(11, 9, 1, 1, 2, source.title(), 0, source.heading(), source.text())));

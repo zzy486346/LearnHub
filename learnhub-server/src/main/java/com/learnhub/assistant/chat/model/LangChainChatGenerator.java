@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learnhub.assistant.chat.application.ChatHistoryService;
 import com.learnhub.assistant.chat.application.ChatPersistenceService;
+import com.learnhub.assistant.chat.application.ContextCheckpoint;
 import com.learnhub.assistant.chat.application.ChatEvidenceCodec;
 import com.learnhub.assistant.chat.application.ChatToolExecutionStore;
 import com.learnhub.assistant.tool.AssistantTools;
@@ -180,12 +181,21 @@ public class LangChainChatGenerator implements AutoCloseable {
             return new PreparedAnswer(GREETING, "[]", usageJson("NO_MODEL", guard, null,
                     AnswerEvidenceOutcome.NO_COURSE_ANSWER), List.of(), "DEEPSEEK");
         }
-        List<ChatPersistenceService.Message> raw = persistence.messages(
-                owner, stored.conversationId(), Long.MAX_VALUE, HISTORY_CANDIDATES);
+        ChatCheckpointContext.Recovered recovered = !limits.isContextRedesignEnabled() ? null
+                : new ChatCheckpointContext(persistence, history, qa, evidence, mapper, limits).recover(
+                        owner, conversation.courseId(), stored.conversationId(), stored.id(),
+                        SEMANTIC_PROMPT_VERSION, properties.getModel(), () -> { guard.check(); io.remaining(); });
+        List<ChatPersistenceService.Message> raw = recovered == null ? persistence.messages(
+                owner, stored.conversationId(), Long.MAX_VALUE, HISTORY_CANDIDATES) : recovered.messages();
         List<HistoryRound> candidates = selectHistory(owner, conversation.courseId(), stored.id(), raw);
-        var queryPlan = ConversationQueryPlanner.plan(stored.message(), candidates.stream()
+        List<HistoryRound> recentCandidates = recovered != null && recovered.scanLimited()
+                ? selectHistory(owner, conversation.courseId(), stored.id(), persistence.messages(
+                        owner, stored.conversationId(), Long.MAX_VALUE, HISTORY_CANDIDATES)).stream().limit(2).toList() : candidates;
+        var queryPlan = ConversationQueryPlanner.plan(stored.message(), recentCandidates.stream()
                 .sorted(java.util.Comparator.comparingLong(HistoryRound::seq)).map(HistoryRound::user).toList());
         var book = qa.evidenceBook(owner, conversation.courseId());
+        if (recovered != null && recovered.valid() != null)
+            restoreDependencies(owner, conversation.courseId(), recovered.valid().dependenciesJson(), book);
         addPreferences(owner, stored.message(), book);
         new AuthorizedCourseRag(retrieval, mapper).augment(
                 new AuthorizedCourseRag.Scope(owner, conversation.courseId(), stored.conversationId(), guard, book),
@@ -202,7 +212,8 @@ public class LangChainChatGenerator implements AutoCloseable {
                 && candidates.stream().allMatch(round -> round.sources().isEmpty());
         SemanticContext semantic = !limits.isContextRedesignEnabled() ? SemanticContext.empty("LEGACY_CONTEXT")
                 : noMaterialCandidate ? SemanticContext.empty("NO_MATERIAL_CANDIDATE")
-                : summarizeHistory(owner, conversation.courseId(), stored, guard, io, candidates, book, planner, capacity, required);
+                : summarizeHistory(owner, conversation.courseId(), stored, guard, io, candidates, recentCandidates,
+                        recovered, book, planner, capacity, required);
         if (limits.isContextRedesignEnabled()) {
             capacity = contextCapacity(guard, outputTokens);
             required = planner.bytes(List.of(SystemMessage.from(system(tools != null)),
@@ -210,10 +221,10 @@ public class LangChainChatGenerator implements AutoCloseable {
                     tools == null ? null : tools.definitions());
         }
         int allowance = limits.isContextRedesignEnabled()
-                ? recentAllowance(capacity, required, candidates, planner, semantic.summary() != null)
+                ? recentAllowance(capacity, required, recentCandidates, planner, semantic.summary() != null)
                 : planner.historyAllowance(capacity, required);
-        List<HistoryRound> historyCandidates = semantic.summary() == null ? candidates
-                : candidates.stream().filter(round -> !semantic.covered().contains(round)).toList();
+        List<HistoryRound> historyCandidates = semantic.summary() == null ? recentCandidates
+                : recentCandidates.stream().filter(round -> !semantic.covered().contains(round)).toList();
         List<HistoryRound> rounds = limits.isContextRedesignEnabled()
                 ? admitRecentHistory(historyCandidates, book, planner, allowance) : admitHistory(candidates, book, planner, allowance);
         int spent = rounds.stream().mapToInt(round -> planner.roundBytes(round.user(),
@@ -248,7 +259,7 @@ public class LangChainChatGenerator implements AutoCloseable {
             Map<String, Integer> knownUsage = summaryAttempted && semantic.call().usageKnown()
                     ? Map.of("promptTokens", semantic.prompt(), "completionTokens", semantic.completion(), "totalTokens", semantic.total()) : null;
             return new PreparedAnswer(INSUFFICIENT, "[]", contextUsage(usageJson(phase, guard, knownUsage,
-                    AnswerEvidenceOutcome.NO_SOURCES_SERVER), semantic), List.of(), "DEEPSEEK");
+                    AnswerEvidenceOutcome.NO_SOURCES_SERVER), semantic), List.of(), "DEEPSEEK", semantic.pending());
         }
 
         if (tools != null) return prepareAgent(owner, conversation.courseId(), stored, guard, io, memory,
@@ -319,7 +330,7 @@ public class LangChainChatGenerator implements AutoCloseable {
                         Map.of("promptTokens", usage[0] + semantic.prompt(), "completionTokens", usage[1] + semantic.completion(),
                                 "totalTokens", usage[2] + semantic.total()), insufficient
                         ? AnswerEvidenceOutcome.MODEL_REPORTED_INSUFFICIENT
-                        : AnswerEvidenceOutcome.MODEL_ANSWER_WITH_VALID_REFERENCES), semantic), citations, "DEEPSEEK");
+                        : AnswerEvidenceOutcome.MODEL_ANSWER_WITH_VALID_REFERENCES), semantic), citations, "DEEPSEEK", semantic.pending());
     }
 
     private PreparedAnswer prepareAgent(long owner, long courseId, ChatPersistenceService.Run stored,
@@ -472,7 +483,7 @@ public class LangChainChatGenerator implements AutoCloseable {
                     Map.of("promptTokens", totals[0], "completionTokens", totals[1], "totalTokens", totals[2]),
                     verified.insufficientEvidence() ? AnswerEvidenceOutcome.MODEL_REPORTED_INSUFFICIENT
                             : AnswerEvidenceOutcome.MODEL_ANSWER_WITH_VALID_REFERENCES), semantic),
-                    verified.citations(), "DEEPSEEK");
+                    verified.citations(), "DEEPSEEK", semantic.pending());
         } catch (RuntimeException failure) { throw modelFailure(failure); }
     }
 
@@ -630,59 +641,113 @@ public class LangChainChatGenerator implements AutoCloseable {
     }
 
     private SemanticContext summarizeHistory(long owner, long courseId, ChatPersistenceService.Run stored,
-            AssistantRunGuard.Run guard, AssistantIoScope io, List<HistoryRound> candidates, EvidenceBook book,
+            AssistantRunGuard.Run guard, AssistantIoScope io, List<HistoryRound> candidates, List<HistoryRound> recent,
+            ChatCheckpointContext.Recovered recovered, EvidenceBook book,
             ChatContextPlanner planner, int capacity, int required) {
+        SemanticContext previous = SemanticContext.restored(recovered);
+        if ("HISTORY_STRUCTURE_GAP".equals(recovered.reason())) return previous.withReason("HISTORY_STRUCTURE_GAP");
+        int previousBytes = previous.summary() == null ? 0 : 2 * json(previous.summary()).getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
         long full = required + candidates.stream().mapToLong(round ->
-                planner.roundBytes(round.user(), stripOldCitations(round.assistant()), round.dependencies())).sum();
-        if (candidates.size() <= 2 || full < capacity * limits.getContextSoftPressure())
-            return SemanticContext.empty("BELOW_PRESSURE");
+                planner.roundBytes(round.user(), stripOldCitations(round.assistant()), round.dependencies())).sum() + previousBytes;
+        int recentToKeep = recovered.scanLimited() ? 0 : 2;
+        if (candidates.size() <= recentToKeep || full < capacity * limits.getContextSoftPressure())
+            return previous;
         List<HistoryRound> chronological = candidates.stream().sorted(java.util.Comparator.comparingLong(HistoryRound::seq)).toList();
-        List<HistoryRound> prefix = List.copyOf(chronological.subList(0, chronological.size() - 2));
+        List<HistoryRound> prefix = new ArrayList<>(chronological.subList(0, chronological.size() - recentToKeep));
+        long recentTwoBytes = recent.stream().limit(2).mapToLong(round ->
+                planner.roundBytes(round.user(), stripOldCitations(round.assistant()), round.dependencies())).sum();
+        int answerOutput = Math.min(properties.getMaxOutputTokens(), limits.getMaxOutputTokens());
+        int summaryOutput = Math.min(properties.getMaxOutputTokens(), limits.getSummaryOutputTokens());
+        int inputLimit = Math.min(properties.getMaxInputBytes(), limits.getMaxInputBytes());
+        long windowInput = (long) limits.getModelWindowTokens() - answerOutput - limits.getContextSafetyMarginTokens();
+        String sourceJson = "";
+        long futureInput = 0;
+        // 只缩短最早连续前缀，不能挑选中间回合却推进整个区间。每 run 仍只真正调用一次。
+        while (!prefix.isEmpty()) {
+            sourceJson = summarySource(previous.summary(), prefix);
+            futureInput = (long) required + 2L * SemanticConversationSummary.MAX_BYTES + 1024
+                    + limits.getToolObservationReserveBytes() + recentTwoBytes
+                    + prefix.stream().mapToLong(round -> json(round.dependencies()).getBytes(java.nio.charset.StandardCharsets.UTF_8).length).sum();
+            int summaryInput = SemanticSummaryCall.inputBytes(mapper, sourceJson);
+            long remaining = limits.getMaxRunTokens() - guard.summary().reservedTokens();
+            if (futureInput <= Math.min(windowInput, inputLimit) && summaryInput <= inputLimit
+                    && (long) summaryInput + summaryOutput + limits.getContextSafetyMarginTokens() <= limits.getModelWindowTokens()
+                    && (long) summaryInput + summaryOutput + futureInput + answerOutput <= remaining) break;
+            prefix.remove(prefix.size() - 1);
+        }
+        if (prefix.isEmpty()) return previous.withReason("SUMMARY_ANSWER_INPUT");
         Set<String> combined = new LinkedHashSet<>();
         book.exportDependencies().forEach(item -> combined.add(item.key()));
-        candidates.forEach(round -> ChatEvidenceCodec.parse(round.dependencies()).forEach(item -> combined.add(item.key())));
-        if (combined.size() > MAX_EVIDENCE) return SemanticContext.empty("SUMMARY_DEPENDENCY_LIMIT");
+        prefix.forEach(round -> ChatEvidenceCodec.parse(round.dependencies()).forEach(item -> combined.add(item.key())));
+        if (combined.size() > MAX_EVIDENCE) return previous.withReason("SUMMARY_DEPENDENCY_LIMIT");
         var summaryBook = qa.evidenceBook(owner, courseId);
-        Map<Long, Set<String>> allowed = new LinkedHashMap<>();
-        List<Map<String, Object>> input = new ArrayList<>();
+        if (recovered.valid() != null) restoreDependencies(owner, courseId, recovered.valid().dependenciesJson(), summaryBook);
+        Map<Long, ChatCheckpointContext.SourceProof> proofs = new LinkedHashMap<>();
+        recovered.provenance().forEach(proof -> proofs.put(proof.seq(), proof));
+        Set<Long> prefixSeqs = new LinkedHashSet<>();
         for (HistoryRound round : prefix) {
             restoreRound(owner, courseId, round, summaryBook);
-            Set<String> keys = ChatEvidenceCodec.parse(round.dependencies()).stream().map(ChatEvidenceCodec.ParsedEntry::key)
-                    .collect(java.util.stream.Collectors.toSet());
-            allowed.put(round.userSeq(), Set.of());
-            allowed.put(round.seq(), keys);
-            input.add(Map.of("user", Map.of("seq", round.userSeq(), "role", "USER", "text", round.user(), "dependencyKeys", List.of()),
-                    "assistant", Map.of("seq", round.seq(), "role", "ASSISTANT", "text", stripOldCitations(round.assistant()), "dependencyKeys", keys)));
+            prefixSeqs.add(round.userSeq()); prefixSeqs.add(round.seq());
         }
+        recovered.events().stream().map(ContextCheckpoint.Event::message).filter(message -> prefixSeqs.contains(message.seq()))
+                .map(ChatCheckpointContext::proof).forEach(proof -> proofs.put(proof.seq(), proof));
+        var availableProofs = List.copyOf(proofs.values());
+        Map<Long, Set<String>> allowed = ChatCheckpointContext.allowed(availableProofs);
         Runnable checkpoint = () -> { guard.check(); book.check(); summaryBook.check(); io.remaining(); };
-        // 先为完整摘要上限、依赖信封和最终回答预留空间，不能花完压缩预算后才发现无力回答。
-        long recentTwoBytes = candidates.stream().limit(2).mapToLong(round ->
-                planner.roundBytes(round.user(), stripOldCitations(round.assistant()), round.dependencies())).sum();
-        // summary JSON 被放进 user.content 后，HTTP JSON 还会转义一次，按两倍字节上界保留。
-        long futureInput = (long) required + 2L * SemanticConversationSummary.MAX_BYTES + 1024
-                + limits.getToolObservationReserveBytes() + recentTwoBytes
-                + prefix.stream().mapToLong(round -> json(round.dependencies()).getBytes(java.nio.charset.StandardCharsets.UTF_8).length).sum();
-        int answerOutput = Math.min(properties.getMaxOutputTokens(), limits.getMaxOutputTokens());
-        long windowInput = (long) limits.getModelWindowTokens() - answerOutput - limits.getContextSafetyMarginTokens();
-        if (futureInput > Math.min(windowInput, Math.min(properties.getMaxInputBytes(), limits.getMaxInputBytes())))
-            return SemanticContext.empty("SUMMARY_ANSWER_INPUT");
         SemanticSummaryCall.Result call;
         try (var summaryTransport = transport()) {
             call = new SemanticSummaryCall(mapper, properties, limits).summarize(owner, stored, guard, checkpoint,
-                    summaryTransport, endpoint, json(Map.of("previousSummary", Map.of(), "rounds", input)), (int) futureInput,
-                    Math.min(properties.getMaxOutputTokens(), limits.getSummaryOutputTokens()),
+                    summaryTransport, endpoint, sourceJson, (int) futureInput, summaryOutput,
                     () -> persistence.recordUsage(owner, stored.id(), stored.leaseOwner(), usageJson("SUMMARY_PROGRESS", guard, null)));
         }
         // 无论语义输出是否成功，已调用前缀的当前有效依赖均进入最终复核；不复用非法摘要正文。
         if (call.attempted()) prefix.forEach(round -> restoreRound(owner, courseId, round, book));
-        if (!"SUMMARY_READY".equals(call.reason())) return new SemanticContext(null, call, List.of(), call.reason());
+        if (!"SUMMARY_READY".equals(call.reason())) return previous.withCall(call, call.reason());
         SemanticConversationSummary.Summary summary;
-        try { summary = SemanticConversationSummary.parse(mapper, call.json(), allowed,
-                prefix.stream().map(HistoryRound::userSeq).collect(java.util.stream.Collectors.toSet())); }
-        catch (BusinessException invalid) { return new SemanticContext(null, call, List.of(), "SUMMARY_FAILED"); }
+        ContextCheckpoint.Pending pending;
+        try {
+            summary = SemanticConversationSummary.parse(mapper, call.json(), allowed, ChatCheckpointContext.userSeqs(availableProofs));
+            Set<Long> referenced = ChatCheckpointContext.referenced(summary);
+            long through = prefix.get(prefix.size() - 1).seq();
+            var events = recovered.events().stream().filter(event -> event.message().seq() <= through).toList();
+            String provenance = ChatCheckpointContext.encodeProvenance(mapper,
+                    availableProofs.stream().filter(proof -> referenced.contains(proof.seq())).sorted(java.util.Comparator.comparingLong(ChatCheckpointContext.SourceProof::seq)).toList(),
+                    recovered.barrier(), events.get(events.size() - 1));
+            long baseThrough = recovered.valid() == null ? recovered.floorSeq() : recovered.valid().coveredThroughSeq();
+            pending = new ContextCheckpoint.Pending(recovered.expected() == null ? 0 : recovered.expected().revision(),
+                    recovered.expected() == null ? ContextCheckpoint.GENESIS : recovered.expected().coveredInputHash(), baseThrough, recovered.floorSeq(),
+                    recovered.valid() == null ? prefix.get(0).userSeq() : recovered.valid().coveredFromSeq(), through,
+                    json(summary), encodeDependencies(summaryBook), provenance, 1, SEMANTIC_PROMPT_VERSION, properties.getModel(),
+                    recovered.floorSeq() == 0 ? "NONE" : "RESTRICTED_PREFIX", events);
+        } catch (BusinessException invalid) { return previous.withCall(call, "SUMMARY_FAILED"); }
         checkpoint.run();
         prefix.forEach(round -> restoreRound(owner, courseId, round, book));
-        return new SemanticContext(summary, call, prefix, "SUMMARY_READY");
+        return new SemanticContext(summary, call, List.copyOf(prefix), "SUMMARY_READY", recovered, pending);
+    }
+
+    private String summarySource(SemanticConversationSummary.Summary previous, List<HistoryRound> rounds) {
+        List<Map<String, Object>> input = new ArrayList<>();
+        for (HistoryRound round : rounds) {
+            var keys = ChatEvidenceCodec.parse(round.dependencies()).stream().map(ChatEvidenceCodec.ParsedEntry::key).toList();
+            input.add(Map.of("user", Map.of("seq", round.userSeq(), "role", "USER", "text", round.user(), "dependencyKeys", List.of()),
+                    "assistant", Map.of("seq", round.seq(), "role", "ASSISTANT", "text", stripOldCitations(round.assistant()), "dependencyKeys", keys)));
+        }
+        return json(Map.of("previousSummary", previous == null ? Map.of() : previous, "rounds", input));
+    }
+
+    private void restoreDependencies(long owner, long course, String dependencies, EvidenceBook book) {
+        if (evidence != null) evidence.restoreInto(owner, course, dependencies, book);
+        else {
+            ChatEvidenceCodec.parse(dependencies).forEach(entry -> {
+                if (entry.source() == null) throw invalidOutput();
+                book.material(entry.source());
+            });
+            book.check();
+        }
+    }
+
+    private String encodeDependencies(EvidenceBook book) {
+        return evidence != null ? evidence.encode(book) : json(book.exportDependencies().stream().map(EvidenceBook.Dependency::source).toList());
     }
 
     private void restoreRound(long owner, long courseId, HistoryRound round, EvidenceBook book) {
@@ -696,15 +761,33 @@ public class LangChainChatGenerator implements AutoCloseable {
             var root = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(usage);
             root.put("contextOutcome", semantic.reason());
             root.put("summaryCalls", semantic.call() != null && semantic.call().attempted() ? 1 : 0);
-            root.put("coveredFromSeq", semantic.covered().stream().mapToLong(HistoryRound::userSeq).min().orElse(0));
-            root.put("coveredThroughSeq", semantic.covered().stream().mapToLong(HistoryRound::seq).max().orElse(0));
+            root.put("coveredFromSeq", semantic.pending() != null ? semantic.pending().coveredFromSeq()
+                    : semantic.recovered() != null && semantic.recovered().valid() != null ? semantic.recovered().valid().coveredFromSeq() : 0);
+            root.put("coveredThroughSeq", semantic.pending() != null ? semantic.pending().coveredThroughSeq()
+                    : semantic.recovered() != null && semantic.recovered().valid() != null ? semantic.recovered().valid().coveredThroughSeq() : 0);
+            root.put("checkpointOutcome", semantic.pending() != null ? "PENDING_COMMIT" : semantic.recovered() != null
+                    && semantic.recovered().valid() != null ? "RESTORED" : "NONE");
+            if (semantic.recovered() != null) {
+                root.put("recoveryOutcome", semantic.recovered().reason());
+                root.put("recoveryScanLimited", semantic.recovered().scanLimited());
+                root.put("coverageFloorSeq", semantic.recovered().floorSeq());
+            }
             return json(root);
         } catch (Exception invalid) { throw invalidOutput(); }
     }
 
     private record SemanticContext(SemanticConversationSummary.Summary summary, SemanticSummaryCall.Result call,
-                                   List<HistoryRound> covered, String reason) {
-        static SemanticContext empty(String reason) { return new SemanticContext(null, null, List.of(), reason); }
+                                   List<HistoryRound> covered, String reason, ChatCheckpointContext.Recovered recovered,
+                                   ContextCheckpoint.Pending pending) {
+        static SemanticContext empty(String reason) { return new SemanticContext(null, null, List.of(), reason, null, null); }
+        static SemanticContext restored(ChatCheckpointContext.Recovered recovered) {
+            return new SemanticContext(recovered.summary(), null, List.of(), recovered.valid() != null ? "CHECKPOINT_RESTORED"
+                    : "BELOW_PRESSURE", recovered, null);
+        }
+        SemanticContext withReason(String reason) { return new SemanticContext(summary, call, covered, reason, recovered, pending); }
+        SemanticContext withCall(SemanticSummaryCall.Result call, String reason) {
+            return new SemanticContext(summary, call, List.of(), reason, recovered, null);
+        }
         int prompt() { return call != null && call.usageKnown() ? call.prompt() : 0; }
         int completion() { return call != null && call.usageKnown() ? call.completion() : 0; }
         int total() { return call != null && call.usageKnown() ? call.total() : 0; }
@@ -990,5 +1073,11 @@ public class LangChainChatGenerator implements AutoCloseable {
     public record ToolStatus(String type, Map<String, Object> payload) { }
 
     public record PreparedAnswer(String text, String sourcesJson, String usageJson,
-                                 List<EvidenceBook.Citation> citations, String modelMode) { }
+                                 List<EvidenceBook.Citation> citations, String modelMode,
+                                 ContextCheckpoint.Pending pendingCheckpoint) {
+        public PreparedAnswer(String text, String sourcesJson, String usageJson,
+                List<EvidenceBook.Citation> citations, String modelMode) {
+            this(text, sourcesJson, usageJson, citations, modelMode, null);
+        }
+    }
 }

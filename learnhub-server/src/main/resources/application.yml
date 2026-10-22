@@ -72,6 +72,8 @@ learnhub:
     context-target-pressure: ${LEARNHUB_ASSISTANT_CONTEXT_TARGET_PRESSURE:0.55}
     summary-output-tokens: ${LEARNHUB_ASSISTANT_SUMMARY_OUTPUT_TOKENS:512}
     tool-observation-reserve-bytes: ${LEARNHUB_ASSISTANT_TOOL_OBSERVATION_RESERVE_BYTES:1024}
+    context-recovery-max-messages: ${LEARNHUB_ASSISTANT_CONTEXT_RECOVERY_MAX_MESSAGES:400}
+    context-recovery-max-bytes: ${LEARNHUB_ASSISTANT_CONTEXT_RECOVERY_MAX_BYTES:131072}
     memory:
       enabled: ${LEARNHUB_ASSISTANT_MEMORY_ENABLED:false}
       auto-extract-enabled: ${LEARNHUB_ASSISTANT_MEMORY_AUTO_EXTRACT_ENABLED:false}

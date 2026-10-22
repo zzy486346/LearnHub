@@ -92,7 +92,9 @@ public class ChatStreamService {
                 return new PreparedAnswer(prepared, "[]", "{}", List.of(), "FAKE");
             }, (run, prepared) -> {
                 reply.checkOpen();
-                var completed = conversations.commitAnswer(owner, stored, prepared.text(), prepared.sourcesJson(), prepared.usageJson());
+                var completed = prepared.pendingCheckpoint() == null
+                        ? conversations.commitAnswer(owner, stored, prepared.text(), prepared.sourcesJson(), prepared.usageJson())
+                        : conversations.commitAnswer(owner, stored, prepared.text(), prepared.sourcesJson(), prepared.usageJson(), prepared.pendingCheckpoint());
                 return new CommittedReply(new RunStatus(completed.id(), completed.conversationId(), completed.status()),
                         prepared.text(), prepared.sourcesJson());
             });
