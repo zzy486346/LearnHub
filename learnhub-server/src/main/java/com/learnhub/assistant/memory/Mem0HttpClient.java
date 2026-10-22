@@ -13,6 +13,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -24,11 +25,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Flow;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -113,10 +116,17 @@ public final class Mem0HttpClient implements Mem0Client, AutoCloseable {
         CompletableFuture<HttpResponse<byte[]>> future = null;
         AutoCloseable registration = null;
         AssistantIoScope scope = AssistantIoScope.current();
+        boolean scopeLimited = false;
         try {
             if (closed.get()) throw unavailable();
             Duration budget = timeout;
-            if (scope != null && scope.remaining().compareTo(budget) < 0) budget = scope.remaining();
+            if (scope != null) {
+                Duration scopeBudget = scope.remaining();
+                if (scopeBudget.compareTo(budget) < 0) {
+                    budget = scopeBudget;
+                    scopeLimited = true;
+                }
+            }
             long deadline = System.nanoTime() + budget.toNanos();
             byte[] body = json.writeValueAsBytes(request);
             if (body.length > MAX_REQUEST) throw unavailable();
@@ -142,12 +152,29 @@ public final class Mem0HttpClient implements Mem0Client, AutoCloseable {
         } catch (BusinessException business) {
             throw business;
         } catch (Exception failure) {
-            if (scope != null) scope.remaining();
-            throw unavailable();
+            throw classifyFailure(scope, scopeLimited, failure);
         } finally {
             if (future != null) { active.remove(future); if (!future.isDone()) future.cancel(true); }
             if (registration != null) try { registration.close(); } catch (Exception ignored) { }
         }
+    }
+
+    static BusinessException classifyFailure(AssistantIoScope scope, boolean scopeLimited, Throwable failure) {
+        if (scope != null) {
+            try { scope.remaining(); }
+            catch (BusinessException terminal) { return terminal; }
+            if (scopeLimited && isRequestDeadlineSignal(failure))
+                return new BusinessException("ASSISTANT_DEADLINE_EXCEEDED", "助理请求已超时");
+        }
+        return unavailable();
+    }
+
+    private static boolean isRequestDeadlineSignal(Throwable failure) {
+        for (Throwable current = failure; current != null; current = current.getCause()) {
+            if (current instanceof HttpTimeoutException || current instanceof TimeoutException
+                    || current instanceof CancellationException) return true;
+        }
+        return false;
     }
 
     private String ownerKey(long owner) {

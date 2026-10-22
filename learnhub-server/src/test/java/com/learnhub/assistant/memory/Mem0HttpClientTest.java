@@ -10,13 +10,17 @@ import com.learnhub.common.exception.BusinessException;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -144,6 +148,29 @@ class Mem0HttpClientTest {
             scope.attach();
             assertThatThrownBy(() -> client.search(1, "代码", 3)).isInstanceOfSatisfying(BusinessException.class,
                     failure -> assertThat(failure.getCode()).isEqualTo("ASSISTANT_DEADLINE_EXCEEDED"));
+        }
+    }
+
+    @Test void classifiesScopeLimitedTransportDeadlineSignalsWithoutDependingOnClockRace() {
+        try (var scope = new AssistantIoScope(Duration.ofSeconds(3))) {
+            scope.attach();
+            BusinessException failure = Mem0HttpClient.classifyFailure(scope, true,
+                    new ExecutionException(new HttpTimeoutException("synthetic transport timeout")));
+            assertThat(failure.getCode()).isEqualTo("ASSISTANT_DEADLINE_EXCEEDED");
+            assertThat(failure.getCause()).isNull();
+            assertThat(Mem0HttpClient.classifyFailure(scope, true, new TimeoutException("synthetic wait timeout")).getCode())
+                    .isEqualTo("ASSISTANT_DEADLINE_EXCEEDED");
+            assertThat(Mem0HttpClient.classifyFailure(scope, true, new CancellationException()).getCode())
+                    .isEqualTo("ASSISTANT_DEADLINE_EXCEEDED");
+
+            BusinessException providerTimeout = Mem0HttpClient.classifyFailure(scope, false,
+                    new HttpTimeoutException("synthetic provider timeout"));
+            assertThat(providerTimeout.getCode()).isEqualTo("MEMORY_UNAVAILABLE");
+            assertThat(providerTimeout.getMessage()).doesNotContain("synthetic", TOKEN);
+
+            scope.cancel();
+            assertThat(Mem0HttpClient.classifyFailure(scope, true, new CancellationException()).getCode())
+                    .isEqualTo("ASSISTANT_CANCELLED");
         }
     }
 
