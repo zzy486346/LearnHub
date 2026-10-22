@@ -1,0 +1,43 @@
+{
+  "stage": "B",
+  "testedBaseHead": "58beee6",
+  "testedWorktree": "stage-B implementation and isolated Mem0 deadline classification fix",
+  "scenarioVersion": "learnhub-assistant-context-redesign-20261021",
+  "scenarioFileSha256": "a3f25ffb54723484a4ff47e36204d4d4ec3ae1c76f6e98eaa17575b498a67ead",
+  "batchExecutionStatus": "NOT_RUN",
+  "configuration": {
+    "contextRedesignDefault": false,
+    "softPressureDefault": 0.75,
+    "targetPressureDefault": 0.55,
+    "summaryOutputTokensDefault": 512,
+    "summaryMaxUtf8Bytes": 4096,
+    "maxSummaryAttemptsPerRun": 1,
+    "answerTimeReserveMillis": 1000,
+    "paidCalls": 0,
+    "backendRestarted": false,
+    "businessDatabaseMigrated": false
+  },
+  "checks": [
+    {"name": "final related targeted", "tests": 167, "executed": 167, "skipped": 0, "failures": 0, "errors": 0},
+    {"name": "isolated actual Redis Lua", "tests": 5, "executed": 5, "skipped": 0, "failures": 0, "errors": 0},
+    {"name": "root mvn test", "tests": 670, "executed": 554, "skipped": 116, "failures": 0, "errors": 0},
+    {"name": "root mvn verify", "tests": 670, "executed": 554, "skipped": 116, "failures": 0, "errors": 0}
+  ],
+  "negativeRuns": [
+    "First expanded tool fixture lacked OUTLINE for a SUGGESTION answer; corrected fixture while preserving production evidence validation.",
+    "First root test reproduced existing Mem0 deadline race; retained failure log and added deterministic classification regression before rerunning."
+  ],
+  "fixtures": [
+    {"name": "enabled tool loop preserves task state", "httpRequests": 3, "summaryCalls": 1, "toolCalls": 2, "actualMockTokens": 45, "recentCompleteRounds": 2},
+    {"name": "insufficient summary call/token/time/daily budget", "summaryHttpRequests": 0},
+    {"name": "invalid summary", "retried": false, "illegalTextSentToAnswer": false, "reservationRefunded": false},
+    {"name": "atomic summary plus answer reservation", "dailyCallsReserved": 2, "secondAnswerCharge": false, "unusedOrCancelledReservationRefunded": false}
+  ],
+  "boundaries": [
+    "No persistent checkpoint, cross-run restoration, forward pagination, observation readback or ambiguity clarification yet.",
+    "C01-C14 are not executed as a batch; component HTTP Mock regressions do not prove real-model semantic fidelity.",
+    "Strict schema and provenance identity do not establish factual support or user mastery.",
+    "No old 16-case holdout or real paid generation executed; ledger remains calls=3/reservedTokens=11592.",
+    "Redis container used cached redis:7.4-alpine with random loopback port, no volumes, and was removed after label verification."
+  ]
+}

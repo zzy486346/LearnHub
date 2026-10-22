@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -50,5 +51,22 @@ class RedisAssistantRunStoreTest {
 
         assertThatThrownBy(() -> store.acquire("user", "owner", 75_000, 4, 6))
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void batchReservationPassesOneAtomicCallIncrementAndRejectsUnsupportedValues() {
+        StringRedisTemplate redis = mock(StringRedisTemplate.class);
+        when(redis.execute(any(RedisScript.class), anyList(), any(Object[].class))).thenReturn(1L);
+        RedisAssistantRunStore store = new RedisAssistantRunStore(redis);
+
+        assertThat(store.reserveDailyBatch("user", "2026-10-22", 20, 120_000, 2_000, 86_400, 2))
+                .isEqualTo(AssistantRunStore.ReserveResult.RESERVED);
+
+        ArgumentCaptor<Object[]> arguments = ArgumentCaptor.forClass(Object[].class);
+        verify(redis).execute(any(RedisScript.class), anyList(), arguments.capture());
+        assertThat(arguments.getValue()).containsExactly("20", "120000", "2000", "86400", "2");
+        assertThatThrownBy(() -> store.reserveDailyBatch("user", "2026-10-22", 20,
+                120_000, 2_000, 86_400, 3)).isInstanceOf(IllegalArgumentException.class);
     }
 }

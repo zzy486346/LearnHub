@@ -26,6 +26,11 @@ public class AssistantLimits {
     private int maxInputBytes = 16_000;
     private int modelWindowTokens;
     private int contextSafetyMarginTokens = 256;
+    private boolean contextRedesignEnabled;
+    private double contextSoftPressure = 0.75;
+    private double contextTargetPressure = 0.55;
+    private int summaryOutputTokens = 512;
+    private int toolObservationReserveBytes = 1024;
 
     @AssertTrue(message = "learnhub.assistant 配置超出安全范围")
     public boolean isValidConfiguration() {
@@ -45,7 +50,12 @@ public class AssistantLimits {
                 && between(maxInputBytes, 1, 1_000_000)
                 && between(contextSafetyMarginTokens, 0, 100_000)
                 && (modelWindowTokens == 0 || (between(modelWindowTokens, 1, 10_000_000)
-                    && (long) maxOutputTokens + contextSafetyMarginTokens < modelWindowTokens));
+                    && (long) maxOutputTokens + contextSafetyMarginTokens < modelWindowTokens))
+                && Double.isFinite(contextSoftPressure) && Double.isFinite(contextTargetPressure)
+                && contextTargetPressure > 0 && contextTargetPressure < contextSoftPressure && contextSoftPressure < 1
+                && between(summaryOutputTokens, 1, 2048)
+                && between(toolObservationReserveBytes, 0, 16000)
+                && (!contextRedesignEnabled || (modelWindowTokens > 0 && summaryOutputTokens <= maxOutputTokens));
     }
 
     private static boolean between(@NotNull Duration value, Duration minimum, Duration maximum) {
@@ -84,4 +94,14 @@ public class AssistantLimits {
     public void setModelWindowTokens(int value) { modelWindowTokens = value; }
     public int getContextSafetyMarginTokens() { return contextSafetyMarginTokens; }
     public void setContextSafetyMarginTokens(int value) { contextSafetyMarginTokens = value; }
+    public boolean isContextRedesignEnabled() { return contextRedesignEnabled; }
+    public void setContextRedesignEnabled(boolean value) { contextRedesignEnabled = value; }
+    public double getContextSoftPressure() { return contextSoftPressure; }
+    public void setContextSoftPressure(double value) { contextSoftPressure = value; }
+    public double getContextTargetPressure() { return contextTargetPressure; }
+    public void setContextTargetPressure(double value) { contextTargetPressure = value; }
+    public int getSummaryOutputTokens() { return summaryOutputTokens; }
+    public void setSummaryOutputTokens(int value) { summaryOutputTokens = value; }
+    public int getToolObservationReserveBytes() { return toolObservationReserveBytes; }
+    public void setToolObservationReserveBytes(int value) { toolObservationReserveBytes = value; }
 }

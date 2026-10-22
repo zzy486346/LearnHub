@@ -116,8 +116,34 @@ class AssistantRunRedisIntegrationTest {
                 .isEqualTo(AssistantRunStore.ReserveResult.DAILY_TOKEN_LIMIT);
     }
 
+    @Test
+    void summaryBatchReservationConsumesTwoGlobalCallsAtomically() {
+        assertThat(store.reserveDailyBatch("user-a", "summary-full", 2, 2_000, 850, 300, 2))
+                .isEqualTo(AssistantRunStore.ReserveResult.RESERVED);
+        assertThat(store.reserveDaily("user-b", "summary-full", 2, 2_000, 100, 300))
+                .isEqualTo(AssistantRunStore.ReserveResult.DAILY_CALL_LIMIT);
+
+        assertThat(store.reserveDaily("user-a", "summary-one-left", 2, 2_000, 100, 300))
+                .isEqualTo(AssistantRunStore.ReserveResult.RESERVED);
+        assertThat(store.reserveDailyBatch("user-b", "summary-one-left", 2, 2_000, 850, 300, 2))
+                .isEqualTo(AssistantRunStore.ReserveResult.DAILY_CALL_LIMIT);
+        assertThat(store.reserveDaily("user-b", "summary-one-left", 2, 2_000, 100, 300))
+                .isEqualTo(AssistantRunStore.ReserveResult.RESERVED);
+    }
+
     private static String environment(String name, String fallback) {
         String value = System.getenv(name);
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    @Test void legacyFourArgumentScriptCallerStillReservesOneCall() {
+        var script = new org.springframework.data.redis.core.script.DefaultRedisScript<Long>();
+        script.setLocation(new org.springframework.core.io.ClassPathResource("lua/assistant_daily_reserve.lua"));
+        script.setResultType(Long.class);
+        List<String> keys = List.of(prefix + "legacy:user:calls", prefix + "legacy:user:tokens",
+                prefix + "legacy:global:calls", prefix + "legacy:global:tokens");
+        assertThat(redis.execute(script, keys, "5", "1000", "100", "300")).isEqualTo(1L);
+        assertThat(redis.opsForValue().get(keys.get(0))).isEqualTo("1");
+        assertThat(redis.opsForValue().get(keys.get(2))).isEqualTo("1");
     }
 }

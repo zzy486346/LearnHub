@@ -33,20 +33,26 @@ final class ChatContextPlanner {
 
     /** 仅移除当前问题之前的完整历史对；工具调用/结果、当前问题和规则不可拆开。 */
     Plan fit(List<ChatMessage> original, Object tools, int inputLimit, int capacity) {
+        return fit(original, tools, inputLimit, capacity, Integer.MAX_VALUE);
+    }
+
+    Plan fit(List<ChatMessage> original, Object tools, int inputLimit, int capacity, int windowInputLimit) {
         ChatMessageGroups.groups(original);
         List<ChatMessage> messages = new ArrayList<>(original);
         int removed = 0;
         int summaryRemoved = 0;
         int size = bytes(messages, tools);
-        while (size > capacity && removeOldestSummaryEntry(messages)) {
+        int effectiveCapacity = Math.min(capacity, windowInputLimit);
+        while (size > effectiveCapacity && removeOldestSummaryEntry(messages)) {
             summaryRemoved++;
             size = bytes(messages, tools);
         }
-        while (size > capacity && removeOldestRound(messages)) {
+        while (size > effectiveCapacity && removeOldestRound(messages)) {
             removed++;
             size = bytes(messages, tools);
         }
         if (size > inputLimit) throw new BusinessException("AI_MODEL_INPUT_TOO_LARGE", "模型输入超过本地 UTF-8 字节预算");
+        if (size > windowInputLimit) throw new BusinessException("AI_MODEL_CONTEXT_WINDOW_EXCEEDED", "必要输入超过已配置模型窗口");
         if (size > capacity) throw new BusinessException("ASSISTANT_BUDGET_EXCEEDED", "本次运行剩余预算不足以容纳当前问题与证据");
         List<String> reasons = new ArrayList<>();
         if (summaryRemoved > 0) reasons.add("DROPPED_OLD_SUMMARY_ENTRIES");

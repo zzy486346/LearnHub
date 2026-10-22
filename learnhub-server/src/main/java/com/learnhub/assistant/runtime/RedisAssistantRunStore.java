@@ -53,18 +53,28 @@ final class RedisAssistantRunStore implements AssistantRunStore {
     @Override
     public ReserveResult reserveDaily(String userHash, String utcDay, int dailyModelCalls,
                                       int dailyReservedTokens, int tokens, long ttlSeconds) {
+        return reserveDailyBatch(userHash, utcDay, dailyModelCalls, dailyReservedTokens, tokens, ttlSeconds, 1);
+    }
+
+    @Override
+    public ReserveResult reserveDailyBatch(String userHash, String utcDay, int dailyModelCalls,
+            int dailyReservedTokens, int tokens, long ttlSeconds, int callIncrement) {
+        if (callIncrement != 1 && callIncrement != 2) {
+            throw new IllegalArgumentException("Assistant daily call increment must be 1 or 2");
+        }
         Long result = redis.execute(RESERVE,
                 List.of(prefix + "daily:" + utcDay + ":" + userHash + ":calls",
                         prefix + "daily:" + utcDay + ":" + userHash + ":tokens",
                         prefix + "daily:" + utcDay + ":global:calls",
                         prefix + "daily:" + utcDay + ":global:tokens"),
                 Integer.toString(dailyModelCalls), Integer.toString(dailyReservedTokens),
-                Integer.toString(tokens), Long.toString(ttlSeconds));
+                Integer.toString(tokens), Long.toString(ttlSeconds), Integer.toString(callIncrement));
         if (result == null) throw new IllegalStateException("Assistant daily reservation returned no result");
         return switch (result.intValue()) {
             case 1 -> ReserveResult.RESERVED;
             case -1 -> ReserveResult.DAILY_CALL_LIMIT;
             case -2 -> ReserveResult.DAILY_TOKEN_LIMIT;
+            case -3 -> throw new IllegalStateException("Assistant daily reservation rejected call increment");
             default -> throw new IllegalStateException("Unexpected assistant reserve result: " + result);
         };
     }

@@ -175,6 +175,49 @@ class LangChainToolChatGeneratorTest {
         assertThat(answer.usageJson()).contains("MODEL_ANSWER_WITH_VALID_REFERENCES");
     }
 
+    @Test void semanticSummarySurvivesToolLoopAndKeepsRecentHistoryAndAuthorizedEvidence() throws Exception {
+        semanticToolHistory();
+        server.enqueue(Script.summary(semanticSummary()));
+        server.enqueue(Script.tools(true, progress("summary-progress"), outline("summary-outline")));
+        server.enqueue(Script.answer(List.of("{\"insufficientEvidence\":false,\"answerSegments\":[" + fact()
+                + ", {\"text\":\"已学习30秒，建议继续。\",\"evidenceIds\":[\"E2\",\"E3\"],\"kind\":\"SUGGESTION\"}]}"), true, null));
+
+        var answer = prepare(ignored -> { }, ignored -> { });
+
+        assertThat(server.requests).hasSize(3);
+        assertThat(server.requests.get(0)).contains("OLD_PREFIX_MARKER");
+        var wireRequests = new ArrayList<com.fasterxml.jackson.databind.JsonNode>();
+        for (String request : server.requests) wireRequests.add(mapper.readTree(request));
+        assertThat(wireRequests).filteredOn(request -> !request.path("stream").asBoolean()).hasSize(1);
+        assertThat(wireRequests.subList(1, 3)).allSatisfy(request ->
+                assertThat(request.path("stream").asBoolean()).isTrue());
+        for (String request : server.requests.subList(1, 3)) {
+            var current = currentUserJson(request);
+            assertThat(current.path("taskState").path("corrections").get(0).path("value").asText())
+                    .isEqualTo("否定互斥锁");
+            assertThat(current.path("semanticContext").path("schemaVersion").asInt()).isEqualTo(1);
+            assertThat(request).contains("近期问题一", "近期回答二").doesNotContain("OLD_PREFIX_MARKER");
+        }
+        var finalMessages = mapper.readTree(server.requests.get(2)).path("messages");
+        var toolCallIds = new ArrayList<String>();
+        var toolResultIds = new ArrayList<String>();
+        finalMessages.forEach(message -> {
+            message.path("tool_calls").forEach(call -> toolCallIds.add(call.path("id").asText()));
+            if ("tool".equals(message.path("role").asText())) toolResultIds.add(message.path("tool_call_id").asText());
+        });
+        assertThat(toolCallIds).containsExactly("summary-progress", "summary-outline");
+        assertThat(toolResultIds).containsExactlyElementsOf(toolCallIds);
+        assertThat(mapper.readTree(answer.usageJson()).path("actual").path("totalTokens").asInt()).isEqualTo(45);
+        assertThat(answer.usageJson()).contains("SUMMARY_READY", "\"summaryCalls\":1");
+        var replay = new EvidenceBook(7L, 1, store, courses, mapper);
+        codec.restoreInto(7, 1, answer.sourcesJson(), replay);
+        assertThat(replay.references()).extracting(reference -> reference.get("kind"))
+                .containsExactly("MATERIAL", "PROGRESS", "OUTLINE");
+        verify(guard).tryReserveSummary(anyInt(), eq(512), anyInt(), eq(512));
+        verify(guard, times(2)).reserveModel(anyInt(), eq(512));
+        verify(guard, times(3)).recordUsage(10, 5, 15);
+    }
+
     @Test void nonemptyWeakEvidenceRefusalPublishesNoSourcesAndRetainsRevalidationEnvelope() {
         server.enqueue(Script.answer(List.of("{\"insufficientEvidence\":true,\"answerSegments\":[]}"), true, null));
         var answer = prepare(ignored -> { }, ignored -> { });
@@ -466,6 +509,87 @@ class LangChainToolChatGeneratorTest {
         }
     }
 
+    private void semanticToolHistory() throws Exception {
+        limits.setContextRedesignEnabled(true);
+        limits.setMaxInputBytes(32_000);
+        limits.setModelWindowTokens(64_000);
+        limits.setMaxRunTokens(100_000); // 仅本地 Mock fixture；不改变生产默认额度。
+        limits.setContextSoftPressure(0.15);
+        limits.setContextTargetPressure(0.1);
+        String dependencies = mapper.writeValueAsString(List.of(source));
+        String oldPrefix = "OLD_PREFIX_MARKER ".repeat(300);
+        when(persistence.messages(7, stored.conversationId(), Long.MAX_VALUE, 48)).thenReturn(List.of(
+                message(1, "USER", oldPrefix + "比较互斥锁和逻辑过期", "old-1", "[]"),
+                message(2, "ASSISTANT", "先比较两种方案。[E1]", "old-1", dependencies),
+                message(3, "USER", "否定互斥锁，选择逻辑过期，每天30分钟。", "old-2", "[]"),
+                message(4, "ASSISTANT", "下一步先做练习。[E1]", "old-2", dependencies),
+                message(5, "USER", "近期问题一：进行第二步练习", "recent-1", "[]"),
+                message(6, "ASSISTANT", "近期回答一。[E1]", "recent-1", dependencies),
+                message(7, "USER", "近期问题二：继续查进度", "recent-2", "[]"),
+                message(8, "ASSISTANT", "近期回答二。[E1]", "recent-2", dependencies)));
+        var modelCalls = new AtomicInteger();
+        var recordedCalls = new AtomicInteger();
+        var reserved = new java.util.concurrent.atomic.AtomicLong();
+        var actual = new java.util.concurrent.atomic.AtomicLong();
+        var prepaidInput = new AtomicInteger();
+        var prepaidOutput = new AtomicInteger();
+        when(guard.tryReserveSummary(anyInt(), anyInt(), anyInt(), anyInt())).thenAnswer(call -> {
+            modelCalls.incrementAndGet();
+            reserved.addAndGet((int) call.getArgument(0) + (int) call.getArgument(1)
+                    + (int) call.getArgument(2) + (int) call.getArgument(3));
+            prepaidInput.set(call.getArgument(2));
+            prepaidOutput.set(call.getArgument(3));
+            return true;
+        });
+        doAnswer(call -> {
+            modelCalls.incrementAndGet();
+            int input = call.getArgument(0);
+            int output = call.getArgument(1);
+            if (prepaidOutput.get() > 0) {
+                assertThat(input).isLessThanOrEqualTo(prepaidInput.get());
+                assertThat(output).isLessThanOrEqualTo(prepaidOutput.get());
+                prepaidInput.set(0);
+                prepaidOutput.set(0);
+            } else {
+                reserved.addAndGet(input + output);
+            }
+            return null;
+        }).when(guard).reserveModel(anyInt(), anyInt());
+        doAnswer(call -> {
+            recordedCalls.incrementAndGet();
+            actual.addAndGet((long) call.getArgument(2));
+            return null;
+        }).when(guard).recordUsage(anyLong(), anyLong(), anyLong());
+        when(guard.summary()).thenAnswer(ignored -> new AssistantRunSummary(stored.id(), modelCalls.get(), 0, 0,
+                reserved.get(), 0, 0, actual.get(), recordedCalls.get() == modelCalls.get() && prepaidOutput.get() == 0,
+                "RUNNING", 1, prepaidInput.get(), prepaidOutput.get()));
+    }
+
+    private ChatPersistenceService.Message message(long seq, String role, String content, String runId, String sources) {
+        return new ChatPersistenceService.Message("history-" + seq, seq, role, content, "COMPLETED", runId, sources);
+    }
+
+    private String semanticSummary() throws Exception {
+        Map<String, Object> item = Map.of("value", "否定互斥锁", "sourceMessageSeqs", List.of(3),
+                "dependencyKeys", List.of(), "inferred", false);
+        Map<String, Object> task = new java.util.LinkedHashMap<>();
+        for (String field : List.of("goal", "topic", "constraints", "decisions", "corrections", "openQuestions", "nextStep"))
+            task.put(field, List.of());
+        task.put("corrections", List.of(item));
+        return mapper.writeValueAsString(Map.of("schemaVersion", 1, "taskState", task,
+                "conversationSummary", List.of(), "unresolvedReferences", List.of()));
+    }
+
+    private com.fasterxml.jackson.databind.JsonNode currentUserJson(String request) throws Exception {
+        var messages = mapper.readTree(request).path("messages");
+        for (int index = messages.size() - 1; index >= 0; index--) {
+            var message = messages.get(index);
+            if ("user".equals(message.path("role").asText())) return mapper.readTree(message.path("content").asText());
+        }
+        fail("请求缺少当前用户消息");
+        return mapper.nullNode();
+    }
+
     private static ToolCall outline(String id) { return new ToolCall(id, "get_course_outline", "{\"courseId\":\"1\"}"); }
     private static ToolCall progress(String id) { return new ToolCall(id, "get_my_learning_progress", "{\"courseId\":\"1\"}"); }
     private static String fact() { return "{\"text\":\"互斥锁限制并发重建。\",\"evidenceIds\":[\"E1\"],\"kind\":\"FACT\"}"; }
@@ -475,14 +599,18 @@ class LangChainToolChatGeneratorTest {
         final List<ToolCall> calls;
         final List<String> deltas;
         final boolean usage;
+        final String summary;
         final CountDownLatch firstVisible;
         final AtomicBoolean firstVisibleBeforeFinish = new AtomicBoolean();
         final CountDownLatch finished = new CountDownLatch(1);
-        Script(List<ToolCall> calls, List<String> deltas, boolean usage, CountDownLatch firstVisible) {
-            this.calls = calls; this.deltas = deltas; this.usage = usage; this.firstVisible = firstVisible;
+        Script(List<ToolCall> calls, List<String> deltas, boolean usage, String summary, CountDownLatch firstVisible) {
+            this.calls = calls; this.deltas = deltas; this.usage = usage; this.summary = summary; this.firstVisible = firstVisible;
         }
-        static Script tools(boolean usage, ToolCall... calls) { return new Script(List.of(calls), List.of(), usage, null); }
-        static Script answer(List<String> deltas, boolean usage, CountDownLatch visible) { return new Script(List.of(), deltas, usage, visible); }
+        static Script tools(boolean usage, ToolCall... calls) { return new Script(List.of(calls), List.of(), usage, null, null); }
+        static Script answer(List<String> deltas, boolean usage, CountDownLatch visible) {
+            return new Script(List.of(), deltas, usage, null, visible);
+        }
+        static Script summary(String summary) { return new Script(List.of(), List.of(), true, summary, null); }
     }
 
     private final class MockEndpoint implements AutoCloseable {
@@ -502,6 +630,17 @@ class LangChainToolChatGeneratorTest {
             Script script;
             synchronized (this) { script = scripts.poll(); }
             if (script == null) { exchange.sendResponseHeaders(500, -1); exchange.close(); return; }
+            if (script.summary != null) {
+                byte[] response = mapper.writeValueAsBytes(Map.of("id", "summary-mock", "object", "chat.completion",
+                        "created", 1, "model", "deepseek-flash", "choices", List.of(Map.of("index", 0,
+                                "message", Map.of("role", "assistant", "content", script.summary), "finish_reason", "stop")),
+                        "usage", Map.of("prompt_tokens", 10, "completion_tokens", 5, "total_tokens", 15)));
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, response.length);
+                try (var output = exchange.getResponseBody()) { output.write(response); }
+                finally { script.finished.countDown(); }
+                return;
+            }
             exchange.getResponseHeaders().set("Content-Type", "text/event-stream");
             exchange.sendResponseHeaders(200, 0);
             try (var output = exchange.getResponseBody()) {

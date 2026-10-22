@@ -67,6 +67,11 @@ learnhub:
     max-input-bytes: ${LEARNHUB_ASSISTANT_MAX_INPUT_BYTES:16000}
     model-window-tokens: ${LEARNHUB_ASSISTANT_MODEL_WINDOW_TOKENS:0}
     context-safety-margin-tokens: ${LEARNHUB_ASSISTANT_CONTEXT_SAFETY_MARGIN_TOKENS:256}
+    context-redesign-enabled: ${LEARNHUB_ASSISTANT_CONTEXT_REDESIGN_ENABLED:false}
+    context-soft-pressure: ${LEARNHUB_ASSISTANT_CONTEXT_SOFT_PRESSURE:0.75}
+    context-target-pressure: ${LEARNHUB_ASSISTANT_CONTEXT_TARGET_PRESSURE:0.55}
+    summary-output-tokens: ${LEARNHUB_ASSISTANT_SUMMARY_OUTPUT_TOKENS:512}
+    tool-observation-reserve-bytes: ${LEARNHUB_ASSISTANT_TOOL_OBSERVATION_RESERVE_BYTES:1024}
     memory:
       enabled: ${LEARNHUB_ASSISTANT_MEMORY_ENABLED:false}
       auto-extract-enabled: ${LEARNHUB_ASSISTANT_MEMORY_AUTO_EXTRACT_ENABLED:false}

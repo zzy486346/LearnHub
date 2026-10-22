@@ -36,6 +36,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -64,6 +65,167 @@ class LangChainChatGeneratorTest {
             "run-current", "conversation", 7, "request", "RUNNING", "lease", "它有什么局限？");
     private LocalSseServer server;
     private LangChainChatGenerator generator;
+
+    @Test void enabledLowPressureAddsNoSummaryCallAndKeepsCurrentQuestion() throws Exception {
+        limits.setContextRedesignEnabled(true);
+        server.enqueue(List.of("低压力回答。[E1]"), "stop", true, 0);
+        var answer = prepare(ignored -> { });
+        assertThat(server.requestCount()).isOne();
+        assertThat(answer.usageJson()).contains("BELOW_PRESSURE", "\"summaryCalls\":0");
+        assertThat(server.requests().get(0)).contains(stored.message(), source.text());
+    }
+
+    @Test void enabledPressureSummarizesContinuousOldPrefixAndKeepsCorrectionsAndRecentRounds() throws Exception {
+        semanticHistory();
+        server.enqueueSummary(semanticSummary(), true);
+        server.enqueue(List.of("压缩后回答。[E1]"), "stop", true, 0);
+        var answer = prepare(ignored -> { });
+        assertThat(server.requestCount()).isEqualTo(2);
+        assertThat(server.requests().get(0)).contains("OLD_PREFIX_MARKER");
+        assertThat(server.requests().get(1)).doesNotContain("OLD_PREFIX_MARKER").contains("第二步练习", "近期回答");
+        var messages = mapper.readTree(server.requests().get(1)).path("messages");
+        var current = mapper.readTree(messages.get(messages.size() - 1).path("content").asText());
+        assertThat(current.path("taskState").path("constraints").get(0).path("value").asText()).isEqualTo("每天30分钟");
+        assertThat(current.path("taskState").path("corrections").get(0).path("sourceMessageSeqs").get(0).asLong()).isEqualTo(3);
+        assertThat(messages.get(0).path("content").asText()).doesNotContain("每天30分钟");
+        assertThat(answer.usageJson()).contains("SUMMARY_READY", "\"summaryCalls\":1", "\"coveredThroughSeq\":4");
+        assertThat(mapper.readTree(answer.usageJson()).path("actual").path("totalTokens").asInt()).isEqualTo(10);
+        verify(guard).tryReserveSummary(anyInt(), eq(512), anyInt(), eq(512));
+        verify(guard).reserveModel(anyInt(), eq(512));
+        verify(guard, org.mockito.Mockito.times(2)).recordUsage(3, 2, 5);
+    }
+
+    @Test void forgedSummaryNeverEntersAnswerRequestButItsUsageIsStillCharged() throws Exception {
+        semanticHistory();
+        server.enqueueSummary(semanticSummary().replace("每天30分钟", "FORGED_SUMMARY_SENTINEL").replace("[3]", "[999]"), true);
+        server.enqueue(List.of("降级回答。[E1]"), "stop", true, 0);
+        var answer = prepare(ignored -> { });
+        assertThat(server.requestCount()).isEqualTo(2);
+        assertThat(server.requests().get(1)).doesNotContain("FORGED_SUMMARY_SENTINEL");
+        assertThat(answer.usageJson()).contains("SUMMARY_FAILED", "\"summaryCalls\":1");
+        assertThat(mapper.readTree(answer.usageJson()).path("actual").path("totalTokens").asInt()).isEqualTo(10);
+        verify(guard, org.mockito.Mockito.times(2)).recordUsage(3, 2, 5);
+    }
+
+    @Test void unknownSummaryUsageDegradesOnceAndRemainsPartialAfterAnswer() throws Exception {
+        semanticHistory();
+        server.enqueueSummary(semanticSummary(), false);
+        server.enqueue(List.of("未知摘要用量后的回答。[E1]"), "stop", true, 0);
+        var answer = prepare(ignored -> { });
+        assertThat(server.requestCount()).isEqualTo(2);
+        assertThat(answer.usageJson()).contains("PARTIAL", "SUMMARY_FAILED");
+        verify(guard).tryReserveSummary(anyInt(), eq(512), anyInt(), eq(512));
+        verify(guard).reserveModel(anyInt(), eq(512));
+        verify(guard).recordUsage(3, 2, 5);
+    }
+
+    @Test void insufficientCallBudgetSkipsSummaryAndUsesOneAnswerRequest() throws Exception {
+        semanticHistory();
+        limits.setMaxModelCalls(1);
+        server.enqueue(List.of("单次回答。[E1]"), "stop", true, 0);
+        var answer = prepare(ignored -> { });
+        assertThat(server.requestCount()).isOne();
+        assertThat(answer.usageJson()).contains("SUMMARY_BUDGET", "\"summaryCalls\":0");
+        verify(guard).reserveModel(anyInt(), eq(512));
+    }
+
+    @Test void failedMiddleRoundStopsOlderPrefixInsteadOfClaimingContinuousCoverageAcrossTheGap() throws Exception {
+        semanticHistory();
+        String dependencies = mapper.writeValueAsString(List.of(source));
+        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 48)).thenReturn(List.of(
+                message(1, "USER", "OLD_PREFIX_MARKER", "old-1", "[]"),
+                message(2, "ASSISTANT", "旧回答。[E1]", "old-1", dependencies),
+                message(3, "USER", "失败回合", "failed", "[]"),
+                new ChatPersistenceService.Message("m4", 4, "ASSISTANT", "失败内容", "FAILED", "failed", dependencies),
+                message(5, "USER", "近期问题一", "recent-1", "[]"),
+                message(6, "ASSISTANT", "近期回答一。[E1]", "recent-1", dependencies),
+                message(7, "USER", "近期问题二", "recent-2", "[]"),
+                message(8, "ASSISTANT", "近期回答二。[E1]", "recent-2", dependencies)));
+        server.enqueue(List.of("连续近期回答。[E1]"), "stop", true, 0);
+        var answer = prepare(ignored -> { });
+        assertThat(server.requestCount()).isOne();
+        assertThat(server.requests().get(0)).doesNotContain("OLD_PREFIX_MARKER", "失败内容");
+        assertThat(answer.usageJson()).contains("\"summaryCalls\":0", "\"coveredThroughSeq\":0");
+    }
+
+    @Test void noMaterialHistoryNeverSpendsASummaryCallToProduceServerRefusal() throws Exception {
+        semanticHistory();
+        when(retrieval.retrieve(eq(7L), eq(1L), anyString(), anyInt()))
+                .thenReturn(new KnowledgeRetrievalService.Result("empty", List.of(), false, false));
+        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 48)).thenReturn(List.of(
+                message(1, "USER", "旧问题一", "one", "[]"), message(2, "ASSISTANT", "资料不足", "one", "[]"),
+                message(3, "USER", "旧问题二", "two", "[]"), message(4, "ASSISTANT", "资料不足", "two", "[]"),
+                message(5, "USER", "旧问题三", "three", "[]"), message(6, "ASSISTANT", "资料不足", "three", "[]")));
+        var answer = prepare(ignored -> { });
+        assertThat(server.requestCount()).isZero();
+        assertThat(answer.usageJson()).contains("NO_MODEL", "NO_MATERIAL_CANDIDATE", "\"summaryCalls\":0");
+        verify(guard, org.mockito.Mockito.never()).tryReserveSummary(anyInt(), anyInt(), anyInt(), anyInt());
+        verify(guard, org.mockito.Mockito.never()).reserveModel(anyInt(), anyInt());
+    }
+
+    @Test void necessaryInputOverWindowRefusesWithoutSummaryOrAnswerHttp() throws Exception {
+        semanticHistory();
+        limits.setModelWindowTokens(900);
+        assertThatThrownBy(() -> prepare(ignored -> { }))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        failure -> assertThat(failure.getCode()).isEqualTo("AI_MODEL_CONTEXT_WINDOW_EXCEEDED"));
+        assertThat(server.requestCount()).isZero();
+        verify(guard, org.mockito.Mockito.never()).tryReserveSummary(anyInt(), anyInt(), anyInt(), anyInt());
+    }
+
+    private void semanticHistory() throws Exception {
+        limits.setContextRedesignEnabled(true);
+        limits.setMaxRunTokens(100000); // 仅此 Mock fixture；不改变生产默认额度。
+        limits.setContextSoftPressure(0.2);
+        limits.setContextTargetPressure(0.1);
+        String dependencies = mapper.writeValueAsString(List.of(source));
+        when(persistence.messages(7, "conversation", Long.MAX_VALUE, 48)).thenReturn(List.of(
+                message(1, "USER", "比较互斥锁和逻辑过期 OLD_PREFIX_MARKER", "old-1", "[]"),
+                message(2, "ASSISTANT", "先比较两种方案。[E1]", "old-1", dependencies),
+                message(3, "USER", "否定互斥锁，选择逻辑过期，每天30分钟。", "old-2", "[]"),
+                message(4, "ASSISTANT", "下一步先做练习。[E1]", "old-2", dependencies),
+                message(5, "USER", "进行第二步练习", "recent-1", "[]"),
+                message(6, "ASSISTANT", "第二步练习说明。[E1]", "recent-1", dependencies),
+                message(7, "USER", "继续查进度", "recent-2", "[]"),
+                message(8, "ASSISTANT", "近期回答。[E1]", "recent-2", dependencies)));
+        var modelCalls = new AtomicInteger();
+        var records = new AtomicInteger();
+        var reserved = new java.util.concurrent.atomic.AtomicLong();
+        var actual = new java.util.concurrent.atomic.AtomicLong();
+        var prepaidInput = new AtomicInteger();
+        var prepaidOutput = new AtomicInteger();
+        org.mockito.Mockito.when(guard.tryReserveSummary(anyInt(), anyInt(), anyInt(), anyInt())).thenAnswer(call -> {
+            modelCalls.incrementAndGet();
+            reserved.addAndGet((int) call.getArgument(0) + (int) call.getArgument(1)
+                    + (int) call.getArgument(2) + (int) call.getArgument(3));
+            prepaidInput.set(call.getArgument(2)); prepaidOutput.set(call.getArgument(3));
+            return true;
+        });
+        org.mockito.Mockito.doAnswer(call -> {
+            modelCalls.incrementAndGet();
+            if (prepaidOutput.get() > 0) {
+                assertThat((int) call.getArgument(0)).isLessThanOrEqualTo(prepaidInput.get());
+                prepaidInput.set(0); prepaidOutput.set(0);
+            } else reserved.addAndGet((int) call.getArgument(0) + (int) call.getArgument(1));
+            return null;
+        }).when(guard).reserveModel(anyInt(), anyInt());
+        org.mockito.Mockito.doAnswer(call -> { records.incrementAndGet(); actual.addAndGet((long) call.getArgument(2)); return null; })
+                .when(guard).recordUsage(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong());
+        when(guard.summary()).thenAnswer(ignored -> new AssistantRunSummary(stored.id(), modelCalls.get(), 0, 0,
+                reserved.get(), 0, 0, actual.get(), records.get() == modelCalls.get() && prepaidOutput.get() == 0,
+                "RUNNING", 1, prepaidInput.get(), prepaidOutput.get()));
+    }
+
+    private String semanticSummary() throws Exception {
+        var item = Map.of("value", "每天30分钟", "sourceMessageSeqs", List.of(3), "dependencyKeys", List.of(), "inferred", false);
+        Map<String, Object> task = new java.util.LinkedHashMap<>();
+        for (String field : List.of("goal", "topic", "constraints", "decisions", "corrections", "openQuestions", "nextStep")) task.put(field, List.of());
+        task.put("constraints", List.of(item));
+        task.put("decisions", List.of(Map.of("value", "选择逻辑过期", "sourceMessageSeqs", List.of(3), "dependencyKeys", List.of(), "inferred", false)));
+        task.put("corrections", List.of(Map.of("value", "否定互斥锁", "sourceMessageSeqs", List.of(3), "dependencyKeys", List.of(), "inferred", false)));
+        return mapper.writeValueAsString(Map.of("schemaVersion", 1, "taskState", task,
+                "conversationSummary", List.of(), "unresolvedReferences", List.of()));
+    }
 
     @BeforeEach
     void setup() throws Exception {
@@ -439,11 +601,15 @@ class LangChainChatGeneratorTest {
         }
 
         synchronized void enqueue(List<String> deltas, String finish, boolean usage, long delayMillis) {
-            responses.add(new Response(List.copyOf(deltas), finish, usage, delayMillis, 200));
+            responses.add(new Response(List.copyOf(deltas), finish, usage, delayMillis, 200, false));
+        }
+
+        synchronized void enqueueSummary(String summary, boolean usage) {
+            responses.add(new Response(List.of(summary), "stop", usage, 0, 200, true));
         }
 
         synchronized void enqueueError(int status) {
-            responses.add(new Response(List.of(), null, false, 0, status));
+            responses.add(new Response(List.of(), null, false, 0, status, false));
         }
 
         URI endpoint() {
@@ -469,6 +635,17 @@ class LangChainChatGeneratorTest {
                 exchange.getResponseHeaders().set("Content-Type", "application/json");
                 exchange.sendResponseHeaders(response.status(), error.length);
                 try (var output = exchange.getResponseBody()) { output.write(error); }
+                return;
+            }
+            if (response.synchronous()) {
+                Map<String, Object> payload = new java.util.LinkedHashMap<>(java.util.Map.of("id", "summary", "model", "deepseek-flash",
+                        "choices", List.of(java.util.Map.of("index", 0, "message", java.util.Map.of("role", "assistant", "content", response.deltas().get(0)),
+                                "finish_reason", "stop"))));
+                if (response.usage()) payload.put("usage", java.util.Map.of("prompt_tokens", 3, "completion_tokens", 2, "total_tokens", 5));
+                byte[] bytes = new ObjectMapper().writeValueAsBytes(payload);
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, bytes.length);
+                try (var output = exchange.getResponseBody()) { output.write(bytes); }
                 return;
             }
             exchange.getResponseHeaders().set("Content-Type", "text/event-stream");
@@ -510,6 +687,6 @@ class LangChainChatGeneratorTest {
         }
 
         @Override public void close() { server.stop(0); handlers.shutdownNow(); }
-        private record Response(List<String> deltas, String finish, boolean usage, long delayMillis, int status) { }
+        private record Response(List<String> deltas, String finish, boolean usage, long delayMillis, int status, boolean synchronous) { }
     }
 }

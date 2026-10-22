@@ -92,6 +92,15 @@ public class AssistantRunGuard {
         return (int) Math.max(0, (long) runLimit - reservedTokens - outputTokens);
     }
 
+    /** 已预付回答额度优先；输出超出预付上限时没有可用的预付输入额度。 */
+    public static int remainingInputReservation(int runLimit, AssistantRunSummary summary, int outputTokens) {
+        if (summary == null || outputTokens < 0) throw new IllegalArgumentException("Invalid model cost budget");
+        if (summary.prepaidOutputTokens() > 0) {
+            return outputTokens <= summary.prepaidOutputTokens() ? summary.prepaidInputTokens() : 0;
+        }
+        return remainingInputReservation(runLimit, summary.reservedTokens(), outputTokens);
+    }
+
     public final class Run implements AutoCloseable {
         private final String requestId;
         private final String userHash;
@@ -109,6 +118,9 @@ public class AssistantRunGuard {
         private long actualPromptTokens;
         private long actualCompletionTokens;
         private long actualTotalTokens;
+        private int prepaidInputTokens;
+        private int prepaidOutputTokens;
+        private boolean summaryReserved;
         private String status = "RUNNING";
 
         private Run(String requestId, String userHash, String owner, Runnable identityCheck, Instant startedAt) {
@@ -161,6 +173,16 @@ public class AssistantRunGuard {
                 status = "BUDGET_REJECTED";
                 throw new BusinessException("ASSISTANT_BUDGET_EXCEEDED", "模型输入或输出预算无效");
             }
+            if (prepaidOutputTokens > 0) {
+                if (estimatedInputTokens > prepaidInputTokens || requestedOutputTokens > prepaidOutputTokens) {
+                    status = "BUDGET_REJECTED";
+                    throw new BusinessException("ASSISTANT_BUDGET_EXCEEDED", "回答模型请求超过已预付预算");
+                }
+                prepaidInputTokens = 0;
+                prepaidOutputTokens = 0;
+                modelCalls++;
+                return;
+            }
             long reservation = (long) estimatedInputTokens + requestedOutputTokens;
             if (modelCalls >= limits.getMaxModelCalls()
                     || reservation > limits.getMaxRunTokens() - reservedTokens) {
@@ -186,6 +208,42 @@ public class AssistantRunGuard {
             }
             modelCalls++;
             reservedTokens += reservation;
+        }
+
+        /**
+         * 原子预留一次摘要调用和其后一次回答调用。失败只返回 false，允许调用方降级为普通回答。
+         */
+        public synchronized boolean tryReserveSummary(int summaryInput, int summaryOutput,
+                int answerInputUpper, int answerOutput) {
+            check();
+            if (summaryInput < 0 || answerInputUpper < 0 || summaryOutput < 1 || answerOutput < 1
+                    || summaryOutput > limits.getMaxOutputTokens() || answerOutput > limits.getMaxOutputTokens()) {
+                throw new IllegalArgumentException("Invalid summary reservation");
+            }
+            if (summaryReserved || prepaidOutputTokens > 0) return false;
+            long reservation = (long) summaryInput + summaryOutput + answerInputUpper + answerOutput;
+            if (modelCalls > limits.getMaxModelCalls() - 2
+                    || reservation > limits.getMaxRunTokens() - reservedTokens) return false;
+            Instant now = clock.instant();
+            String utcDay = LocalDate.ofInstant(now, ZoneOffset.UTC).toString();
+            long ttlSeconds = Math.max(1, Duration.between(now,
+                    LocalDate.ofInstant(now, ZoneOffset.UTC).plusDays(2)
+                            .atStartOfDay(ZoneOffset.UTC).toInstant()).getSeconds());
+            AssistantRunStore.ReserveResult result;
+            try {
+                result = store.reserveDailyBatch(userHash, utcDay, limits.getDailyModelCalls(),
+                        limits.getDailyReservedTokens(), Math.toIntExact(reservation), ttlSeconds, 2);
+            } catch (RuntimeException exception) {
+                status = "RUNTIME_UNAVAILABLE";
+                throw unavailable(exception);
+            }
+            if (result != AssistantRunStore.ReserveResult.RESERVED) return false;
+            reservedTokens += reservation;
+            modelCalls++;
+            prepaidInputTokens = answerInputUpper;
+            prepaidOutputTokens = answerOutput;
+            summaryReserved = true;
+            return true;
         }
 
         public synchronized void recordUsage(long promptTokens, long completionTokens, long totalTokens) {
@@ -235,7 +293,8 @@ public class AssistantRunGuard {
         public synchronized AssistantRunSummary summary() {
             return new AssistantRunSummary(requestId, modelCalls, toolDecisionRounds, toolCalls,
                     reservedTokens, actualPromptTokens, actualCompletionTokens, actualTotalTokens,
-                    usageRecords == modelCalls, status, elapsedMillis());
+                    usageRecords == modelCalls && prepaidOutputTokens == 0, status, elapsedMillis(),
+                    prepaidInputTokens, prepaidOutputTokens);
         }
 
         public synchronized void markSucceeded() {
