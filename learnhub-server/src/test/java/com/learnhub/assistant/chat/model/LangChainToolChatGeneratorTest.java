@@ -10,6 +10,7 @@ import com.learnhub.assistant.chat.application.ChatHistoryService;
 import com.learnhub.assistant.chat.application.ChatPersistenceService;
 import com.learnhub.assistant.chat.application.ContextCheckpoint;
 import com.learnhub.assistant.chat.application.ChatToolExecutionStore;
+import com.learnhub.assistant.chat.application.ChatToolResultStore;
 import com.learnhub.assistant.knowledge.CurrentKnowledgeChunk;
 import com.learnhub.assistant.knowledge.KnowledgeRetrievalService;
 import com.learnhub.assistant.knowledge.KnowledgeStore;
@@ -78,6 +79,10 @@ class LangChainToolChatGeneratorTest {
     private final CourseChapterMapper chapters = mock(CourseChapterMapper.class);
     private final CourseLessonMapper lessons = mock(CourseLessonMapper.class);
     private final ChatToolExecutionStore executions = mock(ChatToolExecutionStore.class);
+    private final ChatToolResultStore results = mock(ChatToolResultStore.class);
+    private final Map<String, ChatToolResultStore.Stored> savedResults = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.concurrent.atomic.AtomicReference<String> lastResultRef = new java.util.concurrent.atomic.AtomicReference<>();
+    private final AtomicBoolean revokeOnRead = new AtomicBoolean();
     private final ChatPersistenceService.Run stored = new ChatPersistenceService.Run(
             "tool-run", "tool-conversation", 7, "tool-request", "RUNNING", "test-lease", "根据我的进度给出学习建议");
     private final KnowledgeRetrievalService.Source source = new KnowledgeRetrievalService.Source(
@@ -135,6 +140,19 @@ class LangChainToolChatGeneratorTest {
         limits.setMaxOutputTokens(512);
         generator = new LangChainChatGenerator(persistence, history, retrieval, qa, mapper,
                 properties, limits, server.endpoint(), tools, codec, executions);
+        generator.setToolResultStore(results);
+        doAnswer(call -> {
+            String ref = call.getArgument(5); String full = call.getArgument(6); String dependencies = call.getArgument(8);
+            savedResults.put(ref, new ChatToolResultStore.Stored(ref, call.getArgument(4), full, dependencies,
+                    "a".repeat(64), full.getBytes(StandardCharsets.UTF_8).length));
+            lastResultRef.set(ref); return null;
+        }).when(results).completeWithResult(eq(7L), eq(1L), eq(stored), anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), anyLong());
+        when(results.read(eq(7L), eq(1L), eq(stored), anyString())).thenAnswer(call -> {
+            if (revokeOnRead.get()) when(courses.readableLessonIds(7L, 1L)).thenReturn(List.of());
+            var result = savedResults.get((String) call.getArgument(3));
+            if (result == null) throw new BusinessException("ASSISTANT_TOOL_RESULT_UNAVAILABLE", "结果不可用");
+            return result;
+        });
     }
 
     @AfterEach void cleanup() throws Exception {
@@ -226,6 +244,58 @@ class LangChainToolChatGeneratorTest {
         verify(guard).tryReserveSummary(anyInt(), eq(512), anyInt(), eq(512));
         verify(guard, times(2)).reserveModel(anyInt(), eq(512));
         verify(guard, times(3)).recordUsage(10, 5, 15);
+    }
+
+    @Test void largeOutlineUsesProjectionAndAuthorizedReadbackWithoutReinsertingFullBookIntoCurrentQuestion() throws Exception {
+        largeProjectedOutline();
+        server.enqueue(Script.tools(true, outline("project-outline")));
+        server.enqueue(Script.tools(true, new ToolCall("read-page", "read_tool_result",
+                "{\"resultRef\":\"$RESULT_REF\",\"page\":3,\"fields\":\"DETAILS\"}")));
+        server.enqueue(Script.answer(List.of("{\"insufficientEvidence\":false,\"answerSegments\":[{\"text\":\"目录信息。\",\"evidenceIds\":[\"E2\"],\"kind\":\"FACT\"}]}"), true, null));
+        var answer = prepare(ignored -> { }, ignored -> { });
+        assertThat(server.requests).hasSize(3);
+        assertThat(server.requests.get(1)).doesNotContain("LATE_OUTLINE_MARKER");
+        assertThat(server.requests.get(2)).contains("LATE_OUTLINE_MARKER");
+        for (String request : server.requests) assertThat(currentUserJson(request).toString()).doesNotContain("LATE_OUTLINE_MARKER");
+        assertThat(savedResults.values()).hasSize(1).allSatisfy(result -> assertThat(result.resultJson()).contains("LATE_OUTLINE_MARKER"));
+        assertThat(answer.sourcesJson()).contains("LATE_OUTLINE_MARKER"); // 正式依赖仍保留全量快照。
+        verify(guard).toolCall(startsWith("read_tool_result:"));
+        verify(results).read(7, 1, stored, lastResultRef.get());
+        verify(executions, times(2)).begin(eq(7L), eq(stored), anyInt(), any(ToolCall.class), anyString());
+        var finalMessages = mapper.readTree(server.requests.get(2)).path("messages");
+        var calls = new ArrayList<String>(); var replies = new ArrayList<String>();
+        finalMessages.forEach(message -> {
+            message.path("tool_calls").forEach(call -> calls.add(call.path("id").asText()));
+            if ("tool".equals(message.path("role").asText())) replies.add(message.path("tool_call_id").asText());
+        });
+        assertThat(calls).containsExactly("project-outline", "read-page");
+        assertThat(replies).containsExactlyElementsOf(calls);
+    }
+
+    @Test void revokedObservationCannotSendAReadbackPageToTheNextModelRound() {
+        largeProjectedOutline(); revokeOnRead.set(true);
+        server.enqueue(Script.tools(true, outline("project-outline")));
+        server.enqueue(Script.tools(true, new ToolCall("read-page", "read_tool_result",
+                "{\"resultRef\":\"$RESULT_REF\",\"page\":3,\"fields\":\"DETAILS\"}")));
+        assertThatThrownBy(() -> prepare(ignored -> { }, ignored -> { }))
+                .isInstanceOfSatisfying(BusinessException.class, failure -> assertThat(failure.getCode()).isEqualTo("ASSISTANT_EVIDENCE_CHANGED"));
+        assertThat(server.requests).hasSize(2).allSatisfy(body -> assertThat(body).doesNotContain("LATE_OUTLINE_MARKER"));
+        verify(guard).toolCall(startsWith("read_tool_result:"));
+    }
+
+    private void largeProjectedOutline() {
+        limits.setContextRedesignEnabled(true); limits.setMaxRunTokens(100000);
+        limits.setMaxInputBytes(64000); limits.setModelWindowTokens(128000);
+        var rows = new ArrayList<CourseLesson>();
+        var ids = new ArrayList<Long>();
+        for (int index = 0; index < 24; index++) {
+            CourseLesson row = new CourseLesson(); row.setId(2L + index); row.setChapterId(3L);
+            row.setTitle(index == 20 ? "LATE_OUTLINE_MARKER" : "课时" + index);
+            row.setSortOrder(index); row.setDurationSeconds(300); row.setFreePreview(true);
+            rows.add(row); ids.add(row.getId());
+        }
+        when(lessons.selectList(any())).thenReturn(rows);
+        when(courses.readableLessonIds(7L, 1L)).thenReturn(ids);
     }
 
     @Test void nonemptyWeakEvidenceRefusalPublishesNoSourcesAndRetainsRevalidationEnvelope() {
@@ -658,8 +728,10 @@ class LangChainToolChatGeneratorTest {
                     List<Map<String, Object>> calls = new ArrayList<>();
                     for (int i = 0; i < script.calls.size(); i++) {
                         ToolCall call = script.calls.get(i);
+                        String arguments = call.arguments();
+                        if (arguments.contains("$RESULT_REF")) arguments = arguments.replace("$RESULT_REF", java.util.Objects.requireNonNull(lastResultRef.get()));
                         calls.add(Map.of("index", i, "id", call.id(), "type", "function", "function",
-                                Map.of("name", call.name(), "arguments", call.arguments())));
+                                Map.of("name", call.name(), "arguments", arguments)));
                     }
                     write(output, chunk(Map.of("role", "assistant", "tool_calls", calls), null));
                 } else {

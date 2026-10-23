@@ -1,0 +1,18 @@
+{
+  "stage": "D",
+  "testedBaseHead": "9f6555c",
+  "batchExecutionStatus": "NOT_RUN",
+  "checks": [
+    {"name":"targeted Fake HTTP Mock","tests":83,"executed":83,"skipped":0,"failures":0,"errors":0},
+    {"name":"isolated MySQL final","tests":23,"executed":23,"skipped":0,"failures":0,"errors":0},
+    {"name":"root test final","tests":702,"executed":575,"skipped":127,"failures":0,"errors":0},
+    {"name":"root verify final","tests":702,"executed":575,"skipped":127,"failures":0,"errors":0}
+  ],
+  "paidCalls":0,
+  "businessDatabaseMigrated":false,
+  "backendRestarted":false,
+  "review":"APPROVE after fixing disabled-mode TTL cleanup",
+  "limits":{"resultBytes":131072,"runResultBytes":262144,"projectionBytes":4096,"ttlSeconds":900},
+  "boundaries":["E and F pending","old16 and C01-C14 batch NOT_RUN","no real semantic quality score","no frontend build or independent Java static analyzer"],
+  "negativeRuns":["fixture missing parenthesis","Docker unavailable before SQL execution","Spring fixture missing new storage dependency","review found disabled-mode TTL cleanup gap; fixed before final verification"]
+}

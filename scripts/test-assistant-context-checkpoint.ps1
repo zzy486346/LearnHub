@@ -11,9 +11,11 @@ foreach($key in $settings) { $previous[$key] = [Environment]::GetEnvironmentVari
 try {
     Push-Location $root
     # 仅缓存镜像、随机回环端口、无数据卷；不连接用户数据库。
-    $container = (& docker run --detach --rm --pull=never --name $name --label "learnhub.test=$label" `
-        --publish '127.0.0.1::3306' --env "MYSQL_ROOT_PASSWORD=$password" --env 'MYSQL_ROOT_HOST=%' mysql:8.4).Trim()
-    if ($LASTEXITCODE -ne 0 -or $container -notmatch '^[a-f0-9]{64}$') { throw '隔离 MySQL 容器启动失败' }
+    $created = & docker run --detach --rm --pull=never --name $name --label "learnhub.test=$label" `
+        --publish '127.0.0.1::3306' --env "MYSQL_ROOT_PASSWORD=$password" --env 'MYSQL_ROOT_HOST=%' mysql:8.4
+    if ($LASTEXITCODE -ne 0 -or !$created) { throw '隔离 MySQL 容器启动失败，请检查 Docker daemon' }
+    $container = $created.Trim()
+    if ($container -notmatch '^[a-f0-9]{64}$') { throw '隔离 MySQL 容器编号无效' }
     $details = (& docker inspect $container | ConvertFrom-Json)[0]
     $port = $details.NetworkSettings.Ports.'3306/tcp'[0].HostPort
     $ready = $false

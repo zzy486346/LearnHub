@@ -21,7 +21,7 @@ import org.springframework.stereotype.Service;
 public class ChatToolExecutionStore {
     private static final Logger log = LoggerFactory.getLogger(ChatToolExecutionStore.class);
     private static final Set<String> TOOLS = Set.of("search_courses", "get_course_outline",
-            "search_course_materials", "get_my_learning_progress");
+            "search_course_materials", "get_my_learning_progress", "read_tool_result");
     private final DeadlineJdbcTemplate jdbc;
     @Value("${learnhub.assistant.chat-enabled:false}")
     private boolean chatEnabled;

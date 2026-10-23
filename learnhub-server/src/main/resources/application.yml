@@ -74,6 +74,10 @@ learnhub:
     tool-observation-reserve-bytes: ${LEARNHUB_ASSISTANT_TOOL_OBSERVATION_RESERVE_BYTES:1024}
     context-recovery-max-messages: ${LEARNHUB_ASSISTANT_CONTEXT_RECOVERY_MAX_MESSAGES:400}
     context-recovery-max-bytes: ${LEARNHUB_ASSISTANT_CONTEXT_RECOVERY_MAX_BYTES:131072}
+    tool-result-max-bytes: ${LEARNHUB_ASSISTANT_TOOL_RESULT_MAX_BYTES:131072}
+    tool-run-result-max-bytes: ${LEARNHUB_ASSISTANT_TOOL_RUN_RESULT_MAX_BYTES:262144}
+    tool-projection-max-bytes: ${LEARNHUB_ASSISTANT_TOOL_PROJECTION_MAX_BYTES:4096}
+    tool-result-ttl-seconds: ${LEARNHUB_ASSISTANT_TOOL_RESULT_TTL_SECONDS:900}
     memory:
       enabled: ${LEARNHUB_ASSISTANT_MEMORY_ENABLED:false}
       auto-extract-enabled: ${LEARNHUB_ASSISTANT_MEMORY_AUTO_EXTRACT_ENABLED:false}

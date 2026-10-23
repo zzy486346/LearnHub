@@ -33,6 +33,10 @@ public class AssistantLimits {
     private int toolObservationReserveBytes = 1024;
     private int contextRecoveryMaxMessages = 400;
     private int contextRecoveryMaxBytes = 131072;
+    private int toolResultMaxBytes = 131072;
+    private int toolRunResultMaxBytes = 262144;
+    private int toolProjectionMaxBytes = 4096;
+    private int toolResultTtlSeconds = 900;
 
     @AssertTrue(message = "learnhub.assistant 配置超出安全范围")
     public boolean isValidConfiguration() {
@@ -59,6 +63,10 @@ public class AssistantLimits {
                 && between(toolObservationReserveBytes, 0, 16000)
                 && between(contextRecoveryMaxMessages, 4, 1000)
                 && between(contextRecoveryMaxBytes, 4096, 1_000_000)
+                && between(toolResultMaxBytes, 4096, 1_000_000)
+                && between(toolRunResultMaxBytes, toolResultMaxBytes, 4_000_000)
+                && between(toolProjectionMaxBytes, 2048, Math.min(16000, toolResultMaxBytes))
+                && between(toolResultTtlSeconds, 30, 3600)
                 && (!contextRedesignEnabled || (modelWindowTokens > 0 && summaryOutputTokens <= maxOutputTokens));
     }
 
@@ -112,4 +120,12 @@ public class AssistantLimits {
     public void setContextRecoveryMaxMessages(int value) { contextRecoveryMaxMessages = value; }
     public int getContextRecoveryMaxBytes() { return contextRecoveryMaxBytes; }
     public void setContextRecoveryMaxBytes(int value) { contextRecoveryMaxBytes = value; }
+    public int getToolResultMaxBytes() { return toolResultMaxBytes; }
+    public void setToolResultMaxBytes(int value) { toolResultMaxBytes = value; }
+    public int getToolRunResultMaxBytes() { return toolRunResultMaxBytes; }
+    public void setToolRunResultMaxBytes(int value) { toolRunResultMaxBytes = value; }
+    public int getToolProjectionMaxBytes() { return toolProjectionMaxBytes; }
+    public void setToolProjectionMaxBytes(int value) { toolProjectionMaxBytes = value; }
+    public int getToolResultTtlSeconds() { return toolResultTtlSeconds; }
+    public void setToolResultTtlSeconds(int value) { toolResultTtlSeconds = value; }
 }

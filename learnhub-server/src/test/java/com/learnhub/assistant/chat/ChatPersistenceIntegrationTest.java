@@ -6,6 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learnhub.assistant.chat.application.ChatPersistenceService;
 import com.learnhub.assistant.chat.application.ContextCheckpoint;
+import com.learnhub.assistant.chat.application.ChatToolExecutionStore;
+import com.learnhub.assistant.chat.application.ChatToolResultStore;
+import com.learnhub.assistant.model.ToolCall;
 import com.learnhub.assistant.runtime.AssistantLimits;
 import com.learnhub.assistant.chat.application.ChatEvidenceCodec;
 import com.learnhub.assistant.knowledge.KnowledgeRetrievalService;
@@ -60,6 +63,9 @@ class ChatPersistenceIntegrationTest {
     private JdbcTemplate jdbc;
     private TransactionTemplate transactions;
     private ChatPersistenceService service;
+    private ChatToolExecutionStore toolExecutions;
+    private ChatToolResultStore toolResults;
+    private AssistantLimits limits;
 
     @BeforeAll
     void createIsolatedDatabase() throws Exception {
@@ -73,8 +79,10 @@ class ChatPersistenceIntegrationTest {
             jdbc = new JdbcTemplate(dataSource);
             PlatformTransactionManager transactionManager = new DataSourceTransactionManager(dataSource);
             transactions = new TransactionTemplate(transactionManager);
-            var limits = new AssistantLimits(); limits.setContextRedesignEnabled(true);
+            limits = new AssistantLimits(); limits.setContextRedesignEnabled(true);
             service = new ChatPersistenceService(jdbc, transactionManager, limits);
+            toolExecutions = new ChatToolExecutionStore(jdbc);
+            toolResults = new ChatToolResultStore(jdbc, transactionManager, limits);
             assertThat(jdbc.queryForObject("SELECT DATABASE()", String.class)).isEqualTo(databaseName);
         } catch (Exception error) {
             dropDatabaseAfterFailure(error);
@@ -84,6 +92,7 @@ class ChatPersistenceIntegrationTest {
 
     @BeforeEach
     void cleanChatTables() {
+        jdbc.update("DELETE FROM assistant_tool_result");
         jdbc.update("DELETE FROM assistant_context_checkpoint");
         jdbc.update("DELETE FROM assistant_tool_execution");
         jdbc.update("DELETE FROM assistant_message_source");
@@ -105,8 +114,9 @@ class ChatPersistenceIntegrationTest {
                 ORDER BY TABLE_NAME
                 """, String.class);
         assertThat(tables).containsExactly(
-                "assistant_context_checkpoint", "assistant_conversation", "assistant_learning_preference", "assistant_message", "assistant_message_source",
-                "assistant_preference_extraction_attempt", "assistant_run", "assistant_tool_execution");
+                "assistant_context_checkpoint", "assistant_conversation", "assistant_learning_preference",
+                "assistant_message", "assistant_message_source", "assistant_preference_extraction_attempt",
+                "assistant_run", "assistant_tool_execution", "assistant_tool_result");
 
         Integer uncommentedTables = jdbc.queryForObject("""
                 SELECT COUNT(*) FROM information_schema.TABLES
@@ -127,6 +137,8 @@ class ChatPersistenceIntegrationTest {
                 .contains("UNIQUE KEY")
                 .contains("conversation_id")
                 .contains("seq");
+        assertThat(showCreateTable("assistant_tool_result"))
+                .contains("UNIQUE KEY", "execution_id", "expires_at", "COMMENT");
     }
 
     @Test
@@ -398,6 +410,171 @@ class ChatPersistenceIntegrationTest {
         assertBusinessCode("CHAT_NOT_FOUND", () -> service.delete(OWNER_B, conversation.id()));
     }
 
+    @Test void toolResultWriteAndExecutionCompletionAreAtomicAndReadIsFullyScoped() throws Exception {
+        var conversation = service.createConversation(OWNER_A, COURSE_ID, "工具结果");
+        var run = service.start(OWNER_A, conversation.id(), "tool-result", "查询目录", Duration.ofSeconds(30)).run();
+        String execution = toolExecutions.begin(OWNER_A, run, 1,
+                new ToolCall("call-1", "get_course_outline", "{}"), "a".repeat(64));
+        String resultRef = UUID.randomUUID().toString();
+        String full = "{\"chapters\":[{\"id\":1,\"title\":\"完整目录\"}]}";
+        assertBusinessCode("ASSISTANT_TOOL_RESULT_UNAVAILABLE", () -> toolResults.completeWithResult(
+                OWNER_A, COURSE_ID, run, execution, "get_course_outline", resultRef,
+                "{\"duplicate\":1,\"duplicate\":2}", "{}", "[]", 12));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM assistant_tool_result", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT status FROM assistant_tool_execution WHERE id=?",
+                String.class, execution)).isEqualTo("RUNNING");
+        assertThat(jdbc.queryForObject("SELECT tool_result_bytes FROM assistant_run WHERE id=?",
+                Long.class, run.id())).isZero();
+        toolResults.completeWithResult(OWNER_A, COURSE_ID, run, execution, "get_course_outline", resultRef,
+                full, "{\"count\":1,\"omitted\":true}", "[]", 12);
+
+        var stored = toolResults.read(OWNER_A, COURSE_ID, run, resultRef);
+        assertThat(stored.resultRef()).isEqualTo(resultRef);
+        assertThat(stored.toolName()).isEqualTo("get_course_outline");
+        assertThat(stored.resultJson()).isEqualTo(full);
+        assertThat(stored.dependenciesJson()).isEqualTo("[]");
+        assertThat(stored.resultHash()).matches("[a-f0-9]{64}");
+        assertThat(stored.resultBytes()).isEqualTo(full.getBytes(StandardCharsets.UTF_8).length
+                + "{\"count\":1,\"omitted\":true}".getBytes(StandardCharsets.UTF_8).length + 2);
+        assertThat(jdbc.queryForObject("SELECT status FROM assistant_tool_execution WHERE id=?",
+                String.class, execution)).isEqualTo("COMPLETED");
+        assertBusinessCode("ASSISTANT_TOOL_RESULT_UNAVAILABLE",
+                () -> toolResults.read(OWNER_B, COURSE_ID, run, resultRef));
+        assertBusinessCode("ASSISTANT_TOOL_RESULT_UNAVAILABLE",
+                () -> toolResults.read(OWNER_A, COURSE_ID + 1, run, resultRef));
+        var otherConversation = service.createConversation(OWNER_A, COURSE_ID, "其他运行");
+        var otherRun = service.start(OWNER_A, otherConversation.id(), "other-tool-run", "查询", Duration.ofSeconds(30)).run();
+        assertBusinessCode("ASSISTANT_TOOL_RESULT_UNAVAILABLE",
+                () -> toolResults.read(OWNER_A, COURSE_ID, otherRun, resultRef));
+
+        jdbc.update("UPDATE assistant_tool_result SET result_json='{}' WHERE result_ref=?", resultRef);
+        assertBusinessCode("ASSISTANT_TOOL_RESULT_UNAVAILABLE",
+                () -> toolResults.read(OWNER_A, COURSE_ID, run, resultRef));
+
+        String readExecution = toolExecutions.begin(OWNER_A, run, 2,
+                new ToolCall("call-2", "read_tool_result", "{}"), "b".repeat(64));
+        assertThat(jdbc.queryForObject("SELECT tool_name FROM assistant_tool_execution WHERE id=?",
+                String.class, readExecution)).isEqualTo("read_tool_result");
+    }
+
+    @Test void concurrentToolResultsSerializeRunByteLimitWithoutPartialExecutionCompletion() throws Exception {
+        var conversation = service.createConversation(OWNER_A, COURSE_ID, "工具限额");
+        var run = service.start(OWNER_A, conversation.id(), "tool-limit", "查询", Duration.ofSeconds(30)).run();
+        var constrained = new AssistantLimits();
+        constrained.setContextRedesignEnabled(true);
+        constrained.setToolResultMaxBytes(4096);
+        constrained.setToolRunResultMaxBytes(4096);
+        constrained.setToolProjectionMaxBytes(2048);
+        var store = new ChatToolResultStore(jdbc, new DataSourceTransactionManager(dataSource), constrained);
+        String firstExecution = toolExecutions.begin(OWNER_A, run, 1,
+                new ToolCall("limit-1", "search_courses", "{}"), "c".repeat(64));
+        String secondExecution = toolExecutions.begin(OWNER_A, run, 2,
+                new ToolCall("limit-2", "search_courses", "{}"), "d".repeat(64));
+        var barrier = new CyclicBarrier(2);
+        var executor = Executors.newFixedThreadPool(2);
+        String payload = "{\"value\":\"" + "x".repeat(3000) + "\"}";
+        Callable<String> first = () -> completeToolResult(barrier, store, run, firstExecution, payload);
+        Callable<String> second = () -> completeToolResult(barrier, store, run, secondExecution, payload);
+        try {
+            var firstFuture = executor.submit(first);
+            var secondFuture = executor.submit(second);
+            assertThat(List.of(firstFuture.get(15, TimeUnit.SECONDS), secondFuture.get(15, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder("OK", "ASSISTANT_TOOL_RESULT_LIMIT");
+        } finally {
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM assistant_tool_result", Integer.class)).isOne();
+        assertThat(jdbc.queryForList("SELECT status FROM assistant_tool_execution WHERE id IN (?,?) ORDER BY status",
+                String.class, firstExecution, secondExecution)).containsExactly("COMPLETED", "RUNNING");
+    }
+
+    @Test void toolExecutionCompletionFailureRollsBackInsertedResult() {
+        var conversation = service.createConversation(OWNER_A, COURSE_ID, "工具事务回滚");
+        var run = service.start(OWNER_A, conversation.id(), "tool-rollback", "查询", Duration.ofSeconds(30)).run();
+        String execution = toolExecutions.begin(OWNER_A, run, 1,
+                new ToolCall("rollback-1", "search_courses", "{}"), "1".repeat(64));
+        jdbc.execute("""
+                CREATE TRIGGER reject_tool_execution_completion
+                BEFORE UPDATE ON assistant_tool_execution FOR EACH ROW
+                SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'synthetic rejection'
+                """);
+        try {
+            assertThatThrownBy(() -> toolResults.completeWithResult(OWNER_A, COURSE_ID, run, execution,
+                    "search_courses", UUID.randomUUID().toString(), "{\"items\":[]}", "{}", "[]", 1))
+                    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+        } finally {
+            jdbc.execute("DROP TRIGGER IF EXISTS reject_tool_execution_completion");
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM assistant_tool_result", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT status FROM assistant_tool_execution WHERE id=?",
+                String.class, execution)).isEqualTo("RUNNING");
+        assertThat(jdbc.queryForObject("SELECT tool_result_bytes FROM assistant_run WHERE id=?",
+                Long.class, run.id())).isZero();
+    }
+
+    @Test void expiredAndDeletedToolResultsCannotBeReadAndArePurgedInBoundedBatches() throws Exception {
+        var conversation = service.createConversation(OWNER_A, COURSE_ID, "工具清理");
+        var run = service.start(OWNER_A, conversation.id(), "tool-purge", "查询", Duration.ofSeconds(30)).run();
+        var constrainedLimits = new AssistantLimits();
+        constrainedLimits.setContextRedesignEnabled(true);
+        constrainedLimits.setToolResultMaxBytes(4096);
+        constrainedLimits.setToolRunResultMaxBytes(4096);
+        constrainedLimits.setToolProjectionMaxBytes(2048);
+        var constrained = new ChatToolResultStore(jdbc, new DataSourceTransactionManager(dataSource), constrainedLimits);
+        String expiredExecution = toolExecutions.begin(OWNER_A, run, 1,
+                new ToolCall("purge-1", "search_courses", "{}"), "e".repeat(64));
+        String expiredRef = UUID.randomUUID().toString();
+        String large = "{\"value\":\"" + "x".repeat(3000) + "\"}";
+        constrained.completeWithResult(OWNER_A, COURSE_ID, run, expiredExecution, "search_courses",
+                expiredRef, large, "{\"count\":0}", "[]", 1);
+        jdbc.update("UPDATE assistant_tool_result SET expires_at=DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 1 SECOND) WHERE result_ref=?",
+                expiredRef);
+        assertBusinessCode("ASSISTANT_TOOL_RESULT_UNAVAILABLE",
+                () -> constrained.read(OWNER_A, COURSE_ID, run, expiredRef));
+        constrainedLimits.setContextRedesignEnabled(false);
+        constrained.purgeScheduled();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM assistant_tool_result WHERE result_ref=?", Integer.class, expiredRef)).isZero();
+
+        String deletedExecution = toolExecutions.begin(OWNER_A, run, 2,
+                new ToolCall("purge-2", "search_courses", "{}"), "f".repeat(64));
+        assertBusinessCode("ASSISTANT_TOOL_RESULT_LIMIT", () -> constrained.completeWithResult(
+                OWNER_A, COURSE_ID, run, deletedExecution, "search_courses", UUID.randomUUID().toString(),
+                large, "{\"count\":0}", "[]", 1));
+        assertThat(jdbc.queryForObject("SELECT tool_result_bytes FROM assistant_run WHERE id=?",
+                Long.class, run.id())).isGreaterThan(3000L);
+
+        String deletableExecution = toolExecutions.begin(OWNER_A, run, 3,
+                new ToolCall("purge-3", "search_courses", "{}"), "0".repeat(64));
+        String deletedRef = UUID.randomUUID().toString();
+        toolResults.completeWithResult(OWNER_A, COURSE_ID, run, deletableExecution, "search_courses",
+                deletedRef, "{\"items\":[]}", "{\"count\":0}", "[]", 1);
+        var featureOff = new ChatPersistenceService(new JdbcTemplate(dataSource),
+                new DataSourceTransactionManager(dataSource));
+        featureOff.delete(OWNER_A, conversation.id());
+        assertThat(jdbc.queryForObject("SELECT deleted FROM assistant_tool_result WHERE result_ref=?",
+                Integer.class, deletedRef)).isOne();
+        assertBusinessCode("ASSISTANT_TOOL_RESULT_UNAVAILABLE",
+                () -> toolResults.read(OWNER_A, COURSE_ID, run, deletedRef));
+        assertThat(toolResults.purgeExpired()).isOne();
+        long retainedBytes = jdbc.queryForObject("SELECT tool_result_bytes FROM assistant_run WHERE id=?",
+                Long.class, run.id());
+        executeIsolatedSql(findProjectFile(Path.of("sql", "migrations", "20261022_assistant_tool_result.sql")),
+                false, "repeat tool result migration with existing schema");
+        assertThat(jdbc.queryForObject("SELECT tool_result_bytes FROM assistant_run WHERE id=?",
+                Long.class, run.id())).isEqualTo(retainedBytes);
+    }
+
+    @Test void disabledResultCleanupSkipsUnmigratedTable() throws Exception {
+        jdbc.execute("DROP TABLE assistant_tool_result");
+        try {
+            var off = new ChatToolResultStore(jdbc, new DataSourceTransactionManager(dataSource), new AssistantLimits());
+            off.purgeScheduled();
+        } finally {
+            executeIsolatedSql(findProjectFile(Path.of("sql", "migrations", "20261022_assistant_tool_result.sql")), false, "restore isolated result table");
+        }
+    }
+
     @Test void checkpointPublishesInAnswerTransactionAndRestoresAcrossServiceInstances() throws Exception {
         var conversation = service.createConversation(OWNER_A, COURSE_ID, "检查点");
         completedRound(conversation.id(), "history");
@@ -542,6 +719,9 @@ class ChatPersistenceIntegrationTest {
         Path contextMigration = findProjectFile(Path.of("sql", "migrations", "20261022_assistant_context_checkpoint.sql"));
         executeIsolatedSql(contextMigration, false, "isolated context checkpoint migration");
         executeIsolatedSql(contextMigration, false, "repeated isolated context checkpoint migration");
+        Path resultMigration = findProjectFile(Path.of("sql", "migrations", "20261022_assistant_tool_result.sql"));
+        executeIsolatedSql(resultMigration, false, "isolated tool result migration");
+        executeIsolatedSql(resultMigration, false, "repeated isolated tool result migration");
     }
 
     private void executeIsolatedSql(Path path, boolean schema, String description) throws Exception {
@@ -636,6 +816,18 @@ class ChatPersistenceIntegrationTest {
     private void assertBusinessCode(String code, Runnable action) {
         assertThatThrownBy(action::run)
                 .isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.getCode()).isEqualTo(code));
+    }
+
+    private String completeToolResult(CyclicBarrier barrier, ChatToolResultStore store,
+                                      ChatPersistenceService.Run run, String execution, String payload) throws Exception {
+        barrier.await(10, TimeUnit.SECONDS);
+        try {
+            store.completeWithResult(OWNER_A, COURSE_ID, run, execution, "search_courses",
+                    UUID.randomUUID().toString(), payload, "{}", "[]", 1);
+            return "OK";
+        } catch (BusinessException error) {
+            return error.getCode();
+        }
     }
 
     private StartAttempt concurrentStart(CyclicBarrier ready, String conversationId, String message) throws Exception {

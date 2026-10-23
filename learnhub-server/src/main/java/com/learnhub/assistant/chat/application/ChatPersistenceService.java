@@ -128,6 +128,10 @@ public class ChatPersistenceService {
                     UPDATE assistant_context_checkpoint SET deleted = 1
                     WHERE conversation_id = ? AND owner_user_id = ? AND deleted = 0
                     """, conversation.id(), owner);
+            if (tableExists("assistant_tool_result")) jdbc.update("""
+                    UPDATE assistant_tool_result SET deleted = 1
+                    WHERE conversation_id = ? AND owner_user_id = ? AND deleted = 0
+                    """, conversation.id(), owner);
             return List.copyOf(activeRuns);
         });
     }
@@ -265,10 +269,14 @@ public class ChatPersistenceService {
     /** 回退开关不保留已删除会话的摘要；旧库未安装新表时只检查元数据。 */
     private boolean checkpointStorageAvailable() {
         if (checkpointsEnabled) return true;
+        return tableExists("assistant_context_checkpoint");
+    }
+
+    private boolean tableExists(String tableName) {
         Integer count = jdbc.queryForObject("""
                 SELECT COUNT(*) FROM information_schema.TABLES
-                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'assistant_context_checkpoint'
-                """, Integer.class);
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+                """, Integer.class, tableName);
         return count != null && count > 0;
     }
 

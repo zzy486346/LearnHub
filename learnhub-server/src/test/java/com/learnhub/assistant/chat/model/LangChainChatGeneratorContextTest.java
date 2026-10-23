@@ -8,6 +8,7 @@ import com.learnhub.assistant.chat.application.ChatHistoryService;
 import com.learnhub.assistant.chat.application.ChatPersistenceService;
 import com.learnhub.assistant.chat.application.ChatEvidenceCodec;
 import com.learnhub.assistant.chat.application.ChatToolExecutionStore;
+import com.learnhub.assistant.chat.application.ChatToolResultStore;
 import com.learnhub.assistant.tool.AssistantTools;
 import com.learnhub.assistant.knowledge.KnowledgeRetrievalService;
 import com.learnhub.assistant.model.AiProperties;
@@ -31,6 +32,7 @@ class LangChainChatGeneratorContextTest {
                 .withBean(AssistantTools.class, () -> mock(AssistantTools.class))
                 .withBean(ChatEvidenceCodec.class, () -> mock(ChatEvidenceCodec.class))
                 .withBean(ChatToolExecutionStore.class, () -> mock(ChatToolExecutionStore.class))
+                .withBean(ChatToolResultStore.class, () -> mock(ChatToolResultStore.class))
                 .withUserConfiguration(LangChainChatGenerator.class)
                 .run(context -> {
                     assertThat(context).hasNotFailed();
