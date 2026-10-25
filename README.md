@@ -110,6 +110,8 @@ if (!(Test-Path .env)) { Copy-Item .env.example .env }
 
 按 [.env.example](.env.example) 填写连接参数。Java 从根目录或上级目录读取 `.env`；Docker 只使用 Compose 显式引用的变量，修改 Java 密码配置不会自动更新已有容器账号。
 
+示例只列连接/凭据、运行开关、模型身份及成本边界。超时、重试、线程数、同步批量、摘要压力、工具投影大小等已经由 Java 配置类或 YAML 提供默认值，日常无需写入 `.env`。需要特殊调优时，再按 [application.yml](learnhub-server/src/main/resources/application.yml) / [application-vector.yml](learnhub-server/src/main/resources/application-vector.yml) 中已有变量名增加对应覆盖项；已有非默认覆盖应保留。配置职责及本次精简记录见[说明](docs/ENV_SIMPLIFICATION_20261025.md)。
+
 新环境默认关闭 AI、OSS、课程向量与偏好记忆，可先运行基础业务。示例的 `LOCAL_DEMO` 支付不发生真实资金交易。JWT 在开发环境未配置密钥时生成临时密钥，重启后旧令牌不可继续验证；需要稳定身份时配置持久化 RSA 密钥文件，`prod` profile 强制要求配置密钥。
 
 ### 2. 启动基础中间件
