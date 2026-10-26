@@ -94,6 +94,12 @@ learnhub:
   knowledge:
     alias: ${LEARNHUB_KNOWLEDGE_ALIAS:learnhub-knowledge-search}
     sync-enabled: ${LEARNHUB_KNOWLEDGE_SYNC_ENABLED:false}
+  rerank:
+    enabled: ${LEARNHUB_RERANK_ENABLED:false}
+    api-key: ${LEARNHUB_RERANK_API_KEY:}
+    endpoint: ${LEARNHUB_RERANK_ENDPOINT:https://api.siliconflow.cn/v1/rerank}
+    timeout: ${LEARNHUB_RERANK_TIMEOUT:5s}
+    candidates: ${LEARNHUB_RERANK_CANDIDATES:20}
   payment:
     mode: ${LEARNHUB_PAYMENT_MODE:DISABLED}
     pending-timeout: ${LEARNHUB_ORDER_PENDING_TIMEOUT:PT30M}
