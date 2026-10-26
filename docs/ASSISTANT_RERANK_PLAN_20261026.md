@@ -69,7 +69,7 @@ Endpoint：`POST https://api.siliconflow.cn/v1/rerank`，请求头 `Authorizatio
 
 默认远端时限5秒，允许100ms～10秒；聊天scope更短时使用其剩余时长，取消future和完整响应体等待。`ASSISTANT_CANCELLED`及`ASSISTANT_DEADLINE_EXCEEDED`必须透传，不能标记FALLBACK继续生成。普通供应商超时、401/400/429、非法响应、服务关闭或容量满则回到原排序。
 
-全局远程在途请求最多2个，不排队等待；每次检索最多1次，无隐藏重试。现有工具调用次数、运行截止和生成预算保持原含义。Rerank不是聊天生成调用，不能拿DeepSeek三次台账记作Rerank额度，也不虚构其已包含供应商费用；本阶段通过候选数、正文长度、单次调用、并发与超时控制放大成本，不新增日计费配额系统。
+单JVM远程在途请求最多2个（客户端实例间共享），不排队等待；这不是跨JVM配额。每次检索最多1次，无隐藏重试。现有工具调用次数、运行截止和生成预算保持原含义。Rerank不是聊天生成调用，不能拿DeepSeek三次台账记作Rerank额度，也不虚构其已包含供应商费用；本阶段通过候选数、正文长度、单次调用、并发与超时控制放大成本，不新增日计费配额系统。
 
 生产只允许官方HTTPS地址；HTTP仅允许回环Mock；不跟随重定向。错误仅记录受控类型/HTTP状态，不输出Key、请求/响应正文或签名URL。
 
@@ -109,4 +109,31 @@ Endpoint：`POST https://api.siliconflow.cn/v1/rerank`，请求头 `Authorizatio
 
 ## 8. 实际执行记录
 
-尚未实施。后续追加实际命令、结果、提交和未验证边界，保留首次失败证据。
+### 阶段0、1：设计及实现
+
+- 设计提交 `f9bee93`；实现提交 `3c6676e`。实现保持无新依赖、无数据库/向量变更；未覆盖既有Embedding和上下文工程代码。
+- 专项实际执行90项，全部通过、零跳过。包括8项HTTP Mock、4项配置、11项授权排序行为测试，以及既有检索/RAG/问答/工具回归。覆盖非法映射/协议、慢响应/超限、取消/截止、并发满、Key复用、未授权零上传、Top5外提升、窗口尾部补位、重排等待中的撤权/切版/正文变化。
+- 根`mvn test`和`mvn verify`各744项：613项实际执行、131项按开关跳过，零失败/错误；verify完成JAR打包。真实烟测默认跳过，不能把跳过计作真实验收。
+- 只读复核未发现提交阻断问题；文件差异和Key检查通过。现有DeepSeek台账哈希保持不变。
+
+### 阶段2：真实只读验收与本机配置
+
+本机接口烟测已返回HTTP200：74个input tokens，相关缓存资料index=1排首，score约0.998；不相关食谱index=0约0.0000173。该两条合成文本只验证协议与直观排序，不是独立质量评测。
+
+真实业务只读烟测命令：
+
+```powershell
+& 'D:\Android\apache-maven-3.9.10\bin\mvn.cmd' -pl learnhub-server -am test `
+  '-Dtest=SiliconFlowRerankLiveIntegrationTest' `
+  '-Dsurefire.failIfNoSpecifiedTests=false' '-Dlearnhub.rerank.live.enabled=true'
+```
+
+该入口只允许本机既有MySQL/ES/Redis，禁用全部定时任务、聊天/记忆生成和向量runtime；通过真实Spring装配使用BM25+Rerank。选用已见开发集3条可回答题，验证最终课程/课时权限、来源版本和正文，核对材料指纹前后不变。逐题延迟及APPLIED/FALLBACK/SKIPPED写入忽略的`.local/rerank-live-application.json`；不修改旧题集或创建购买权限。
+
+2026-10-26 实际执行通过：`ans-1001-01`、`ans-1001-02`、`ans-1002-01`三条均为`BM25 + APPLIED`，无FALLBACK/SKIPPED，每条返回5个当前合法来源。完整检索链路耗时分别约1380ms、310ms、293ms（含ES/MySQL及Rerank，不是纯模型推理延迟）。材料指纹前后未变化。该维护测试1项实际执行、零失败/错误/跳过；不能将三个已见案例称为未见留出评测，也不能据此声称整体排序优于原检索。
+
+本地忽略的`.env`已设`LEARNHUB_RERANK_ENABLED=true`，继续复用既有`LEARNHUB_VECTOR_SILICONFLOW_API_KEY`，没有重复抄写Key。模板仍默认关闭。关闭`LEARNHUB_RERANK_ENABLED`即可回退原排序；代理没有重启日常后端，配置在用户下次正常启动时加载。
+
+本次没有创建新数据库/测试容器，不改动向量、权限和资料；测试的Mock随机端口与JVM随测试退出清理，未保留测试后端。差异/Markdown/链接检查和Key检查通过；原DeepSeek台账SHA-256仍为`92964d191337bc48e10a623566cddeeea3b738ebf6b4a0ddd110e961c6b9e0dd`。
+
+尚未验证：大规模并发/分布式配额、未见题排序质量、Rerank阈值、真实长对话最终回答质量、供应商稳定性。单次供应商失败仍可能发生；排序分数不是事实支持或正确率。纯BM25及混合/向量故障降级重排的协议行为已在Mock回归覆盖，业务实测范围单独列明。

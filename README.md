@@ -67,6 +67,8 @@ flowchart TB
 
 课程 RAG 支持授权 BM25 与中文 BGE 向量召回，通过 RRF 合并排序；可选择本地量化模型或 SiliconFlow API 的 `BAAI/bge-large-zh-v1.5`。两者分别使用 512/1024 维表及模型身份，切换需单独回填，不能混用向量。向量不可用时回退到 BM25，取消和请求截止信号直接终止运行。课程正文、所属课时、可读权限和资料版本仍回到 MySQL 复核，索引命中本身不授予访问权限。
 
+可选启用 SiliconFlow `BAAI/bge-reranker-v2-m3`：先复核候选权限和当前正文，再重排前20个片段，最后再次复核并取Top-K。普通重排故障保留原排序；`rerankMode`独立标识应用、跳过或降级，原`retrievalMode`和来源分数保留。不增加向量表或触发回填，配置与验收见 [Rerank设计及实施记录](docs/ASSISTANT_RERANK_PLAN_20261026.md)。
+
 ### 有界上下文与可撤销依赖
 
 - MySQL 保存正式会话和消息，ChatMemory 只负责本次模型输入，淘汰上下文不会删除历史。
