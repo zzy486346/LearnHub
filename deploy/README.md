@@ -36,7 +36,7 @@ docker compose --env-file .env -p deploy -f deploy/docker-compose.yml -f deploy/
 
 此命令只启动或更新课程向量容器，不重建已有 MySQL、Redis、ES 或 Mem0。`course-vector-pg` 使用固定 digest 的 pgvector 0.8.7 / PostgreSQL 16 镜像，只开放 `127.0.0.1:15432`。它与 Mem0 的 PostgreSQL 容器分开，数据库为 `learnhub_vector`，schema 为 `learnhub_rag`。
 
-首次空卷启动自动执行 `sql/postgres/001_course_embeddings.sql`，创建 vector 扩展、512 维投影表、中文注释和更新触发器，再创建独立运行账号；Java 运行账号仅有指定表 DML、schema USAGE 和数据库 CONNECT 权限，不能创建扩展、表或数据库。
+首次空卷启动自动执行 `sql/postgres/001_course_embeddings.sql` 和 `002_siliconflow_bge_large_embeddings.sql`，创建 vector 扩展、本地 512 维及远程 1024 维投影表、中文注释和更新触发器，再创建独立运行账号；Java 运行账号仅有指定表 DML、schema USAGE 和数据库 CONNECT 权限，不能创建扩展、表或数据库。
 
 - `LEARNHUB_VECTOR_ADMIN_PASSWORD`：Docker 首次初始化管理员密码。
 - `LEARNHUB_VECTOR_USERNAME` / `LEARNHUB_VECTOR_PASSWORD`：Java 投影写入和检索的独立运行账号。
@@ -53,6 +53,8 @@ docker compose --env-file .env -p deploy -f deploy/docker-compose.yml -f deploy/
 
 ## 回填及增量同步
 
+以下命令针对 `LOCAL` 本地模型。若使用 SiliconFlow 的 `BAAI/bge-large-zh-v1.5`，需配置 `LEARNHUB_VECTOR_EMBEDDING_PROVIDER=SILICONFLOW`、本地 API Key，并在已有 PG 上追加迁移及授权，再运行独立的 `scripts/assistant/sync-siliconflow-vector.ps1 -ApplyMigration`。它保留本地投影，并为远程模型单独回填。完整步骤与验证边界见 [远程 Embedding 接入](../docs/ASSISTANT_SILICONFLOW_EMBEDDING_20261026.md)。
+
 在仓库根目录执行维护验证命令：
 
 ```powershell
@@ -63,4 +65,4 @@ docker compose --env-file .env -p deploy -f deploy/docker-compose.yml -f deploy/
 
 日常后端读取 `.env` 的 `SPRING_PROFILES_ACTIVE=local,vector`，以及 `LEARNHUB_VECTOR_ENABLED=true`、`LEARNHUB_VECTOR_SYNC_ENABLED=true`。启动后每 10 秒批量补偿待同步资料，新增/更新资料仍通过原有导入入口写入 MySQL，禁止直接把 PG 当资料事实源。Java 进程使用私有 PG 连接池，不替换 MySQL DataSource。
 
-`LEARNHUB_VECTOR_HYBRID_ENABLED` 控制 BM25 + 中文 BGE + RRF（k=60），示例默认关闭，本机以 `.env` 实际值为准。语义门槛默认 `0.815`，已保留在 `application-vector.yml`，无需重复写入 `.env`；需要调优时可显式增加 `LEARNHUB_VECTOR_MIN_SEMANTIC_SCORE` 覆盖，设为0可关闭门槛。它按原始语义分数过滤混合候选，RRF只负责排序；门槛不作用于纯BM25或向量异常降级，不能替代最终证据充分性判断。标定结果、误过滤与复跑命令见 [阈值记录](../docs/ASSISTANT_RETRIEVAL_THRESHOLD_20261021.md)。代理没有重启用户后端，配置在用户下次正常启动时生效，无需重新回填。
+`LEARNHUB_VECTOR_HYBRID_ENABLED` 控制 BM25 + 中文 BGE + RRF（k=60），示例默认关闭，本机以 `.env` 实际值为准。语义门槛默认 `0.815`，只在原本地模型上做过标定；远程切换须显式配置 `LEARNHUB_VECTOR_MIN_SEMANTIC_SCORE`，初始可设0关闭门槛，重新标定前不声称拒答质量通过。它按原始语义分数过滤混合候选，RRF只负责排序；门槛不作用于纯BM25或向量异常降级，不能替代最终证据充分性判断。原标定结果见 [阈值记录](../docs/ASSISTANT_RETRIEVAL_THRESHOLD_20261021.md)。配置在用户下次正常启动后端时生效；模型身份切换需要独立回填，普通门槛调整不需要回填。

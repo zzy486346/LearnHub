@@ -26,7 +26,7 @@
 | 后端 | Java 17、Spring Boot 3.3.5、Spring Security、MyBatis-Plus、Maven 多模块 |
 | 业务存储 | MySQL 8.4；保存用户、课程、订单、权限、资料、聊天及偏好元数据 |
 | 缓存与消息 | Redis 7.4、Redisson、RabbitMQ 4；原子操作、幂等、异步聚合、重试与补偿 |
-| 搜索与向量 | Elasticsearch 8.15.3、中文 IK 分词；本地 BGE 中文 Embedding、PostgreSQL 16 / pgvector、RRF 融合 |
+| 搜索与向量 | Elasticsearch 8.15.3、中文 IK 分词；本地 BGE 或 SiliconFlow 远程 BGE Embedding、PostgreSQL 16 / pgvector、RRF 融合 |
 | Agent 与记忆 | LangChain4j 1.22.0 普通 Java 模块、DeepSeek、ChatMemory、自部署 Mem0 学习偏好服务 |
 | 媒体与工程支撑 | 阿里云 OSS、Docker Compose、Springdoc OpenAPI、Actuator、JUnit 与 HTTP Mock |
 
@@ -44,7 +44,7 @@ flowchart TB
     ASSISTANT --> REDIS
     ASSISTANT --> LC[LangChain4j / 只读工具 / SSE]
     LC --> MODEL[DeepSeek]
-    LC --> RAG[授权检索 / 本地 BGE / RRF]
+    LC --> RAG[授权检索 / BGE Embedding / RRF]
     RAG --> MYSQL
     RAG --> ES
     RAG --> VECTOR[(课程 pgvector)]
@@ -65,7 +65,7 @@ flowchart TB
 
 课程搜索使用 ES 原生 `bool`、`multi_match`、`function_score` 和 completion 联想，以 BM25 相关性为基础，叠加有上限的点赞热度加分。课程写入与同步任务在同一数据库事务中提交，任务支持代次校验、失败退避和重试；全量重建写入新索引后切换别名。
 
-课程 RAG 支持授权 BM25 与本地中文 BGE 向量召回，通过 RRF 合并排序；向量不可用时回退到 BM25。课程正文、所属课时、可读权限和资料版本仍回到 MySQL 复核，索引命中本身不授予访问权限。
+课程 RAG 支持授权 BM25 与中文 BGE 向量召回，通过 RRF 合并排序；可选择本地量化模型或 SiliconFlow API 的 `BAAI/bge-large-zh-v1.5`。两者分别使用 512/1024 维表及模型身份，切换需单独回填，不能混用向量。向量不可用时回退到 BM25，取消和请求截止信号直接终止运行。课程正文、所属课时、可读权限和资料版本仍回到 MySQL 复核，索引命中本身不授予访问权限。
 
 ### 有界上下文与可撤销依赖
 
@@ -173,6 +173,8 @@ npm run dev
 向量库与 Mem0 属于选配，启动基础业务不要求部署它们。偏好记忆默认关闭自动提取，显式偏好写入使用 `infer=false`。首次 BGE 模型加载、原生库与镜像准备以部署记录为准。
 
 具体步骤分别见[服务部署](deploy/README.md)、[课程向量安装](docs/ASSISTANT_VECTOR_INSTALLATION_20261019.md)、[Mem0 部署](services/mem0/README.md)和[讲义导入说明](docs/assistant-materials/README.md)。`course-media` 本地 Nginx 服务已经移除，当前媒体方案使用 OSS。
+
+远程 Embedding 的 Key 配置、1024 维追加迁移、回填及回退步骤见 [SiliconFlow 接入说明](docs/ASSISTANT_SILICONFLOW_EMBEDDING_20261026.md)。该切换仅影响课程 RAG，不更换聊天生成模型，也不自动迁移 Mem0 的偏好向量。
 
 ## 测试与验证
 

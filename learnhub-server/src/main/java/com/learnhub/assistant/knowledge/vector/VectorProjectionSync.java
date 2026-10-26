@@ -22,15 +22,32 @@ public class VectorProjectionSync {
     private static final Logger log = LoggerFactory.getLogger(VectorProjectionSync.class);
     private final JdbcTemplate jdbc;
     private final KnowledgeStore knowledge;
+    private final String modelId;
 
     public VectorProjectionSync(JdbcTemplate jdbc, KnowledgeStore knowledge) {
+        this(jdbc, knowledge, "LOCAL");
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public VectorProjectionSync(JdbcTemplate jdbc, KnowledgeStore knowledge,
+            @org.springframework.beans.factory.annotation.Value("${learnhub.vector.embedding-provider:LOCAL}") String provider) {
         this.jdbc = new com.learnhub.assistant.runtime.DeadlineJdbcTemplate(jdbc.getDataSource());
         this.knowledge = knowledge;
+        this.modelId = modelIdFor(provider);
+    }
+
+    static String modelIdFor(String provider) {
+        return switch (provider) {
+            case "LOCAL" -> BgeChineseEmbedding.MODEL_ID;
+            case "SILICONFLOW" -> SiliconFlowBgeEmbedding.MODEL_ID;
+            default -> throw new IllegalArgumentException("Unknown course embedding provider");
+        };
     }
 
     /** 成功完成或删除的当前代次数；并发任务拿不到专用锁时返回零。 */
     public int syncDue(CourseVectorIndex index, int limit) {
         Objects.requireNonNull(index, "index");
+        if (!modelId.equals(index.modelId())) throw new IllegalArgumentException("Embedding synchronization profile mismatch");
         int boundedLimit = Math.max(1, Math.min(limit, 100));
         Integer completed = jdbc.execute((ConnectionCallback<Integer>) connection -> {
             if (!connection.getAutoCommit()) throw new IllegalStateException("Vector synchronization must run outside a transaction");
@@ -53,7 +70,7 @@ public class VectorProjectionSync {
                         rs.getLong("source_version"), rs.getLong("course_id"), rs.getLong("lesson_id"),
                         rs.getString("title")), rs.getBoolean("deleted"), rs.getInt("attempts"),
                         "INDEXED".equals(rs.getString("status"))),
-                        BgeChineseEmbedding.MODEL_ID, boundedLimit);
+                        modelId, boundedLimit);
                 int count = 0;
                 for (Generation generation : due) {
                     try {
@@ -93,7 +110,7 @@ public class VectorProjectionSync {
                   AND d.indexed_version = d.source_version AND p.model_id = :model AND p.status = 'INDEXED'
                 ORDER BY d.id LIMIT 1001
                 """, Map.of("course", courseId, "lessons", authorizedLessonIds,
-                "model", BgeChineseEmbedding.MODEL_ID),
+                "model", modelId),
                 (rs, row) -> Map.entry(rs.getLong("id"), rs.getLong("source_version")));
         if (versions.size() > 1000) throw new IllegalStateException("Vector document scope exceeds 1000");
         Map<Long, Long> result = new LinkedHashMap<>();
@@ -116,7 +133,7 @@ public class VectorProjectionSync {
                         SET p.status = 'PENDING', p.cleanup_pending = 1, p.attempts = 0, p.next_retry_at = CURRENT_TIMESTAMP(3),
                             p.last_error = NULL, p.updated_at = CURRENT_TIMESTAMP(3)
                         WHERE p.model_id = ?
-                        """, BgeChineseEmbedding.MODEL_ID);
+                        """, modelId);
             } finally {
                 work.queryForObject("SELECT RELEASE_LOCK(?)", Integer.class, lock);
             }
@@ -133,7 +150,7 @@ public class VectorProjectionSync {
                 WHERE NOT EXISTS (SELECT 1 FROM knowledge_vector_projection p
                     WHERE p.document_id = d.id AND p.source_version = d.source_version AND p.model_id = ?)
                 ORDER BY d.id LIMIT ?
-                """, BgeChineseEmbedding.MODEL_ID, BgeChineseEmbedding.MODEL_ID, limit);
+                """, modelId, modelId, limit);
         // 逻辑删除通常不递增来源版本：已同步代次也必须重新进入删除补偿。
         work.update("""
                 UPDATE knowledge_vector_projection p
@@ -141,7 +158,7 @@ public class VectorProjectionSync {
                 SET p.status = 'PENDING', p.cleanup_pending = 1, p.attempts = 0, p.next_retry_at = CURRENT_TIMESTAMP(3),
                     p.last_error = NULL, p.updated_at = CURRENT_TIMESTAMP(3)
                 WHERE p.model_id = ? AND p.status = 'INDEXED' AND d.deleted = 1
-                """, BgeChineseEmbedding.MODEL_ID);
+                """, modelId);
     }
 
     private boolean project(JdbcTemplate work, CourseVectorIndex index, KnowledgeDocumentRecord document) {
@@ -168,7 +185,7 @@ public class VectorProjectionSync {
                 SET p.cleanup_pending = 0, p.updated_at = CURRENT_TIMESTAMP(3)
                 WHERE p.document_id = ? AND p.source_version = ? AND p.model_id = ?
                   AND p.status = 'INDEXED' AND d.deleted = 0 AND d.indexed_version = d.source_version
-                """, document.id(), document.sourceVersion(), BgeChineseEmbedding.MODEL_ID) == 1;
+                """, document.id(), document.sourceVersion(), modelId) == 1;
     }
 
     private boolean removeDeleted(Connection connection, JdbcTemplate work, CourseVectorIndex index,
@@ -211,7 +228,7 @@ public class VectorProjectionSync {
                 WHERE p.document_id = ? AND p.source_version = ? AND p.model_id = ?
                   AND p.status IN ('PENDING', 'FAILED') AND d.deleted = ?
                   AND (d.deleted = 1 OR d.indexed_version = d.source_version)
-                """, status, deleted ? 0 : 1, document.id(), document.sourceVersion(), BgeChineseEmbedding.MODEL_ID,
+                """, status, deleted ? 0 : 1, document.id(), document.sourceVersion(), modelId,
                 deleted ? 1 : 0);
     }
 
@@ -225,7 +242,7 @@ public class VectorProjectionSync {
                 WHERE p.document_id = ? AND p.source_version = ? AND p.model_id = ?
                   AND p.status <> 'REMOVED'
                 """, retrySeconds(generation.attempts()), generation.document().id(),
-                generation.document().sourceVersion(), BgeChineseEmbedding.MODEL_ID);
+                generation.document().sourceVersion(), modelId);
     }
 
     static int retrySeconds(int priorAttempts) {
@@ -238,7 +255,7 @@ public class VectorProjectionSync {
 
     private String lockName(JdbcTemplate work) {
         String database = work.queryForObject("SELECT DATABASE()", String.class);
-        return "lh:vector:" + Integer.toUnsignedString(Objects.hash(database, BgeChineseEmbedding.MODEL_ID));
+        return "lh:vector:" + Integer.toUnsignedString(Objects.hash(database, modelId));
     }
 
     private record Generation(KnowledgeDocumentRecord document, boolean deleted, int attempts, boolean indexed) { }

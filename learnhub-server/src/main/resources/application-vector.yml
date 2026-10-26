@@ -5,6 +5,11 @@ learnhub:
     hybrid-enabled: ${LEARNHUB_VECTOR_HYBRID_ENABLED:false}
     min-semantic-score: ${LEARNHUB_VECTOR_MIN_SEMANTIC_SCORE:0.815}
     sync-enabled: ${LEARNHUB_VECTOR_SYNC_ENABLED:false}
+    embedding-provider: ${LEARNHUB_VECTOR_EMBEDDING_PROVIDER:LOCAL}
+    siliconflow:
+      endpoint: ${LEARNHUB_VECTOR_SILICONFLOW_ENDPOINT:https://api.siliconflow.cn/v1/embeddings}
+      api-key: ${LEARNHUB_VECTOR_SILICONFLOW_API_KEY:}
+      timeout: ${LEARNHUB_VECTOR_SILICONFLOW_TIMEOUT:10s}
     jdbc-url: ${LEARNHUB_VECTOR_JDBC_URL:jdbc:postgresql://127.0.0.1:15432/learnhub_vector}
     username: ${LEARNHUB_VECTOR_USERNAME:learnhub_vector_app}
     password: ${LEARNHUB_VECTOR_PASSWORD:}

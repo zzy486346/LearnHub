@@ -54,12 +54,12 @@ try {
     Push-Location -LiteralPath $taskRoot
     try {
         $taskStarted = [DateTime]::UtcNow
-        & $MavenPath '-pl' 'learnhub-server' '-am' '-Dtest=CourseVectorInfrastructureIntegrationTest,VectorProjectionInfrastructureIntegrationTest,BgeChineseEmbeddingTest' `
+        & $MavenPath '-pl' 'learnhub-server' '-am' '-Dtest=CourseVectorInfrastructureIntegrationTest,VectorProjectionInfrastructureIntegrationTest,BgeChineseEmbeddingTest,SiliconFlowBgeEmbeddingTest,SiliconFlowVectorInfrastructureIntegrationTest' `
             '-Dsurefire.failIfNoSpecifiedTests=false' '-Dlearnhub.vector.it.enabled=true' `
             '-DargLine=-Djdk.net.URLClassPath.disableClassPathURLCheck=true' test
         $taskExitCode = $LASTEXITCODE
         if ($taskExitCode -eq 0) {
-            $taskRequired = @{ CourseVectorInfrastructureIntegrationTest = 4; BgeChineseEmbeddingTest = 3; VectorProjectionInfrastructureIntegrationTest = 8 }
+            $taskRequired = @{ CourseVectorInfrastructureIntegrationTest = 4; BgeChineseEmbeddingTest = 3; VectorProjectionInfrastructureIntegrationTest = 8; SiliconFlowBgeEmbeddingTest = 10; SiliconFlowVectorInfrastructureIntegrationTest = 2 }
             foreach ($taskClass in $taskRequired.Keys) {
                 $taskReport = Get-Item -LiteralPath (Join-Path $taskRoot "learnhub-server/target/surefire-reports/TEST-com.learnhub.assistant.knowledge.vector.$taskClass.xml")
                 [xml]$taskSuite = Get-Content -LiteralPath $taskReport.FullName -Raw

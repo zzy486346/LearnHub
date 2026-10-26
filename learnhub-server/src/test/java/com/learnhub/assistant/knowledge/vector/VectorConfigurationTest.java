@@ -44,4 +44,28 @@ class VectorConfigurationTest {
                 .withPropertyValues("learnhub.vector.enabled=true", "learnhub.vector.password=test-local-only")
                 .run(context -> assertThat(context).doesNotHaveBean(CourseVectorRuntime.class));
     }
+
+    @Test void remoteProviderRemainsLazyAndUsesIndependentIdentityAndDimension() {
+        runner.withPropertyValues("learnhub.vector.enabled=true", "learnhub.vector.password=test-local-only",
+                "learnhub.vector.embedding-provider=SILICONFLOW", "learnhub.vector.siliconflow.api-key=test-only-key")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(DataSource.class).hasSingleBean(CourseVectorRuntime.class);
+                    var runtime = context.getBean(CourseVectorRuntime.class);
+                    assertThat(ReflectionTestUtils.getField(runtime, "embedding")).isNull();
+                    @SuppressWarnings("unchecked")
+                    var factory = (java.util.function.Supplier<CourseEmbedding>) ReflectionTestUtils.getField(runtime, "embeddingFactory");
+                    try (var embedding = factory.get()) {
+                        assertThat(embedding).isInstanceOf(SiliconFlowBgeEmbedding.class);
+                        assertThat(embedding.modelId()).isNotEqualTo(BgeChineseEmbedding.MODEL_ID);
+                        assertThat(embedding.dimension()).isEqualTo(1024);
+                    }
+                    verifyNoInteractions(context.getBean(VectorProjectionSync.class));
+                });
+    }
+
+    @Test void unknownProviderCannotSilentlyLoadLocalModel() {
+        runner.withPropertyValues("learnhub.vector.enabled=true", "learnhub.vector.password=test-local-only",
+                "learnhub.vector.embedding-provider=UNKNOWN")
+                .run(context -> assertThat(context).hasFailed());
+    }
 }

@@ -49,6 +49,17 @@ class KnowledgeHybridRetrievalTest {
         verify(vector, never()).search(anyLong(), anyList(), anyString(), anyInt());
     }
 
+    @Test void remoteEmbeddingTerminationMustNotBecomeBm25Fallback() {
+        for (String code : List.of("ASSISTANT_CANCELLED", "ASSISTANT_DEADLINE_EXCEEDED")) {
+            doThrow(new com.learnhub.common.exception.BusinessException(code, "terminal"))
+                    .when(vector).search(1, List.of(20L), "课程", 100);
+            assertThatThrownBy(() -> service.retrieve(7L, 1, "课程", 5))
+                    .isInstanceOfSatisfying(com.learnhub.common.exception.BusinessException.class,
+                            failure -> assertThat(failure.getCode()).isEqualTo(code));
+        }
+        verifyNoInteractions(store);
+    }
+
     @Test void esFailureCannotTreatPartialVectorBackfillAsInsufficientEvidence() {
         when(bm25.search(1, List.of(20L), "课程", 100)).thenThrow(new SearchUnavailableException(null));
         assertThatThrownBy(() -> service.retrieve(7L, 1, "课程", 5)).isInstanceOf(SearchUnavailableException.class)

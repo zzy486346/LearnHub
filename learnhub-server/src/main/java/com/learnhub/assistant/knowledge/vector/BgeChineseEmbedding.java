@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 /** 仅按需创建；不注册为默认组件，停用向量功能时不加载原生模型。 */
-public final class BgeChineseEmbedding implements AutoCloseable {
+public final class BgeChineseEmbedding implements CourseEmbedding {
     public static final String MODEL_ID = "bge-zh-v15-q-lc122-t480-o32-v1";
     public static final int MAX_PARTS_PER_CHUNK = 32;
     public static final String QUERY_PREFIX = "为这个句子生成表示以用于检索相关文章：";
@@ -37,6 +37,8 @@ public final class BgeChineseEmbedding implements AutoCloseable {
         catch (RuntimeException | Error failure) { tokenizer.close(); throw failure; }
     }
 
+    public String modelId() { return MODEL_ID; }
+    public String tableName() { return CourseVectorIndex.TABLE; }
     public int dimension() { return model.dimension(); }
     public synchronized long embeddingCount() { return embeddingCount; }
 

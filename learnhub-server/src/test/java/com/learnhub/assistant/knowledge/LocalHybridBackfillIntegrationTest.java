@@ -44,7 +44,7 @@ import org.springframework.test.context.ContextConfiguration;
         "learnhub.like.flush-enabled=false", "learnhub.like.publish-retry-enabled=false",
         "learnhub.like.reconciliation-enabled=false", "learnhub.assistant.chat-enabled=false",
         "learnhub.assistant.langchain-enabled=false", "learnhub.assistant.memory.enabled=false",
-        "learnhub.vector.enabled=false", "learnhub.ai.mode=DISABLED"
+        "learnhub.vector.enabled=false", "learnhub.vector.embedding-provider=LOCAL", "learnhub.ai.mode=DISABLED"
 })
 class LocalHybridBackfillIntegrationTest {
     @MockBean LikeLegacyKeyMigration legacyLikeMigration;

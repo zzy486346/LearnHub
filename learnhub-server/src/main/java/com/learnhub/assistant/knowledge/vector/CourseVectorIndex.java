@@ -19,15 +19,22 @@ import javax.sql.DataSource;
 /** 仅存可重建投影；调用方必须统一回 MySQL 复核，不得以 PG 正文回答。 */
 public final class CourseVectorIndex {
     public static final String TABLE = "course_embeddings_bge_zh_v1";
-    private final BgeChineseEmbedding embedding;
+    private final CourseEmbedding embedding;
     private final PgVectorEmbeddingStore store;
 
-    public CourseVectorIndex(DataSource privateDataSource, BgeChineseEmbedding embedding) {
+    public CourseVectorIndex(DataSource privateDataSource, CourseEmbedding embedding) {
+        if (!(TABLE.equals(embedding.tableName()) && BgeChineseEmbedding.MODEL_ID.equals(embedding.modelId())
+                && embedding.dimension() == 512)
+                && !(SiliconFlowBgeEmbedding.TABLE.equals(embedding.tableName())
+                && SiliconFlowBgeEmbedding.MODEL_ID.equals(embedding.modelId()) && embedding.dimension() == 1024))
+            throw new IllegalArgumentException("Unknown course embedding profile");
         this.embedding = embedding;
         this.store = PgVectorEmbeddingStore.datasourceBuilder().datasource(privateDataSource)
-                .table(TABLE).dimension(embedding.dimension()).createTable(false).dropTableFirst(false)
+                .table(embedding.tableName()).dimension(embedding.dimension()).createTable(false).dropTableFirst(false)
                 .skipCreateVectorExtension(true).useIndex(false).build();
     }
+
+    public String modelId() { return embedding.modelId(); }
 
     public void upsert(KnowledgeDocumentRecord document, KnowledgeChunkRecord chunk) {
         if (document.id() != chunk.documentId() || document.sourceVersion() != chunk.sourceVersion())
@@ -41,10 +48,10 @@ public final class CourseVectorIndex {
             List<String> ids = new ArrayList<>();
             List<TextSegment> segments = new ArrayList<>();
             for (int part = from; part < to; part++) {
-                String key = BgeChineseEmbedding.MODEL_ID + ":" + document.id() + ":"
+                String key = embedding.modelId() + ":" + document.id() + ":"
                         + document.sourceVersion() + ":" + chunk.id() + ":" + part;
                 ids.add(UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8)).toString());
-                var metadata = Metadata.from(Map.of("modelId", BgeChineseEmbedding.MODEL_ID,
+                var metadata = Metadata.from(Map.of("modelId", embedding.modelId(),
                         "documentId", document.id(), "sourceVersion", document.sourceVersion(),
                         "chunkId", chunk.id(), "courseId", document.courseId(), "lessonId", document.lessonId(),
                         "part", part));
@@ -75,11 +82,11 @@ public final class CourseVectorIndex {
                 next.add(i + 1 < generations.size() ? generations.get(i).or(generations.get(i + 1)) : generations.get(i));
             generations = next;
         }
-        var filter = metadataKey("modelId").isEqualTo(BgeChineseEmbedding.MODEL_ID)
+        var filter = metadataKey("modelId").isEqualTo(embedding.modelId())
                 .and(metadataKey("courseId").isEqualTo(courseId))
                 .and(metadataKey("lessonId").isIn(readableLessonIds)).and(generations.get(0));
         var response = store.search(EmbeddingSearchRequest.builder().queryEmbedding(embedding.embedQuery(question))
-                .filter(filter).maxResults(limit * BgeChineseEmbedding.MAX_PARTS_PER_CHUNK).minScore(0.0).build());
+                .filter(filter).maxResults(limit * CourseEmbedding.MAX_PARTS_PER_CHUNK).minScore(0.0).build());
         List<KnowledgeSearchGateway.Hit> hits = new ArrayList<>();
         var seen = new HashSet<Long>();
         for (var match : response.matches()) {
@@ -95,14 +102,14 @@ public final class CourseVectorIndex {
     /** 旧任务只能删更老的代次，不能迟到删除新代次。 */
     public void removeOlderVersions(long documentId, long version) {
         if (documentId <= 0 || version <= 0) throw new IllegalArgumentException("Invalid projection identity");
-        store.removeAll(metadataKey("modelId").isEqualTo(BgeChineseEmbedding.MODEL_ID)
+        store.removeAll(metadataKey("modelId").isEqualTo(embedding.modelId())
                 .and(metadataKey("documentId").isEqualTo(documentId))
                 .and(metadataKey("sourceVersion").isLessThan(version)));
     }
 
     public void removeDocument(long documentId) {
         if (documentId <= 0) throw new IllegalArgumentException("Invalid projection identity");
-        store.removeAll(metadataKey("modelId").isEqualTo(BgeChineseEmbedding.MODEL_ID)
+        store.removeAll(metadataKey("modelId").isEqualTo(embedding.modelId())
                 .and(metadataKey("documentId").isEqualTo(documentId)));
     }
 }

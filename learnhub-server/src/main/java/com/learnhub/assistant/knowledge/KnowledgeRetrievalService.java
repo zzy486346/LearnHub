@@ -86,6 +86,10 @@ public class KnowledgeRetrievalService {
             semantic = vector.search(courseId, readable, question, 100);
             fused = ReciprocalRankFusion.fuse(bm25, semantic, 100);
         } catch (RuntimeException failure) {
+            // 远程Embedding受请求作用域控制；终止信号不能被误当成向量故障后继续检索/生成。
+            if (failure instanceof BusinessException business &&
+                    ("ASSISTANT_CANCELLED".equals(business.getCode())
+                            || "ASSISTANT_DEADLINE_EXCEEDED".equals(business.getCode()))) throw business;
             return new Candidates(bm25, "BM25_FALLBACK");
         }
         boolean candidateLimitReached = fused.size() == 100;

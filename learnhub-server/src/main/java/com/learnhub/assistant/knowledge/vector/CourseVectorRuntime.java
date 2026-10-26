@@ -17,17 +17,25 @@ public final class CourseVectorRuntime implements KnowledgeVectorSearch, AutoClo
     private final String url;
     private final String username;
     private final String password;
-    private BgeChineseEmbedding embedding;
+    private final java.util.function.Supplier<CourseEmbedding> embeddingFactory;
+    private CourseEmbedding embedding;
     private HikariDataSource pool;
     private CourseVectorIndex index;
     private boolean closed;
 
     public CourseVectorRuntime(VectorProjectionSync sync, boolean hybridEnabled, boolean syncEnabled,
                                String url, String username, String password) {
+        this(sync, hybridEnabled, syncEnabled, url, username, password, BgeChineseEmbedding::new);
+    }
+
+    public CourseVectorRuntime(VectorProjectionSync sync, boolean hybridEnabled, boolean syncEnabled,
+                               String url, String username, String password,
+                               java.util.function.Supplier<CourseEmbedding> embeddingFactory) {
         if (url == null || !url.startsWith("jdbc:postgresql://") || username == null || username.isBlank()
                 || password == null || password.isBlank()) throw new IllegalArgumentException("Vector local configuration required");
         this.sync = sync; this.hybridEnabled = hybridEnabled; this.syncEnabled = syncEnabled;
         this.url = url; this.username = username; this.password = password;
+        this.embeddingFactory = java.util.Objects.requireNonNull(embeddingFactory);
     }
 
     @Override public boolean hybridEnabled() { return hybridEnabled; }
@@ -52,7 +60,7 @@ public final class CourseVectorRuntime implements KnowledgeVectorSearch, AutoClo
     private synchronized CourseVectorIndex index() {
         if (closed) throw new IllegalStateException("Vector runtime closed");
         if (index == null) {
-            if (embedding == null) embedding = new BgeChineseEmbedding();
+            if (embedding == null) embedding = embeddingFactory.get();
             HikariConfig config = new HikariConfig();
             config.setJdbcUrl(url); config.setUsername(username); config.setPassword(password);
             config.setPoolName("learnhub-vector-private");
